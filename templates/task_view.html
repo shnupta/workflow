@@ -52,7 +52,7 @@
             hx-post="/tasks/{{.Task.ID}}/analyse-pr"
             hx-target="#pr-summary"
             hx-indicator="#pr-loading">
-            {{if .Task.PRSummary}}Re-analyse PR{{else}}Analyse PR{{end}}
+            {{if .Task.PRSummary}}Re-analyse{{else}}Analyse PR{{end}}
           </button>
         </div>
 
@@ -62,7 +62,7 @@
           {{if .Task.PRSummary}}
           <div class="pr-summary-content">{{.Task.PRSummary}}</div>
           {{else}}
-          <p class="empty">No analysis yet — click "Analyse PR" to get a summary.</p>
+          <p class="empty" id="pr-pending">Analysis in progress... <a href="" onclick="location.reload(); return false;">Refresh</a> once ready, or click Re-analyse above.</p>
           {{end}}
         </div>
       </div>

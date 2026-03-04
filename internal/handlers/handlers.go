@@ -120,7 +120,27 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+
+	// Kick off PR analysis in the background if a PR URL was provided
+	if t.PRURL != "" && h.cfg.AnthropicKey != "" {
+		go func() {
+			diff, err := h.fetchPRDiff(t.PRURL)
+			if err != nil {
+				log.Printf("auto PR analysis: fetch diff failed for %s: %v", t.PRURL, err)
+				return
+			}
+			summary, err := h.claudeSummarisePR(t.PRURL, diff)
+			if err != nil {
+				log.Printf("auto PR analysis: claude failed for %s: %v", t.PRURL, err)
+				return
+			}
+			if err := h.db.UpdatePRSummary(t.ID, summary); err != nil {
+				log.Printf("auto PR analysis: save failed for %s: %v", t.ID, err)
+			}
+		}()
+	}
+
+	http.Redirect(w, r, "/tasks/"+t.ID, http.StatusSeeOther)
 }
 
 func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
