@@ -2,16 +2,14 @@
 
 A local web app for managing work inflows as a lead/IC. Captures everything coming at you — PR reviews, deployments, docs, design discussions, chases, approvals — and routes them into a three-tier board (Today / This Week / Backlog) with a focus on what's blocking you vs what you're waiting on.
 
-Built to reduce context switching by giving you a single place to triage and batch similar work.
-
 ## Features
 
-- **Three-tier board** — Today, This Week, Backlog. Simple, manual, no auto-sorting.
-- **Work types** — PR Review, Deployment, Doc, Design, Coding, Timeline, Approval, Chase, Meeting, Misc. Cards are colour-coded by depth (deep focus / medium / shallow).
-- **Blocked on me vs them** — tasks waiting on someone else are visually dimmed so you know what you can actually act on.
-- **PR analysis** — paste a GitHub PR URL on any task, click Analyse, and Claude fetches the full diff and gives you a structured review brief: summary, key files to focus on, potential issues, suggestions. Output rendered as markdown.
-- **Configurable** — work types, tiers, and depth are all defined in `workflow.json`, auto-created with sensible defaults on first run.
-- **SQLite storage** — everything lives in a single local file, no external dependencies.
+- **Three-tier kanban board** — Today, This Week, Backlog. Drag cards between columns.
+- **Work types** — PR Review, Deployment, Doc, Design, Coding, Timeline, Approval, Chase, Meeting, Misc. Cards colour-coded by depth (deep / medium / shallow).
+- **Blocked on me vs them** — tasks waiting on someone else are visually dimmed.
+- **PR analysis** — paste a GitHub PR URL, click Analyse, and Claude fetches the full diff and returns a markdown-rendered review brief.
+- **Single config file** — everything (credentials, board structure) lives in `workflow.json`.
+- **SQLite storage** — one local file, no external services.
 
 ## Setup
 
@@ -21,30 +19,20 @@ cd workflow
 ./setup.sh
 ```
 
-Edit `.env` with your tokens. In fish shell:
+Edit `workflow.json` to add your API keys, then run:
 
-```fish
-set -x GITHUB_TOKEN (gh auth token)
-set -x ANTHROPIC_API_KEY sk-ant-...
+```bash
 ./workflow
 ```
 
-Or in bash/zsh:
-
-```bash
-source .env && ./workflow
-```
-
 Open [http://localhost:7070](http://localhost:7070).
-
-On first run, `workflow.json` is created in the working directory with default work types and tiers. Edit it to customise.
 
 ## Requirements
 
 - Go 1.22+
 - libsqlite3 (`brew install sqlite` on macOS, `apt install libsqlite3-dev` on Linux)
 
-## Options
+## CLI flags
 
 ```
 ./workflow [flags]
@@ -52,53 +40,54 @@ On first run, `workflow.json` is created in the working directory with default w
   -addr       Listen address (default: :7070)
   -db         SQLite database path (default: ./workflow.db)
   -templates  Template glob (default: ./templates/*.html)
-  -config     Config file path (default: ./workflow.json, created if absent)
+  -config     Config file path (default: ./workflow.json)
 ```
-
-## Environment variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `GITHUB_TOKEN` | For private repos | Personal access token with `repo` scope. Without it, only public repos work (60 req/hr limit). Get it with `gh auth token`. |
-| `ANTHROPIC_API_KEY` | For PR analysis | Your Anthropic API key. |
-| `CLAUDE_MODEL` | No | Model to use for PR analysis (default: `claude-opus-4-6`). Thinking is auto-enabled for `claude-opus-4-*` and `claude-3-7-*` models. |
-| `CLAUDE_BASE_URL` | No | Override the Claude API base URL (default: `https://api.anthropic.com`). Useful for proxies or API-compatible providers. |
 
 ## Configuration (`workflow.json`)
 
-Auto-created on first run. Edit to customise work types and tiers:
+Created automatically on first run. All settings live here — no `.env` file needed.
 
 ```json
 {
+  "github_token":    "",
+  "anthropic_key":   "",
+  "claude_model":    "claude-opus-4-6",
+  "claude_base_url": "https://api.anthropic.com",
   "tiers": [
     { "key": "today",     "label": "Today",     "order": 1 },
     { "key": "this_week", "label": "This Week",  "order": 2 },
     { "key": "backlog",   "label": "Backlog",    "order": 3 }
   ],
   "work_types": [
-    { "key": "pr_review",   "label": "PR Review",   "depth": "deep"    },
-    { "key": "coding",      "label": "Coding",      "depth": "deep"    },
-    { "key": "deployment",  "label": "Deployment",  "depth": "deep"    },
-    { "key": "design",      "label": "Design",      "depth": "deep"    },
-    { "key": "doc",         "label": "Doc",         "depth": "medium"  },
-    { "key": "timeline",    "label": "Timeline",    "depth": "medium"  },
-    { "key": "approval",    "label": "Approval",    "depth": "shallow" },
-    { "key": "chase",       "label": "Chase",       "depth": "shallow" },
-    { "key": "meeting",     "label": "Meeting",     "depth": "shallow" },
-    { "key": "misc",        "label": "Misc",        "depth": "shallow" }
+    { "key": "pr_review",  "label": "PR Review",  "depth": "deep"    },
+    { "key": "coding",     "label": "Coding",     "depth": "deep"    },
+    { "key": "deployment", "label": "Deployment", "depth": "deep"    },
+    { "key": "design",     "label": "Design",     "depth": "deep"    },
+    { "key": "doc",        "label": "Doc",        "depth": "medium"  },
+    { "key": "timeline",   "label": "Timeline",   "depth": "medium"  },
+    { "key": "approval",   "label": "Approval",   "depth": "shallow" },
+    { "key": "chase",      "label": "Chase",      "depth": "shallow" },
+    { "key": "meeting",    "label": "Meeting",    "depth": "shallow" },
+    { "key": "misc",       "label": "Misc",       "depth": "shallow" }
   ]
 }
 ```
 
-`depth` controls the card's left border colour: `deep` = purple, `medium` = amber, `shallow` = grey. Use this to batch your day — focus blocks for deep work, a single slot for shallow.
+| Field | Required | Description |
+|---|---|---|
+| `github_token` | For private repos | Personal access token with `repo` scope. Get it with `gh auth token`. Without it, only public repos work (60 req/hr). |
+| `anthropic_key` | For PR analysis | Your Anthropic API key. |
+| `claude_model` | No | Defaults to `claude-opus-4-6`. Extended thinking auto-enabled for `claude-opus-4-*` and `claude-3-7-*` models. |
+| `claude_base_url` | No | Defaults to `https://api.anthropic.com`. Override for proxies or API-compatible providers. |
+
+**`depth`** controls card border colour: `deep` = purple, `medium` = amber, `shallow` = grey.
 
 ## PR Analysis
 
-When a task has a PR URL set, the task view shows an **Analyse PR** button. This:
+On any task with a PR URL set, click **Analyse PR** to:
 
-1. Parses the owner/repo/number from the URL
-2. Fetches the full diff from the GitHub API (`Accept: application/vnd.github.v3.diff`)
-3. Sends it to Claude with a structured prompt
-4. Returns a markdown-rendered brief: summary, key files, potential issues, suggestions
+1. Fetch the full diff from the GitHub API
+2. Send it to Claude with a structured prompt
+3. Get back a markdown-rendered brief: summary, key files, potential issues, suggestions
 
-The summary is stored in the DB — click **Re-analyse** to refresh it.
+The result is stored in the DB — click **Re-analyse** to refresh.

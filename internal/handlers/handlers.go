@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -17,32 +16,13 @@ import (
 )
 
 type Handler struct {
-	db          *db.DB
-	cfg         *config.Config
-	templates   *template.Template
-	ghToken     string
-	claudeKey   string
-	claudeBase  string
-	claudeModel string
+	db        *db.DB
+	cfg       *config.Config
+	templates *template.Template
 }
 
 func New(d *db.DB, cfg *config.Config, tmplGlob string) (*Handler, error) {
-	claudeBase := os.Getenv("CLAUDE_BASE_URL")
-	if claudeBase == "" {
-		claudeBase = "https://api.anthropic.com"
-	}
-	claudeModel := os.Getenv("CLAUDE_MODEL")
-	if claudeModel == "" {
-		claudeModel = "claude-opus-4-6"
-	}
-	h := &Handler{
-		db:          d,
-		cfg:         cfg,
-		ghToken:     os.Getenv("GITHUB_TOKEN"),
-		claudeKey:   os.Getenv("ANTHROPIC_API_KEY"),
-		claudeBase:  strings.TrimRight(claudeBase, "/"),
-		claudeModel: claudeModel,
-	}
+	h := &Handler{db: d, cfg: cfg}
 
 	funcMap := template.FuncMap{
 		"workTypeDepth": cfg.WorkTypeDepth,
@@ -89,13 +69,11 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Group by tier key
 	grouped := make(map[string][]*models.Task)
 	for _, t := range tasks {
 		grouped[t.Tier] = append(grouped[t.Tier], t)
 	}
 
-	// Build ordered tier list for the template
 	tiers := make([]map[string]interface{}, len(h.cfg.Tiers))
 	for i, tier := range h.cfg.Tiers {
 		tiers[i] = map[string]interface{}{
@@ -108,7 +86,6 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":     tiers,
 		"WorkTypes": h.cfg.WorkTypes,
-		"Config":    h.cfg,
 	})
 }
 
@@ -214,11 +191,6 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tier := r.FormValue("tier")
-	if tier == "" {
-		http.Error(w, "tier required", 400)
-		return
-	}
-	// Validate tier exists in config
 	if h.cfg.TierByKey(tier) == nil {
 		http.Error(w, "unknown tier", 400)
 		return
@@ -255,6 +227,10 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no PR URL on this task", 400)
 		return
 	}
+	if h.cfg.AnthropicKey == "" {
+		http.Error(w, "anthropic_key not set in workflow.json", 400)
+		return
+	}
 
 	diff, err := h.fetchPRDiff(t.PRURL)
 	if err != nil {
@@ -278,7 +254,6 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) fetchPRDiff(prURL string) (string, error) {
-	// Parse https://github.com/owner/repo/pull/number
 	prURL = strings.TrimRight(prURL, "/")
 	parts := strings.Split(strings.TrimPrefix(prURL, "https://github.com/"), "/")
 	if len(parts) < 4 || parts[2] != "pull" {
@@ -290,8 +265,8 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	req.Header.Set("Accept", "application/vnd.github.v3.diff")
 	req.Header.Set("User-Agent", "workflow-app")
-	if h.ghToken != "" {
-		req.Header.Set("Authorization", "Bearer "+h.ghToken)
+	if h.cfg.GitHubToken != "" {
+		req.Header.Set("Authorization", "Bearer "+h.cfg.GitHubToken)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -310,16 +285,11 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	return string(body), nil
 }
 
-// isThinkingModel returns true for models that support extended thinking.
 func isThinkingModel(model string) bool {
 	return strings.Contains(model, "claude-3-7") || strings.Contains(model, "claude-opus-4")
 }
 
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
-	if h.claudeKey == "" {
-		return "", fmt.Errorf("ANTHROPIC_API_KEY not set")
-	}
-
 	prompt := fmt.Sprintf(`You are a senior engineer helping review a pull request. Analyse this PR diff and provide a concise, structured review brief.
 
 PR URL: %s
@@ -342,26 +312,26 @@ DIFF:
 %s`, prURL, diff)
 
 	payload := map[string]interface{}{
-		"model":      h.claudeModel,
+		"model":      h.cfg.ClaudeModel,
 		"max_tokens": 24000,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
 	}
 
-	// Enable extended thinking for supported models
-	if isThinkingModel(h.claudeModel) {
+	if isThinkingModel(h.cfg.ClaudeModel) {
 		payload["thinking"] = map[string]interface{}{
-			"type":            "enabled",
-			"budget_tokens":   16000,
+			"type":         "enabled",
+			"budget_tokens": 16000,
 		}
 	}
 
 	body, _ := json.Marshal(payload)
+	baseURL := strings.TrimRight(h.cfg.ClaudeBaseURL, "/")
 
-	req, _ := http.NewRequest("POST", h.claudeBase+"/v1/messages", strings.NewReader(string(body)))
+	req, _ := http.NewRequest("POST", baseURL+"/v1/messages", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", h.claudeKey)
+	req.Header.Set("x-api-key", h.cfg.AnthropicKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -385,7 +355,6 @@ DIFF:
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Claude API error: %s", result.Error.Message)
 	}
-	// Return only text blocks (skip thinking blocks)
 	var parts []string
 	for _, block := range result.Content {
 		if block.Type == "text" && block.Text != "" {
@@ -418,5 +387,3 @@ func timeAgo(t time.Time) string {
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
 }
-
-

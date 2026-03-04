@@ -14,7 +14,7 @@ func main() {
 	addr       := flag.String("addr", ":7070", "listen address")
 	dbPath     := flag.String("db", "./workflow.db", "sqlite database path")
 	tmplPath   := flag.String("templates", "./templates/*.html", "template glob")
-	configPath := flag.String("config", "./workflow.json", "config file path (created with defaults if absent)")
+	configPath := flag.String("config", "./workflow.json", "config file (created with defaults if absent)")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)

@@ -16,15 +16,26 @@ type WorkType struct {
 type Tier struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
-	Order int    `json:"order"` // lower = higher priority, used for board column order
+	Order int    `json:"order"`
 }
 
 type Config struct {
+	// API credentials
+	GitHubToken   string `json:"github_token"`
+	AnthropicKey  string `json:"anthropic_key"`
+	ClaudeModel   string `json:"claude_model"`
+	ClaudeBaseURL string `json:"claude_base_url"`
+
+	// Board config
 	WorkTypes []WorkType `json:"work_types"`
 	Tiers     []Tier     `json:"tiers"`
 }
 
 var Default = Config{
+	GitHubToken:   "",
+	AnthropicKey:  "",
+	ClaudeModel:   "claude-opus-4-6",
+	ClaudeBaseURL: "https://api.anthropic.com",
 	Tiers: []Tier{
 		{Key: "today", Label: "Today", Order: 1},
 		{Key: "this_week", Label: "This Week", Order: 2},
@@ -44,14 +55,14 @@ var Default = Config{
 	},
 }
 
-// Load reads config from path. If the file doesn't exist, it writes the
-// default config there first, then returns it.
+// Load reads config from path. If the file doesn't exist, writes the default
+// config there (with empty credentials) and returns it.
 func Load(path string) (*Config, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := writeDefault(path); err != nil {
+		if err := write(path, &Default); err != nil {
 			return nil, fmt.Errorf("writing default config: %w", err)
 		}
-		fmt.Printf("Created default config at %s\n", path)
+		fmt.Printf("Created default config at %s — add your API keys there\n", path)
 		cfg := Default
 		return &cfg, nil
 	}
@@ -67,6 +78,14 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 
+	// Apply defaults for optional fields
+	if cfg.ClaudeModel == "" {
+		cfg.ClaudeModel = "claude-opus-4-6"
+	}
+	if cfg.ClaudeBaseURL == "" {
+		cfg.ClaudeBaseURL = "https://api.anthropic.com"
+	}
+
 	if err := validate(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
@@ -74,7 +93,7 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func writeDefault(path string) error {
+func write(path string, cfg *Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -85,7 +104,7 @@ func writeDefault(path string) error {
 	defer f.Close()
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
-	return enc.Encode(Default)
+	return enc.Encode(cfg)
 }
 
 func validate(cfg *Config) error {
@@ -103,7 +122,6 @@ func validate(cfg *Config) error {
 	return nil
 }
 
-// TierKeys returns all tier keys in order.
 func (c *Config) TierKeys() []string {
 	keys := make([]string, len(c.Tiers))
 	for i, t := range c.Tiers {
@@ -112,7 +130,6 @@ func (c *Config) TierKeys() []string {
 	return keys
 }
 
-// TierByKey finds a tier by key.
 func (c *Config) TierByKey(key string) *Tier {
 	for i := range c.Tiers {
 		if c.Tiers[i].Key == key {
@@ -122,7 +139,6 @@ func (c *Config) TierByKey(key string) *Tier {
 	return nil
 }
 
-// WorkTypeByKey finds a work type by key.
 func (c *Config) WorkTypeByKey(key string) *WorkType {
 	for i := range c.WorkTypes {
 		if c.WorkTypes[i].Key == key {
@@ -132,7 +148,6 @@ func (c *Config) WorkTypeByKey(key string) *WorkType {
 	return nil
 }
 
-// WorkTypeDepth returns the depth for a given work type key, defaulting to medium.
 func (c *Config) WorkTypeDepth(key string) string {
 	if wt := c.WorkTypeByKey(key); wt != nil {
 		return wt.Depth
