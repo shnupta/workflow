@@ -29,7 +29,7 @@ func main() {
 	h.Register(mux)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
 
-	log.Printf("flow listening on %s", *addr)
+	log.Printf("workflow listening on %s", *addr)
 	if err := http.ListenAndServe(*addr, mux); err != nil {
 		log.Fatal(err)
 	}
