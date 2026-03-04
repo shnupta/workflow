@@ -50,6 +50,12 @@ type Config struct {
 	ClaudeModel   string `json:"claude_model"`
 	ClaudeBaseURL string `json:"claude_base_url"`
 
+	// ClaudeMode controls how PR analysis is run:
+	//   "api"   — call the Anthropic API directly (requires anthropic_key)
+	//   "local" — run `claude -p --dangerously-skip-permissions --output-format json`
+	//             Uses the local Claude Code CLI; no API key needed.
+	ClaudeMode string `json:"claude_mode"`
+
 	// PR analysis prompt — use {{.PRURL}} and {{.Diff}} as placeholders
 	PRPrompt string `json:"pr_prompt"`
 
@@ -63,6 +69,7 @@ var Default = Config{
 	AnthropicKey:  "",
 	ClaudeModel:   "claude-opus-4-6",
 	ClaudeBaseURL: "https://api.anthropic.com",
+	ClaudeMode:    "api",
 	PRPrompt:      DefaultPRPrompt,
 	Tiers: []Tier{
 		{Key: "today", Label: "Today", Order: 1},
@@ -174,6 +181,9 @@ func loadFile(path string) (*Config, time.Time, error) {
 	}
 	if cfg.PRPrompt == "" {
 		cfg.PRPrompt = DefaultPRPrompt
+	}
+	if cfg.ClaudeMode == "" {
+		cfg.ClaudeMode = "api"
 	}
 
 	if err := validate(&cfg); err != nil {

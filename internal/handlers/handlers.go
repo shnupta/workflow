@@ -1,12 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -317,6 +319,52 @@ func isThinkingModel(model string) bool {
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
 	promptTmpl := h.cfg().PRPrompt
 	prompt := strings.NewReplacer("{{.PRURL}}", prURL, "{{.Diff}}", diff).Replace(promptTmpl)
+
+	if h.cfg().ClaudeMode == "local" {
+		return h.claudeSummarisePRLocal(prompt)
+	}
+	return h.claudeSummarisePRAPI(prompt)
+}
+
+func (h *Handler) claudeSummarisePRLocal(prompt string) (string, error) {
+	// Locate claude binary
+	claudeBin, err := exec.LookPath("claude")
+	if err != nil {
+		return "", fmt.Errorf("claude CLI not found in PATH: %w", err)
+	}
+
+	cmd := exec.Command(claudeBin,
+		"-p", prompt,
+		"--output-format", "json",
+		"--dangerously-skip-permissions",
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("claude CLI error: %w\nstderr: %s", err, stderr.String())
+	}
+
+	// Claude JSON output: {"type":"result","subtype":"success","result":"...","session_id":"..."}
+	var out struct {
+		Result string `json:"result"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
+		return "", fmt.Errorf("claude CLI: failed to parse JSON output: %w\nraw: %s", err, stdout.String())
+	}
+	if out.Error != "" {
+		return "", fmt.Errorf("claude CLI returned error: %s", out.Error)
+	}
+	if out.Result == "" {
+		return "", fmt.Errorf("claude CLI returned empty result\nraw: %s", stdout.String())
+	}
+	return out.Result, nil
+}
+
+func (h *Handler) claudeSummarisePRAPI(prompt string) (string, error) {
 
 	payload := map[string]interface{}{
 		"model":      h.cfg().ClaudeModel,
