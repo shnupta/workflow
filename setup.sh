@@ -19,16 +19,9 @@ echo "==> Building..."
 go build -o workflow ./cmd/workflow
 echo "    Built ./workflow"
 
-# Config
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "    Created .env — add your GITHUB_TOKEN and ANTHROPIC_API_KEY"
-else
-  echo "    .env already exists"
-fi
-
 echo ""
 echo "Done. To start:"
-echo "  source .env && ./workflow"
+echo "  ./workflow"
 echo ""
-echo "Then open http://localhost:7070"
+echo "workflow.json will be created on first run — add your github_token and anthropic_key there."
+echo "Open http://localhost:7070"
