@@ -402,3 +402,12 @@ select option { background: var(--surface2); }
   outline: 2px dashed var(--accent-dim);
   outline-offset: -4px;
 }
+
+/* ── Drop indicator line ── */
+.drop-indicator {
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin: 2px 0;
+  pointer-events: none;
+}

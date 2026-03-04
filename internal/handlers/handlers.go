@@ -195,13 +195,8 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown tier", 400)
 		return
 	}
-	t, err := h.db.GetTask(id)
-	if err != nil {
-		http.Error(w, "not found", 404)
-		return
-	}
-	t.Tier = tier
-	if err := h.db.UpdateTask(t); err != nil {
+	beforeID := r.FormValue("before_id") // empty = append to end
+	if err := h.db.MoveTask(id, tier, beforeID); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}

@@ -16,13 +16,13 @@
   <main>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
-      <div class="tier-col tier-{{.Key}}"
-           data-tier="{{.Key}}"
-           ondragover="onDragOver(event)"
-           ondrop="onDrop(event)"
-           ondragleave="onDragLeave(event)">
+      <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}">
         <h2 class="tier-heading">{{.Label}} <span class="count">{{len .Tasks}}</span></h2>
-        <div class="task-list">
+        <div class="task-list"
+             data-tier="{{.Key}}"
+             ondragover="onDragOver(event)"
+             ondrop="onDrop(event)"
+             ondragleave="onDragLeave(event)">
           {{range .Tasks}}{{template "task_card" .}}{{end}}
           {{if not .Tasks}}<p class="empty">Nothing here</p>{{end}}
         </div>
@@ -32,6 +32,15 @@
   </main>
 <script>
   let dragging = null;
+  let indicator = null;
+
+  function getIndicator() {
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'drop-indicator';
+    }
+    return indicator;
+  }
 
   function onDragStart(e) {
     dragging = e.currentTarget;
@@ -42,37 +51,67 @@
 
   function onDragEnd(e) {
     if (dragging) dragging.classList.remove('dragging');
-    document.querySelectorAll('.tier-col').forEach(c => c.classList.remove('drag-over'));
+    getIndicator().remove();
+    document.querySelectorAll('.task-list').forEach(l => l.classList.remove('drag-over'));
     dragging = null;
   }
 
   function onDragOver(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    e.currentTarget.classList.add('drag-over');
+    const list = e.currentTarget;
+    list.classList.add('drag-over');
+
+    const ind = getIndicator();
+    const after = getDragAfterElement(list, e.clientY);
+    if (after == null) {
+      list.appendChild(ind);
+    } else {
+      list.insertBefore(ind, after);
+    }
   }
 
   function onDragLeave(e) {
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      e.currentTarget.classList.remove('drag-over');
+    const list = e.currentTarget;
+    if (!list.contains(e.relatedTarget)) {
+      list.classList.remove('drag-over');
+      getIndicator().remove();
     }
   }
 
   function onDrop(e) {
     e.preventDefault();
-    const col = e.currentTarget;
-    col.classList.remove('drag-over');
+    const list = e.currentTarget;
+    list.classList.remove('drag-over');
+
     const id = e.dataTransfer.getData('text/plain');
-    const tier = col.dataset.tier;
-    if (!id || !tier) return;
+    const tier = list.dataset.tier;
+    if (!id || !tier) { getIndicator().remove(); return; }
+
+    const after = getDragAfterElement(list, e.clientY);
+    const beforeID = after ? after.dataset.id : '';
+
+    getIndicator().remove();
 
     fetch(`/tasks/${id}/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `tier=${encodeURIComponent(tier)}`
-    }).then(r => {
-      if (r.ok) window.location.reload();
-    });
+      body: `tier=${encodeURIComponent(tier)}&before_id=${encodeURIComponent(beforeID)}`
+    }).then(r => { if (r.ok) window.location.reload(); });
+  }
+
+  // Returns the card element that the dragged card should be inserted before,
+  // based on the cursor's Y position within the list.
+  function getDragAfterElement(list, y) {
+    const cards = [...list.querySelectorAll('.task-card:not(.dragging)')];
+    return cards.reduce((closest, card) => {
+      const box = card.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: card };
+      }
+      return closest;
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 </script>
 </body>

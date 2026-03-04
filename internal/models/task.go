@@ -13,6 +13,7 @@ type Task struct {
 	PRSummary   string     `db:"pr_summary"`
 	Link        string     `db:"link"`
 	Done        bool       `db:"done"`
+	Position    int        `db:"position"` // sort order within tier
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
 	DoneAt      *time.Time `db:"done_at"`
