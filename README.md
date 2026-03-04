@@ -53,6 +53,8 @@ Created automatically on first run. All settings live here — no `.env` file ne
   "anthropic_key":   "",
   "claude_model":    "claude-opus-4-6",
   "claude_base_url": "https://api.anthropic.com",
+  "claude_mode":     "api",
+  "pr_prompt":       "... see default below ...",
   "tiers": [
     { "key": "today",     "label": "Today",     "order": 1 },
     { "key": "this_week", "label": "This Week",  "order": 2 },
@@ -79,6 +81,8 @@ Created automatically on first run. All settings live here — no `.env` file ne
 | `anthropic_key` | For PR analysis | Your Anthropic API key. |
 | `claude_model` | No | Defaults to `claude-opus-4-6`. Extended thinking auto-enabled for `claude-opus-4-*` and `claude-3-7-*` models. |
 | `claude_base_url` | No | Defaults to `https://api.anthropic.com`. Override for proxies or API-compatible providers. |
+| `claude_mode` | No | `"api"` (default) calls the Anthropic API directly. `"local"` runs the `claude` CLI with `--dangerously-skip-permissions` — uses your local Claude Code install, no `anthropic_key` needed. |
+| `pr_prompt` | No | The prompt sent to Claude for PR analysis. Use `{{.PRURL}}` and `{{.Diff}}` as placeholders. Defaults to a structured review brief (summary, key files, potential issues, suggestions). Config is hot-reloaded — edit and save, no restart needed. |
 
 **`depth`** controls card border colour: `deep` = purple, `medium` = amber, `shallow` = grey.
 
