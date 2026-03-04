@@ -33,7 +33,7 @@ func New(d *db.DB, cfg *config.Config, tmplGlob string) (*Handler, error) {
 	}
 	claudeModel := os.Getenv("CLAUDE_MODEL")
 	if claudeModel == "" {
-		claudeModel = "claude-opus-4-5"
+		claudeModel = "claude-opus-4-6"
 	}
 	h := &Handler{
 		db:          d,
