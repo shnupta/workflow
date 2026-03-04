@@ -60,6 +60,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/move", h.moveTask)
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/analyse-pr", h.analysePR)
+	mux.HandleFunc("GET /tasks/{id}/pr-summary", h.getPRSummary)
 }
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
@@ -380,6 +381,24 @@ DIFF:
 		return "", fmt.Errorf("empty response from Claude")
 	}
 	return strings.Join(parts, "\n\n"), nil
+}
+
+// getPRSummary returns the current PR summary as a JSON payload.
+// Returns {"ready": false} if analysis is still pending, {"ready": true, "html": "..."} when done.
+func (h *Handler) getPRSummary(w http.ResponseWriter, r *http.Request) {
+	t, err := h.db.GetTask(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if t.PRSummary == "" {
+		fmt.Fprintf(w, `{"ready":false}`)
+		return
+	}
+	// Escape for JSON string embedding
+	b, _ := json.Marshal(t.PRSummary)
+	fmt.Fprintf(w, `{"ready":true,"text":%s}`, string(b))
 }
 
 func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {

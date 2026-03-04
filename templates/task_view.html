@@ -51,7 +51,8 @@
           <button class="btn btn-ghost"
             hx-post="/tasks/{{.Task.ID}}/analyse-pr"
             hx-target="#pr-summary"
-            hx-indicator="#pr-loading">
+            hx-indicator="#pr-loading"
+            hx-on::after-request="onManualAnalysis()">
             {{if .Task.PRSummary}}Re-analyse{{else}}Analyse PR{{end}}
           </button>
         </div>
@@ -62,7 +63,9 @@
           {{if .Task.PRSummary}}
           <div class="pr-summary-content">{{.Task.PRSummary}}</div>
           {{else}}
-          <p class="empty" id="pr-pending">Analysis in progress... <a href="" onclick="location.reload(); return false;">Refresh</a> once ready, or click Re-analyse above.</p>
+          <div class="pr-pending">
+            <span class="spinner"></span> Analysing PR with Claude...
+          </div>
           {{end}}
         </div>
       </div>
@@ -72,14 +75,51 @@
     </div>
   </main>
 <script>
+  const taskID = {{printf "%q" .Task.ID}};
+  const hasSummary = {{if .Task.PRSummary}}true{{else}}false{{end}};
+
   function renderMarkdown() {
     document.querySelectorAll('.pr-summary-content').forEach(el => {
-      el.innerHTML = marked.parse(el.textContent);
+      const raw = el.textContent;
+      el.innerHTML = marked.parse(raw);
     });
   }
-  // Render on load
-  document.addEventListener('DOMContentLoaded', renderMarkdown);
-  // Re-render after HTMX swaps in new content
+
+  function showSummary(text) {
+    const container = document.getElementById('pr-summary');
+    container.innerHTML = '<div class="pr-summary-content"></div>';
+    container.querySelector('.pr-summary-content').textContent = text;
+    renderMarkdown();
+  }
+
+  function onManualAnalysis() {
+    // After HTMX swaps in the raw text, render as markdown
+    renderMarkdown();
+  }
+
+  // Auto-poll if no summary yet
+  let pollTimer = null;
+  function startPolling() {
+    pollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`/tasks/${taskID}/pr-summary`);
+        const data = await r.json();
+        if (data.ready) {
+          clearInterval(pollTimer);
+          showSummary(data.text);
+        }
+      } catch(e) {
+        // network error — keep polling
+      }
+    }, 3000);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMarkdown();
+    if (!hasSummary) startPolling();
+  });
+
+  // Re-render after HTMX swaps (manual re-analyse)
   document.addEventListener('htmx:afterSwap', renderMarkdown);
 </script>
 </body>
