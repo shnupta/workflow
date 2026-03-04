@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>workflow — {{.Task.Title}}</title>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -70,6 +71,17 @@
       <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
     </div>
   </main>
+<script>
+  function renderMarkdown() {
+    document.querySelectorAll('.pr-summary-content').forEach(el => {
+      el.innerHTML = marked.parse(el.textContent);
+    });
+  }
+  // Render on load
+  document.addEventListener('DOMContentLoaded', renderMarkdown);
+  // Re-render after HTMX swaps in new content
+  document.addEventListener('htmx:afterSwap', renderMarkdown);
+</script>
 </body>
 </html>
 {{end}}
