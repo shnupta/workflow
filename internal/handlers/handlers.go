@@ -17,19 +17,31 @@ import (
 )
 
 type Handler struct {
-	db        *db.DB
-	cfg       *config.Config
-	templates *template.Template
-	ghToken   string
-	claudeKey string
+	db          *db.DB
+	cfg         *config.Config
+	templates   *template.Template
+	ghToken     string
+	claudeKey   string
+	claudeBase  string
+	claudeModel string
 }
 
 func New(d *db.DB, cfg *config.Config, tmplGlob string) (*Handler, error) {
+	claudeBase := os.Getenv("CLAUDE_BASE_URL")
+	if claudeBase == "" {
+		claudeBase = "https://api.anthropic.com"
+	}
+	claudeModel := os.Getenv("CLAUDE_MODEL")
+	if claudeModel == "" {
+		claudeModel = "claude-opus-4-5"
+	}
 	h := &Handler{
-		db:        d,
-		cfg:       cfg,
-		ghToken:   os.Getenv("GITHUB_TOKEN"),
-		claudeKey: os.Getenv("ANTHROPIC_API_KEY"),
+		db:          d,
+		cfg:         cfg,
+		ghToken:     os.Getenv("GITHUB_TOKEN"),
+		claudeKey:   os.Getenv("ANTHROPIC_API_KEY"),
+		claudeBase:  strings.TrimRight(claudeBase, "/"),
+		claudeModel: claudeModel,
 	}
 
 	funcMap := template.FuncMap{
@@ -268,6 +280,11 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	return string(body), nil
 }
 
+// isThinkingModel returns true for models that support extended thinking.
+func isThinkingModel(model string) bool {
+	return strings.Contains(model, "claude-3-7") || strings.Contains(model, "claude-opus-4")
+}
+
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
 	if h.claudeKey == "" {
 		return "", fmt.Errorf("ANTHROPIC_API_KEY not set")
@@ -295,15 +312,24 @@ DIFF:
 %s`, prURL, diff)
 
 	payload := map[string]interface{}{
-		"model":      "claude-opus-4-5",
-		"max_tokens": 1500,
+		"model":      h.claudeModel,
+		"max_tokens": 24000,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
 	}
+
+	// Enable extended thinking for supported models
+	if isThinkingModel(h.claudeModel) {
+		payload["thinking"] = map[string]interface{}{
+			"type":            "enabled",
+			"budget_tokens":   16000,
+		}
+	}
+
 	body, _ := json.Marshal(payload)
 
-	req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", strings.NewReader(string(body)))
+	req, _ := http.NewRequest("POST", h.claudeBase+"/v1/messages", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", h.claudeKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
@@ -316,6 +342,7 @@ DIFF:
 
 	var result struct {
 		Content []struct {
+			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
 		Error struct {
@@ -328,10 +355,17 @@ DIFF:
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Claude API error: %s", result.Error.Message)
 	}
-	if len(result.Content) == 0 {
+	// Return only text blocks (skip thinking blocks)
+	var parts []string
+	for _, block := range result.Content {
+		if block.Type == "text" && block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	if len(parts) == 0 {
 		return "", fmt.Errorf("empty response from Claude")
 	}
-	return result.Content[0].Text, nil
+	return strings.Join(parts, "\n\n"), nil
 }
 
 func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {
