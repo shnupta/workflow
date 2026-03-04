@@ -11,33 +11,50 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
 	"github.com/shnupta/workflow/internal/models"
 )
 
 type Handler struct {
 	db        *db.DB
+	cfg       *config.Config
 	templates *template.Template
 	ghToken   string
 	claudeKey string
 }
 
-func New(d *db.DB, tmplGlob string) (*Handler, error) {
-	funcMap := template.FuncMap{
-		"workTypeDepth": models.WorkTypeDepth,
-		"upper":         strings.ToUpper,
-		"timeAgo":       timeAgo,
+func New(d *db.DB, cfg *config.Config, tmplGlob string) (*Handler, error) {
+	h := &Handler{
+		db:        d,
+		cfg:       cfg,
+		ghToken:   os.Getenv("GITHUB_TOKEN"),
+		claudeKey: os.Getenv("ANTHROPIC_API_KEY"),
 	}
+
+	funcMap := template.FuncMap{
+		"workTypeDepth": cfg.WorkTypeDepth,
+		"timeAgo":       timeAgo,
+		"workTypeLabel": func(key string) string {
+			if wt := cfg.WorkTypeByKey(key); wt != nil {
+				return wt.Label
+			}
+			return key
+		},
+		"tierLabel": func(key string) string {
+			if t := cfg.TierByKey(key); t != nil {
+				return t.Label
+			}
+			return key
+		},
+	}
+
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{
-		db:        d,
-		templates: tmpl,
-		ghToken:   os.Getenv("GITHUB_TOKEN"),
-		claudeKey: os.Getenv("ANTHROPIC_API_KEY"),
-	}, nil
+	h.templates = tmpl
+	return h, nil
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -53,40 +70,46 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
-	tasks, err := h.db.ListTasks(false)
+	tasks, err := h.db.ListTasks(false, h.cfg)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	// Group by tier
-	grouped := map[models.Tier][]*models.Task{
-		models.TierToday:    {},
-		models.TierThisWeek: {},
-		models.TierBacklog:  {},
-	}
+	// Group by tier key
+	grouped := make(map[string][]*models.Task)
 	for _, t := range tasks {
 		grouped[t.Tier] = append(grouped[t.Tier], t)
 	}
 
-	data := map[string]interface{}{
-		"Today":     grouped[models.TierToday],
-		"ThisWeek":  grouped[models.TierThisWeek],
-		"Backlog":   grouped[models.TierBacklog],
-		"AllTasks":  tasks,
-		"WorkTypes": models.AllWorkTypes(),
-		"Tiers":     models.AllTiers(),
+	// Build ordered tier list for the template
+	tiers := make([]map[string]interface{}, len(h.cfg.Tiers))
+	for i, tier := range h.cfg.Tiers {
+		tiers[i] = map[string]interface{}{
+			"Key":   tier.Key,
+			"Label": tier.Label,
+			"Tasks": grouped[tier.Key],
+		}
 	}
-	h.render(w, "index.html", data)
+
+	h.render(w, "index.html", map[string]interface{}{
+		"Tiers":     tiers,
+		"WorkTypes": h.cfg.WorkTypes,
+		"Config":    h.cfg,
+	})
 }
 
 func (h *Handler) newTaskForm(w http.ResponseWriter, r *http.Request) {
-	data := map[string]interface{}{
-		"WorkTypes": models.AllWorkTypes(),
-		"Tiers":     models.AllTiers(),
-		"Task":      &models.Task{Tier: models.TierToday, Direction: models.DirectionBlockedOnMe},
+	defaultTier := ""
+	if len(h.cfg.Tiers) > 0 {
+		defaultTier = h.cfg.Tiers[0].Key
 	}
-	h.render(w, "task_form.html", data)
+	h.render(w, "task_form.html", map[string]interface{}{
+		"WorkTypes": h.cfg.WorkTypes,
+		"Tiers":     h.cfg.Tiers,
+		"Task":      &models.Task{Tier: defaultTier, Direction: "blocked_on_me"},
+		"Edit":      false,
+	})
 }
 
 func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
@@ -97,9 +120,9 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	t := &models.Task{
 		Title:       r.FormValue("title"),
 		Description: r.FormValue("description"),
-		WorkType:    models.WorkType(r.FormValue("work_type")),
-		Tier:        models.Tier(r.FormValue("tier")),
-		Direction:   models.Direction(r.FormValue("direction")),
+		WorkType:    r.FormValue("work_type"),
+		Tier:        r.FormValue("tier"),
+		Direction:   r.FormValue("direction"),
 		PRURL:       r.FormValue("pr_url"),
 		Link:        r.FormValue("link"),
 	}
@@ -117,7 +140,10 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	h.render(w, "task_view.html", map[string]interface{}{"Task": t})
+	h.render(w, "task_view.html", map[string]interface{}{
+		"Task":   t,
+		"Config": h.cfg,
+	})
 }
 
 func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
@@ -127,13 +153,12 @@ func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", 404)
 		return
 	}
-	data := map[string]interface{}{
-		"WorkTypes": models.AllWorkTypes(),
-		"Tiers":     models.AllTiers(),
+	h.render(w, "task_form.html", map[string]interface{}{
+		"WorkTypes": h.cfg.WorkTypes,
+		"Tiers":     h.cfg.Tiers,
 		"Task":      t,
 		"Edit":      true,
-	}
-	h.render(w, "task_form.html", data)
+	})
 }
 
 func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
@@ -149,9 +174,9 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t.Title = r.FormValue("title")
 	t.Description = r.FormValue("description")
-	t.WorkType = models.WorkType(r.FormValue("work_type"))
-	t.Tier = models.Tier(r.FormValue("tier"))
-	t.Direction = models.Direction(r.FormValue("direction"))
+	t.WorkType = r.FormValue("work_type")
+	t.Tier = r.FormValue("tier")
+	t.Direction = r.FormValue("direction")
 	t.PRURL = r.FormValue("pr_url")
 	t.Link = r.FormValue("link")
 	if err := h.db.UpdateTask(t); err != nil {
@@ -162,8 +187,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := h.db.MarkDone(id); err != nil {
+	if err := h.db.MarkDone(r.PathValue("id")); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -171,8 +195,7 @@ func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := h.db.DeleteTask(id); err != nil {
+	if err := h.db.DeleteTask(r.PathValue("id")); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
@@ -187,13 +210,13 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if t.PRURL == "" {
-		http.Error(w, "no PR URL", 400)
+		http.Error(w, "no PR URL on this task", 400)
 		return
 	}
 
 	diff, err := h.fetchPRDiff(t.PRURL)
 	if err != nil {
-		http.Error(w, "failed to fetch PR: "+err.Error(), 500)
+		http.Error(w, "failed to fetch PR diff: "+err.Error(), 500)
 		return
 	}
 
@@ -208,25 +231,23 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return just the summary fragment for HTMX
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprintf(w, `<div class="pr-summary-content">%s</div>`, template.HTMLEscapeString(summary))
 }
 
-// fetchPRDiff fetches the PR diff from GitHub API
 func (h *Handler) fetchPRDiff(prURL string) (string, error) {
-	// Parse github.com/owner/repo/pull/number
+	// Parse https://github.com/owner/repo/pull/number
 	prURL = strings.TrimRight(prURL, "/")
 	parts := strings.Split(strings.TrimPrefix(prURL, "https://github.com/"), "/")
-	if len(parts) < 4 {
-		return "", fmt.Errorf("invalid GitHub PR URL: %s", prURL)
+	if len(parts) < 4 || parts[2] != "pull" {
+		return "", fmt.Errorf("invalid GitHub PR URL — expected https://github.com/owner/repo/pull/number")
 	}
 	owner, repo, number := parts[0], parts[1], parts[3]
 
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%s", owner, repo, number)
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	req.Header.Set("Accept", "application/vnd.github.v3.diff")
-	req.Header.Set("User-Agent", "flow-app")
+	req.Header.Set("User-Agent", "workflow-app")
 	if h.ghToken != "" {
 		req.Header.Set("Authorization", "Bearer "+h.ghToken)
 	}
@@ -247,7 +268,6 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	return string(body), nil
 }
 
-// claudeSummarisePR sends the diff to Claude and returns a structured summary
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
 	if h.claudeKey == "" {
 		return "", fmt.Errorf("ANTHROPIC_API_KEY not set")
@@ -265,7 +285,7 @@ Format your response as:
 List the most important files/areas with a one-line note on why.
 
 ## Potential issues
-Any bugs, logic errors, security concerns, or missing edge cases you spot. Be specific with line references if possible.
+Any bugs, logic errors, security concerns, or missing edge cases you spot. Be specific with line references where possible.
 
 ## Suggestions
 Minor improvements, style notes, or things worth discussing.
@@ -276,7 +296,7 @@ DIFF:
 
 	payload := map[string]interface{}{
 		"model":      "claude-opus-4-5",
-		"max_tokens": 1024,
+		"max_tokens": 1500,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
@@ -334,3 +354,5 @@ func timeAgo(t time.Time) string {
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
 }
+
+

@@ -5,22 +5,29 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
 	"github.com/shnupta/workflow/internal/handlers"
 )
 
 func main() {
-	addr := flag.String("addr", ":7070", "listen address")
-	dbPath := flag.String("db", "./workflow.db", "sqlite database path")
-	tmplPath := flag.String("templates", "./templates/*.html", "template glob")
+	addr       := flag.String("addr", ":7070", "listen address")
+	dbPath     := flag.String("db", "./workflow.db", "sqlite database path")
+	tmplPath   := flag.String("templates", "./templates/*.html", "template glob")
+	configPath := flag.String("config", "./workflow.json", "config file path (created with defaults if absent)")
 	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	d, err := db.Open(*dbPath)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}
 
-	h, err := handlers.New(d, *tmplPath)
+	h, err := handlers.New(d, cfg, *tmplPath)
 	if err != nil {
 		log.Fatalf("init handlers: %v", err)
 	}

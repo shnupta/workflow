@@ -14,33 +14,17 @@
     <a href="/tasks/new" class="btn btn-primary">+ New task</a>
   </header>
   <main>
-<div class="board">
-
-  <div class="tier-col tier-today">
-    <h2 class="tier-heading">Today <span class="count">{{len .Today}}</span></h2>
-    <div class="task-list">
-      {{range .Today}}{{template "task_card" .}}{{end}}
-      {{if not .Today}}<p class="empty">Nothing here</p>{{end}}
+    <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
+      {{range .Tiers}}
+      <div class="tier-col tier-{{.Key}}">
+        <h2 class="tier-heading">{{.Label}} <span class="count">{{len .Tasks}}</span></h2>
+        <div class="task-list">
+          {{range .Tasks}}{{template "task_card" .}}{{end}}
+          {{if not .Tasks}}<p class="empty">Nothing here</p>{{end}}
+        </div>
+      </div>
+      {{end}}
     </div>
-  </div>
-
-  <div class="tier-col tier-week">
-    <h2 class="tier-heading">This Week <span class="count">{{len .ThisWeek}}</span></h2>
-    <div class="task-list">
-      {{range .ThisWeek}}{{template "task_card" .}}{{end}}
-      {{if not .ThisWeek}}<p class="empty">Nothing here</p>{{end}}
-    </div>
-  </div>
-
-  <div class="tier-col tier-backlog">
-    <h2 class="tier-heading">Backlog <span class="count">{{len .Backlog}}</span></h2>
-    <div class="task-list">
-      {{range .Backlog}}{{template "task_card" .}}{{end}}
-      {{if not .Backlog}}<p class="empty">Nothing here</p>{{end}}
-    </div>
-  </div>
-
-</div>
   </main>
 </body>
 </html>
@@ -49,7 +33,7 @@
 {{define "task_card"}}
 <div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}">
   <div class="task-card-header">
-    <span class="tag tag-type">{{.WorkTypeLabel}}</span>
+    <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
   </div>
   <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>

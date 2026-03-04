@@ -14,61 +14,61 @@
     <a href="/tasks/new" class="btn btn-primary">+ New task</a>
   </header>
   <main>
-<div class="task-page">
-  <div class="task-page-header">
-    <div class="task-meta">
-      <span class="tag tag-type">{{.Task.WorkTypeLabel}}</span>
-      <span class="tag tag-tier">{{.Task.TierLabel}}</span>
-      <span class="tag tag-dir {{if eq .Task.Direction "blocked_on_them"}}tag-them{{end}}">{{.Task.DirectionLabel}}</span>
-    </div>
-    <div class="task-page-actions">
-      <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
-      <form method="POST" action="/tasks/{{.Task.ID}}/done" style="display:inline">
-        <button type="submit" class="btn btn-primary">Mark done</button>
-      </form>
-      <button class="btn btn-danger"
-        hx-delete="/tasks/{{.Task.ID}}"
-        hx-confirm="Delete this task?"
-        hx-on::after-request="window.location='/'">Delete</button>
-    </div>
-  </div>
+    <div class="task-page">
+      <div class="task-page-header">
+        <div class="task-meta">
+          <span class="tag tag-type">{{workTypeLabel .Task.WorkType}}</span>
+          <span class="tag tag-tier">{{tierLabel .Task.Tier}}</span>
+          <span class="tag tag-dir {{if eq .Task.Direction "blocked_on_them"}}tag-them{{end}}">{{.Task.DirectionLabel}}</span>
+        </div>
+        <div class="task-page-actions">
+          <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
+          <form method="POST" action="/tasks/{{.Task.ID}}/done" style="display:inline">
+            <button type="submit" class="btn btn-primary">Mark done</button>
+          </form>
+          <button class="btn btn-danger"
+            hx-delete="/tasks/{{.Task.ID}}"
+            hx-confirm="Delete this task?"
+            hx-on::after-request="window.location='/'">Delete</button>
+        </div>
+      </div>
 
-  <h1 class="task-page-title">{{.Task.Title}}</h1>
+      <h1 class="task-page-title">{{.Task.Title}}</h1>
 
-  {{if .Task.Description}}
-  <p class="task-page-desc">{{.Task.Description}}</p>
-  {{end}}
-
-  {{if .Task.Link}}
-  <p><a href="{{.Task.Link}}" target="_blank" class="external-link">→ Open link</a></p>
-  {{end}}
-
-  {{if .Task.PRURL}}
-  <div class="pr-section">
-    <div class="pr-section-header">
-      <a href="{{.Task.PRURL}}" target="_blank" class="external-link">→ Open PR</a>
-      <button class="btn btn-ghost"
-        hx-post="/tasks/{{.Task.ID}}/analyse-pr"
-        hx-target="#pr-summary"
-        hx-indicator="#pr-loading">
-        {{if .Task.PRSummary}}Re-analyse PR{{else}}Analyse PR{{end}}
-      </button>
-    </div>
-
-    <div id="pr-loading" class="htmx-indicator loading-msg">Fetching diff and analysing with Claude...</div>
-
-    <div id="pr-summary" class="pr-summary">
-      {{if .Task.PRSummary}}
-      <div class="pr-summary-content">{{.Task.PRSummary}}</div>
-      {{else}}
-      <p class="empty">No analysis yet — click "Analyse PR" to get a summary.</p>
+      {{if .Task.Description}}
+      <p class="task-page-desc">{{.Task.Description}}</p>
       {{end}}
-    </div>
-  </div>
-  {{end}}
 
-  <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
-</div>
+      {{if .Task.Link}}
+      <p><a href="{{.Task.Link}}" target="_blank" class="external-link">→ Open link</a></p>
+      {{end}}
+
+      {{if .Task.PRURL}}
+      <div class="pr-section">
+        <div class="pr-section-header">
+          <a href="{{.Task.PRURL}}" target="_blank" class="external-link">→ Open PR</a>
+          <button class="btn btn-ghost"
+            hx-post="/tasks/{{.Task.ID}}/analyse-pr"
+            hx-target="#pr-summary"
+            hx-indicator="#pr-loading">
+            {{if .Task.PRSummary}}Re-analyse PR{{else}}Analyse PR{{end}}
+          </button>
+        </div>
+
+        <div id="pr-loading" class="htmx-indicator loading-msg">Fetching diff and analysing with Claude...</div>
+
+        <div id="pr-summary" class="pr-summary">
+          {{if .Task.PRSummary}}
+          <div class="pr-summary-content">{{.Task.PRSummary}}</div>
+          {{else}}
+          <p class="empty">No analysis yet — click "Analyse PR" to get a summary.</p>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
+    </div>
   </main>
 </body>
 </html>

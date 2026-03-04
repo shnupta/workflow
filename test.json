@@ -1,0 +1,71 @@
+{
+  "work_types": [
+    {
+      "key": "pr_review",
+      "label": "PR Review",
+      "depth": "deep"
+    },
+    {
+      "key": "deployment",
+      "label": "Deployment",
+      "depth": "deep"
+    },
+    {
+      "key": "coding",
+      "label": "Coding",
+      "depth": "deep"
+    },
+    {
+      "key": "design",
+      "label": "Design",
+      "depth": "deep"
+    },
+    {
+      "key": "doc",
+      "label": "Doc",
+      "depth": "medium"
+    },
+    {
+      "key": "timeline",
+      "label": "Timeline",
+      "depth": "medium"
+    },
+    {
+      "key": "approval",
+      "label": "Approval",
+      "depth": "shallow"
+    },
+    {
+      "key": "chase",
+      "label": "Chase",
+      "depth": "shallow"
+    },
+    {
+      "key": "meeting",
+      "label": "Meeting",
+      "depth": "shallow"
+    },
+    {
+      "key": "misc",
+      "label": "Misc",
+      "depth": "shallow"
+    }
+  ],
+  "tiers": [
+    {
+      "key": "today",
+      "label": "Today",
+      "order": 1
+    },
+    {
+      "key": "this_week",
+      "label": "This Week",
+      "order": 2
+    },
+    {
+      "key": "backlog",
+      "label": "Backlog",
+      "order": 3
+    }
+  ]
+}
