@@ -251,25 +251,31 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	diff, err := h.fetchPRDiff(t.PRURL)
-	if err != nil {
-		http.Error(w, "failed to fetch PR diff: "+err.Error(), 500)
-		return
-	}
-
-	summary, err := h.claudeSummarisePR(t.PRURL, diff)
-	if err != nil {
-		http.Error(w, "failed to analyse PR: "+err.Error(), 500)
-		return
-	}
-
-	if err := h.db.UpdatePRSummary(id, summary); err != nil {
+	// Clear any existing summary so the poll endpoint returns ready:false while we work
+	if err := h.db.UpdatePRSummary(id, ""); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<div class="pr-summary-content">%s</div>`, template.HTMLEscapeString(summary))
+	// Kick off analysis in the background
+	go func() {
+		diff, err := h.fetchPRDiff(t.PRURL)
+		if err != nil {
+			log.Printf("analyse-pr: fetch diff failed for %s: %v", t.PRURL, err)
+			return
+		}
+		summary, err := h.claudeSummarisePR(t.PRURL, diff)
+		if err != nil {
+			log.Printf("analyse-pr: claude failed for %s: %v", t.PRURL, err)
+			return
+		}
+		if err := h.db.UpdatePRSummary(id, summary); err != nil {
+			log.Printf("analyse-pr: save failed for %s: %v", id, err)
+		}
+	}()
+
+	// Return 202 — client polls /pr-summary until ready
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *Handler) fetchPRDiff(prURL string) (string, error) {
