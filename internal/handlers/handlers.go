@@ -237,7 +237,7 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 500*1024)) // cap at 500KB
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -251,11 +251,6 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
 	if h.claudeKey == "" {
 		return "", fmt.Errorf("ANTHROPIC_API_KEY not set")
-	}
-
-	// Trim diff if very large
-	if len(diff) > 80000 {
-		diff = diff[:80000] + "\n\n[diff truncated]"
 	}
 
 	prompt := fmt.Sprintf(`You are a senior engineer helping review a pull request. Analyse this PR diff and provide a concise, structured review brief.
