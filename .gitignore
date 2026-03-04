@@ -1,3 +1,4 @@
 /workflow
+!/cmd/workflow/
 *.db
 .env
