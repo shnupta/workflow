@@ -16,10 +16,15 @@ type DB struct {
 }
 
 func Open(path string) (*DB, error) {
-	conn, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
+	// Use WAL mode + allow concurrent readers alongside the background writer.
+	// Two separate DSNs: one write connection (MaxOpenConns=1) and a read pool.
+	dsn := path + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
+	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
+	// Allow multiple concurrent readers; writer serialised by SQLite WAL.
+	conn.SetMaxOpenConns(10)
 	d := &DB{conn: conn}
 	if err := d.migrate(); err != nil {
 		return nil, err
