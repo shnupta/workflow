@@ -1,0 +1,66 @@
+{{define "index.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flow</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">flow</a>
+    <a href="/tasks/new" class="btn btn-primary">+ New task</a>
+  </header>
+  <main>
+<div class="board">
+
+  <div class="tier-col tier-today">
+    <h2 class="tier-heading">Today <span class="count">{{len .Today}}</span></h2>
+    <div class="task-list">
+      {{range .Today}}{{template "task_card" .}}{{end}}
+      {{if not .Today}}<p class="empty">Nothing here</p>{{end}}
+    </div>
+  </div>
+
+  <div class="tier-col tier-week">
+    <h2 class="tier-heading">This Week <span class="count">{{len .ThisWeek}}</span></h2>
+    <div class="task-list">
+      {{range .ThisWeek}}{{template "task_card" .}}{{end}}
+      {{if not .ThisWeek}}<p class="empty">Nothing here</p>{{end}}
+    </div>
+  </div>
+
+  <div class="tier-col tier-backlog">
+    <h2 class="tier-heading">Backlog <span class="count">{{len .Backlog}}</span></h2>
+    <div class="task-list">
+      {{range .Backlog}}{{template "task_card" .}}{{end}}
+      {{if not .Backlog}}<p class="empty">Nothing here</p>{{end}}
+    </div>
+  </div>
+
+</div>
+  </main>
+</body>
+</html>
+{{end}}
+
+{{define "task_card"}}
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}">
+  <div class="task-card-header">
+    <span class="tag tag-type">{{.WorkTypeLabel}}</span>
+    {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
+  </div>
+  <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
+  {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
+  <div class="task-footer">
+    <span class="time-ago">{{timeAgo .CreatedAt}}</span>
+    <div class="task-actions">
+      <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">
+        <button type="submit" class="btn-done" title="Mark done">✓</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

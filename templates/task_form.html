@@ -1,0 +1,87 @@
+{{define "task_form.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>flow — {{if .Edit}}Edit{{else}}New task{{end}}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">flow</a>
+    <a href="/tasks/new" class="btn btn-primary">+ New task</a>
+  </header>
+  <main>
+<div class="form-page">
+  <h1>{{if .Edit}}Edit task{{else}}New task{{end}}</h1>
+
+  <form method="POST" action="{{if .Edit}}/tasks/{{.Task.ID}}{{else}}/tasks{{end}}" class="task-form">
+
+    <div class="field">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" value="{{.Task.Title}}" placeholder="What needs doing?" required autofocus>
+    </div>
+
+    <div class="field">
+      <label for="description">Description <span class="optional">(optional)</span></label>
+      <textarea id="description" name="description" rows="3" placeholder="Any extra context...">{{.Task.Description}}</textarea>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="work_type">Type</label>
+        <select id="work_type" name="work_type">
+          <option value="pr_review"   {{if eq .Task.WorkType "pr_review"}}selected{{end}}>PR Review</option>
+          <option value="deployment"  {{if eq .Task.WorkType "deployment"}}selected{{end}}>Deployment</option>
+          <option value="doc"         {{if eq .Task.WorkType "doc"}}selected{{end}}>Doc</option>
+          <option value="design"      {{if eq .Task.WorkType "design"}}selected{{end}}>Design</option>
+          <option value="coding"      {{if eq .Task.WorkType "coding"}}selected{{end}}>Coding</option>
+          <option value="timeline"    {{if eq .Task.WorkType "timeline"}}selected{{end}}>Timeline</option>
+          <option value="approval"    {{if eq .Task.WorkType "approval"}}selected{{end}}>Approval</option>
+          <option value="chase"       {{if eq .Task.WorkType "chase"}}selected{{end}}>Chase</option>
+          <option value="meeting"     {{if eq .Task.WorkType "meeting"}}selected{{end}}>Meeting</option>
+          <option value="misc"        {{if eq .Task.WorkType "misc"}}selected{{end}}>Misc</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="tier">When</label>
+        <select id="tier" name="tier">
+          <option value="today"     {{if eq .Task.Tier "today"}}selected{{end}}>Today</option>
+          <option value="this_week" {{if eq .Task.Tier "this_week"}}selected{{end}}>This Week</option>
+          <option value="backlog"   {{if eq .Task.Tier "backlog"}}selected{{end}}>Backlog</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="direction">Blocked on</label>
+        <select id="direction" name="direction">
+          <option value="blocked_on_me"   {{if eq .Task.Direction "blocked_on_me"}}selected{{end}}>Me</option>
+          <option value="blocked_on_them" {{if eq .Task.Direction "blocked_on_them"}}selected{{end}}>Them</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="pr-url-field">
+      <label for="pr_url">PR URL <span class="optional">(optional)</span></label>
+      <input type="url" id="pr_url" name="pr_url" value="{{.Task.PRURL}}" placeholder="https://github.com/org/repo/pull/123">
+    </div>
+
+    <div class="field">
+      <label for="link">Link <span class="optional">(optional)</span></label>
+      <input type="url" id="link" name="link" value="{{.Task.Link}}" placeholder="Any relevant URL">
+    </div>
+
+    <div class="form-actions">
+      <a href="{{if .Edit}}/tasks/{{.Task.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">{{if .Edit}}Save changes{{else}}Add task{{end}}</button>
+    </div>
+
+  </form>
+</div>
+  </main>
+</body>
+</html>
+{{end}}
