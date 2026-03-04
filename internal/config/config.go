@@ -3,9 +3,33 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 )
+
+const DefaultPRPrompt = `You are a senior engineer helping review a pull request. Analyse this PR diff and provide a concise, structured review brief.
+
+PR URL: {{.PRURL}}
+
+Format your response as:
+## Summary
+2-3 sentences on what this PR does.
+
+## Key files to focus on
+List the most important files/areas with a one-line note on why.
+
+## Potential issues
+Any bugs, logic errors, security concerns, or missing edge cases you spot. Be specific with line references where possible.
+
+## Suggestions
+Minor improvements, style notes, or things worth discussing.
+
+---
+DIFF:
+{{.Diff}}`
 
 type WorkType struct {
 	Key   string `json:"key"`
@@ -26,6 +50,9 @@ type Config struct {
 	ClaudeModel   string `json:"claude_model"`
 	ClaudeBaseURL string `json:"claude_base_url"`
 
+	// PR analysis prompt — use {{.PRURL}} and {{.Diff}} as placeholders
+	PRPrompt string `json:"pr_prompt"`
+
 	// Board config
 	WorkTypes []WorkType `json:"work_types"`
 	Tiers     []Tier     `json:"tiers"`
@@ -36,6 +63,7 @@ var Default = Config{
 	AnthropicKey:  "",
 	ClaudeModel:   "claude-opus-4-6",
 	ClaudeBaseURL: "https://api.anthropic.com",
+	PRPrompt:      DefaultPRPrompt,
 	Tiers: []Tier{
 		{Key: "today", Label: "Today", Order: 1},
 		{Key: "this_week", Label: "This Week", Order: 2},
@@ -55,27 +83,86 @@ var Default = Config{
 	},
 }
 
-// Load reads config from path. If the file doesn't exist, writes the default
-// config there (with empty credentials) and returns it.
+// Watcher holds the current config and reloads it when the file changes.
+type Watcher struct {
+	mu       sync.RWMutex
+	cfg      *Config
+	path     string
+	lastMod  time.Time
+}
+
+// NewWatcher loads the config at path and starts watching it for changes.
+func NewWatcher(path string) (*Watcher, error) {
+	cfg, modTime, err := loadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	w := &Watcher{cfg: cfg, path: path, lastMod: modTime}
+	go w.watch()
+	return w, nil
+}
+
+// Get returns the current config. Safe to call concurrently.
+func (w *Watcher) Get() *Config {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.cfg
+}
+
+func (w *Watcher) watch() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		info, err := os.Stat(w.path)
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(w.lastMod) {
+			cfg, modTime, err := loadFile(w.path)
+			if err != nil {
+				log.Printf("config reload error: %v", err)
+				continue
+			}
+			w.mu.Lock()
+			w.cfg = cfg
+			w.lastMod = modTime
+			w.mu.Unlock()
+			log.Printf("config reloaded from %s", w.path)
+		}
+	}
+}
+
+// Load reads config from path, creating it with defaults if absent.
 func Load(path string) (*Config, error) {
+	cfg, _, err := loadFile(path)
+	return cfg, err
+}
+
+func loadFile(path string) (*Config, time.Time, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if err := write(path, &Default); err != nil {
-			return nil, fmt.Errorf("writing default config: %w", err)
+		if err := writeFile(path, &Default); err != nil {
+			return nil, time.Time{}, fmt.Errorf("writing default config: %w", err)
 		}
 		fmt.Printf("Created default config at %s — add your API keys there\n", path)
 		cfg := Default
-		return &cfg, nil
+		info, _ := os.Stat(path)
+		return &cfg, info.ModTime(), nil
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, time.Time{}, err
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("opening config: %w", err)
+		return nil, time.Time{}, fmt.Errorf("opening config: %w", err)
 	}
 	defer f.Close()
 
 	var cfg Config
 	if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+		return nil, time.Time{}, fmt.Errorf("parsing config: %w", err)
 	}
 
 	// Apply defaults for optional fields
@@ -85,15 +172,18 @@ func Load(path string) (*Config, error) {
 	if cfg.ClaudeBaseURL == "" {
 		cfg.ClaudeBaseURL = "https://api.anthropic.com"
 	}
-
-	if err := validate(&cfg); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+	if cfg.PRPrompt == "" {
+		cfg.PRPrompt = DefaultPRPrompt
 	}
 
-	return &cfg, nil
+	if err := validate(&cfg); err != nil {
+		return nil, time.Time{}, fmt.Errorf("invalid config: %w", err)
+	}
+
+	return &cfg, info.ModTime(), nil
 }
 
-func write(path string, cfg *Config) error {
+func writeFile(path string, cfg *Config) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}

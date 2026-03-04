@@ -16,25 +16,28 @@ import (
 )
 
 type Handler struct {
-	db        *db.DB
-	cfg       *config.Config
+	db      *db.DB
+	watcher *config.Watcher
+	tmplGlob string
 	templates *template.Template
 }
 
-func New(d *db.DB, cfg *config.Config, tmplGlob string) (*Handler, error) {
-	h := &Handler{db: d, cfg: cfg}
+func (h *Handler) cfg() *config.Config { return h.watcher.Get() }
+
+func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
+	h := &Handler{db: d, watcher: watcher, tmplGlob: tmplGlob}
 
 	funcMap := template.FuncMap{
-		"workTypeDepth": cfg.WorkTypeDepth,
+		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
 		"timeAgo":       timeAgo,
 		"workTypeLabel": func(key string) string {
-			if wt := cfg.WorkTypeByKey(key); wt != nil {
+			if wt := h.cfg().WorkTypeByKey(key); wt != nil {
 				return wt.Label
 			}
 			return key
 		},
 		"tierLabel": func(key string) string {
-			if t := cfg.TierByKey(key); t != nil {
+			if t := h.cfg().TierByKey(key); t != nil {
 				return t.Label
 			}
 			return key
@@ -64,7 +67,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
-	tasks, err := h.db.ListTasks(false, h.cfg)
+	tasks, err := h.db.ListTasks(false, h.cfg())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -75,8 +78,8 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		grouped[t.Tier] = append(grouped[t.Tier], t)
 	}
 
-	tiers := make([]map[string]interface{}, len(h.cfg.Tiers))
-	for i, tier := range h.cfg.Tiers {
+	tiers := make([]map[string]interface{}, len(h.cfg().Tiers))
+	for i, tier := range h.cfg().Tiers {
 		tiers[i] = map[string]interface{}{
 			"Key":   tier.Key,
 			"Label": tier.Label,
@@ -86,18 +89,18 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":     tiers,
-		"WorkTypes": h.cfg.WorkTypes,
+		"WorkTypes": h.cfg().WorkTypes,
 	})
 }
 
 func (h *Handler) newTaskForm(w http.ResponseWriter, r *http.Request) {
 	defaultTier := ""
-	if len(h.cfg.Tiers) > 0 {
-		defaultTier = h.cfg.Tiers[0].Key
+	if len(h.cfg().Tiers) > 0 {
+		defaultTier = h.cfg().Tiers[0].Key
 	}
 	h.render(w, "task_form.html", map[string]interface{}{
-		"WorkTypes": h.cfg.WorkTypes,
-		"Tiers":     h.cfg.Tiers,
+		"WorkTypes": h.cfg().WorkTypes,
+		"Tiers":     h.cfg().Tiers,
 		"Task":      &models.Task{Tier: defaultTier, Direction: "blocked_on_me"},
 		"Edit":      false,
 	})
@@ -123,7 +126,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Kick off PR analysis in the background if a PR URL was provided
-	if t.PRURL != "" && h.cfg.AnthropicKey != "" {
+	if t.PRURL != "" && h.cfg().AnthropicKey != "" {
 		go func() {
 			diff, err := h.fetchPRDiff(t.PRURL)
 			if err != nil {
@@ -153,7 +156,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	}
 	h.render(w, "task_view.html", map[string]interface{}{
 		"Task":   t,
-		"Config": h.cfg,
+		"Config": h.cfg(),
 	})
 }
 
@@ -165,8 +168,8 @@ func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "task_form.html", map[string]interface{}{
-		"WorkTypes": h.cfg.WorkTypes,
-		"Tiers":     h.cfg.Tiers,
+		"WorkTypes": h.cfg().WorkTypes,
+		"Tiers":     h.cfg().Tiers,
 		"Task":      t,
 		"Edit":      true,
 	})
@@ -212,7 +215,7 @@ func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tier := r.FormValue("tier")
-	if h.cfg.TierByKey(tier) == nil {
+	if h.cfg().TierByKey(tier) == nil {
 		http.Error(w, "unknown tier", 400)
 		return
 	}
@@ -243,7 +246,7 @@ func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no PR URL on this task", 400)
 		return
 	}
-	if h.cfg.AnthropicKey == "" {
+	if h.cfg().AnthropicKey == "" {
 		http.Error(w, "anthropic_key not set in workflow.json", 400)
 		return
 	}
@@ -281,8 +284,8 @@ func (h *Handler) fetchPRDiff(prURL string) (string, error) {
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	req.Header.Set("Accept", "application/vnd.github.v3.diff")
 	req.Header.Set("User-Agent", "workflow-app")
-	if h.cfg.GitHubToken != "" {
-		req.Header.Set("Authorization", "Bearer "+h.cfg.GitHubToken)
+	if h.cfg().GitHubToken != "" {
+		req.Header.Set("Authorization", "Bearer "+h.cfg().GitHubToken)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -306,36 +309,18 @@ func isThinkingModel(model string) bool {
 }
 
 func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
-	prompt := fmt.Sprintf(`You are a senior engineer helping review a pull request. Analyse this PR diff and provide a concise, structured review brief.
-
-PR URL: %s
-
-Format your response as:
-## Summary
-2-3 sentences on what this PR does.
-
-## Key files to focus on
-List the most important files/areas with a one-line note on why.
-
-## Potential issues
-Any bugs, logic errors, security concerns, or missing edge cases you spot. Be specific with line references where possible.
-
-## Suggestions
-Minor improvements, style notes, or things worth discussing.
-
----
-DIFF:
-%s`, prURL, diff)
+	promptTmpl := h.cfg().PRPrompt
+	prompt := strings.NewReplacer("{{.PRURL}}", prURL, "{{.Diff}}", diff).Replace(promptTmpl)
 
 	payload := map[string]interface{}{
-		"model":      h.cfg.ClaudeModel,
+		"model":      h.cfg().ClaudeModel,
 		"max_tokens": 24000,
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
 	}
 
-	if isThinkingModel(h.cfg.ClaudeModel) {
+	if isThinkingModel(h.cfg().ClaudeModel) {
 		payload["thinking"] = map[string]interface{}{
 			"type":         "enabled",
 			"budget_tokens": 16000,
@@ -343,11 +328,11 @@ DIFF:
 	}
 
 	body, _ := json.Marshal(payload)
-	baseURL := strings.TrimRight(h.cfg.ClaudeBaseURL, "/")
+	baseURL := strings.TrimRight(h.cfg().ClaudeBaseURL, "/")
 
 	req, _ := http.NewRequest("POST", baseURL+"/v1/messages", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", h.cfg.AnthropicKey)
+	req.Header.Set("x-api-key", h.cfg().AnthropicKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
 	resp, err := http.DefaultClient.Do(req)

@@ -17,7 +17,7 @@ func main() {
 	configPath := flag.String("config", "./workflow.json", "config file (created with defaults if absent)")
 	flag.Parse()
 
-	cfg, err := config.Load(*configPath)
+	watcher, err := config.NewWatcher(*configPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
@@ -27,7 +27,7 @@ func main() {
 		log.Fatalf("open db: %v", err)
 	}
 
-	h, err := handlers.New(d, cfg, *tmplPath)
+	h, err := handlers.New(d, watcher, *tmplPath)
 	if err != nil {
 		log.Fatalf("init handlers: %v", err)
 	}
