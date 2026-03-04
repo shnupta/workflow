@@ -386,3 +386,19 @@ select option { background: var(--surface2); }
 }
 .pr-summary-content a { color: var(--accent); }
 .pr-summary-content a:hover { text-decoration: underline; }
+
+/* ── Drag and drop ── */
+.task-card[draggable="true"] { cursor: grab; }
+.task-card[draggable="true"]:active { cursor: grabbing; }
+
+.task-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+
+.tier-col.drag-over {
+  background: rgba(124, 106, 247, 0.05);
+  border-radius: var(--radius);
+  outline: 2px dashed var(--accent-dim);
+  outline-offset: -4px;
+}

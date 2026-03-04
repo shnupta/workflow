@@ -16,7 +16,11 @@
   <main>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
-      <div class="tier-col tier-{{.Key}}">
+      <div class="tier-col tier-{{.Key}}"
+           data-tier="{{.Key}}"
+           ondragover="onDragOver(event)"
+           ondrop="onDrop(event)"
+           ondragleave="onDragLeave(event)">
         <h2 class="tier-heading">{{.Label}} <span class="count">{{len .Tasks}}</span></h2>
         <div class="task-list">
           {{range .Tasks}}{{template "task_card" .}}{{end}}
@@ -26,12 +30,61 @@
       {{end}}
     </div>
   </main>
+<script>
+  let dragging = null;
+
+  function onDragStart(e) {
+    dragging = e.currentTarget;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragging.dataset.id);
+    setTimeout(() => dragging.classList.add('dragging'), 0);
+  }
+
+  function onDragEnd(e) {
+    if (dragging) dragging.classList.remove('dragging');
+    document.querySelectorAll('.tier-col').forEach(c => c.classList.remove('drag-over'));
+    dragging = null;
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const col = e.currentTarget;
+    col.classList.remove('drag-over');
+    const id = e.dataTransfer.getData('text/plain');
+    const tier = col.dataset.tier;
+    if (!id || !tier) return;
+
+    fetch(`/tasks/${id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `tier=${encodeURIComponent(tier)}`
+    }).then(r => {
+      if (r.ok) window.location.reload();
+    });
+  }
+</script>
 </body>
 </html>
 {{end}}
 
 {{define "task_card"}}
-<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}">
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}"
+     draggable="true"
+     data-id="{{.ID}}"
+     ondragstart="onDragStart(event)"
+     ondragend="onDragEnd(event)">
   <div class="task-card-header">
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}

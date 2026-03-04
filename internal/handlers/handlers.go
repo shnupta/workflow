@@ -77,6 +77,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /tasks/{id}/edit", h.editTaskForm)
 	mux.HandleFunc("POST /tasks/{id}", h.updateTask)
 	mux.HandleFunc("POST /tasks/{id}/done", h.markDone)
+	mux.HandleFunc("POST /tasks/{id}/move", h.moveTask)
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/analyse-pr", h.analysePR)
 }
@@ -204,6 +205,35 @@ func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	tier := r.FormValue("tier")
+	if tier == "" {
+		http.Error(w, "tier required", 400)
+		return
+	}
+	// Validate tier exists in config
+	if h.cfg.TierByKey(tier) == nil {
+		http.Error(w, "unknown tier", 400)
+		return
+	}
+	t, err := h.db.GetTask(id)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	t.Tier = tier
+	if err := h.db.UpdateTask(t); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
