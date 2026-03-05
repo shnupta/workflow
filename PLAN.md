@@ -76,10 +76,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Search icon in nav (top right) on all pages
   - Results grouped by session (not per-message), ranked by relevance
 
-- [ ] **Task quick-capture from board**
-  - Inline "Add task" button at the bottom of each column — opens a minimal form (title + type only)
-  - Saves immediately, auto-brief fires
-  - Avoids full `/tasks/new` page load for quick capture
+- [x] **Task quick-capture from board** ✅ 2026-03-05
+  - Dashed "+ Add task" button at bottom of each column
+  - Inline form: title + work type selector, Enter to submit
+  - `POST /tasks/quick` endpoint returns JSON, navigates to new task
 
 - [ ] **Pinned sessions**
   - Pin a session to the top of the task's session list
@@ -88,10 +88,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Session rename**
-  - Click session name in header to edit inline (contenteditable or small input)
-  - Saves on blur or Enter
-  - `PATCH /sessions/{id}` endpoint
+- [x] **Session rename** ✅ 2026-03-05
+  - Session title is contenteditable in the header
+  - Saves on blur/Enter, reverts on Esc or error
+  - `PATCH /tasks/{id}/sessions/{sid}/name`
 
 - [ ] **Session archive / soft-delete**
   - Brief sessions (`[brief]`) clutter the sessions list — option to hide or archive them
@@ -104,17 +104,14 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Stored in DB; useful for knowing how long things actually take
   - Could feed a weekly summary view later
 
-- [ ] **Keyboard shortcuts**
-  - `n` — new task
-  - `s` — focus search
-  - `Esc` — close modals / cancel
-  - `?` — show shortcuts overlay
-  - Most valuable on the board page
+- [x] **Keyboard shortcuts** ✅ 2026-03-05
+  - `n` new task, `q` quick-add to first column, `s` search, `?` overlay, `Esc` close/clear filter
+  - Board page only; ignored when focus is in input/textarea
 
-- [ ] **Board filtering**
-  - Filter by work type (PR Review, Coding, etc.)
-  - Filter by "blocked on me" / "blocked on them"
-  - Filter persisted in URL params so it's shareable/bookmarkable
+- [x] **Board filtering** ✅ 2026-03-05
+  - Filter chips above the board: All + each work type + On me / Waiting
+  - Client-side (no server round-trip), persisted in localStorage
+  - Esc clears active filter
 
 - [ ] **Task due dates / urgency**
   - Optional due date on tasks
