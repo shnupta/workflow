@@ -32,6 +32,14 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 	funcMap := template.FuncMap{
 		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
 		"timeAgo":       timeAgo,
+		"lastMessageID": func(msgs interface{}) string {
+			type hasID interface{ GetID() string }
+			// msgs is []*models.Message
+			if ms, ok := msgs.([]*models.Message); ok && len(ms) > 0 {
+				return ms[len(ms)-1].ID
+			}
+			return ""
+		},
 		"workTypeLabel": func(key string) string {
 			if wt := h.cfg().WorkTypeByKey(key); wt != nil {
 				return wt.Label
@@ -66,6 +74,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/analyse-pr", h.analysePR)
 	mux.HandleFunc("GET /tasks/{id}/pr-summary", h.getPRSummary)
+	h.registerSessionRoutes(mux)
 }
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {

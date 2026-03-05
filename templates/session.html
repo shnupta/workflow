@@ -1,0 +1,204 @@
+{{define "session.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — {{.Session.Name}}</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <a href="/" class="logo">workflow</a>
+    <a href="/tasks/{{.Task.ID}}" class="btn btn-ghost">← {{.Task.Title}}</a>
+  </header>
+  <main>
+    <div class="session-page">
+      <div class="session-header">
+        <div class="session-meta">
+          <h1 class="session-title">{{.Session.Name}}</h1>
+          <span class="session-status status-{{.Session.Status}}" id="session-status">{{.Session.Status}}</span>
+          <span class="session-provider">{{.Session.AgentProvider}}</span>
+        </div>
+      </div>
+
+      <div class="chat-container" id="chat">
+        {{range .Messages}}
+        <div class="chat-message role-{{.Role}} kind-{{.Kind}}" data-id="{{.ID}}">
+          {{if eq .Kind "tool_use"}}
+          <div class="tool-badge">⚙ {{.ToolName}}</div>
+          <div class="tool-input"><pre>{{.Content}}</pre></div>
+          {{else if eq .Kind "thinking"}}
+          <details class="thinking-block">
+            <summary>Thinking...</summary>
+            <div class="thinking-content md-content">{{.Content}}</div>
+          </details>
+          {{else if eq .Kind "error"}}
+          <div class="error-msg">{{.Content}}</div>
+          {{else}}
+          <div class="md-content">{{.Content}}</div>
+          {{end}}
+          <div class="msg-time">{{timeAgo .CreatedAt}}</div>
+        </div>
+        {{end}}
+
+        {{if eq .Session.Status "running"}}
+        <div class="chat-message role-assistant" id="typing-indicator">
+          <div class="typing-dots"><span></span><span></span><span></span></div>
+        </div>
+        {{end}}
+      </div>
+
+      {{if eq .Session.Mode "interactive"}}
+      <div class="chat-input-area" id="input-area" {{if eq .Session.Status "running"}}style="display:none"{{end}}>
+        <textarea id="chat-input" placeholder="Send a message..." rows="3"></textarea>
+        <button class="btn btn-primary" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+      {{end}}
+    </div>
+  </main>
+
+<script>
+  const taskID = {{printf "%q" .Task.ID}};
+  const sessionID = {{printf "%q" .Session.ID}};
+  const sessionMode = {{printf "%q" .Session.Mode}};
+  let lastMessageID = {{if .Messages}}{{printf "%q" (lastMessageID .Messages)}}{{else}}""{{end}};
+  let currentStatus = {{printf "%q" .Session.Status}};
+  let pollTimer = null;
+
+  marked.setOptions({ breaks: true });
+
+  function renderMarkdown() {
+    document.querySelectorAll('.md-content:not([data-rendered])').forEach(el => {
+      el.dataset.rendered = '1';
+      el.innerHTML = marked.parse(el.textContent);
+    });
+  }
+
+  function scrollToBottom() {
+    const chat = document.getElementById('chat');
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function appendMessage(msg) {
+    const chat = document.getElementById('chat');
+    const indicator = document.getElementById('typing-indicator');
+
+    const div = document.createElement('div');
+    div.className = `chat-message role-${msg.role} kind-${msg.kind}`;
+    div.dataset.id = msg.id;
+
+    let inner = '';
+    if (msg.kind === 'tool_use') {
+      inner = `<div class="tool-badge">⚙ ${msg.tool_name}</div><div class="tool-input"><pre>${escHtml(msg.content)}</pre></div>`;
+    } else if (msg.kind === 'thinking') {
+      inner = `<details class="thinking-block"><summary>Thinking...</summary><div class="thinking-content md-content">${escHtml(msg.content)}</div></details>`;
+    } else if (msg.kind === 'error') {
+      inner = `<div class="error-msg">${escHtml(msg.content)}</div>`;
+    } else {
+      inner = `<div class="md-content">${escHtml(msg.content)}</div>`;
+    }
+    inner += `<div class="msg-time">just now</div>`;
+    div.innerHTML = inner;
+
+    if (indicator) {
+      chat.insertBefore(div, indicator);
+    } else {
+      chat.appendChild(div);
+    }
+    lastMessageID = msg.id;
+    renderMarkdown();
+    scrollToBottom();
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function setStatus(status) {
+    currentStatus = status;
+    const el = document.getElementById('session-status');
+    if (el) {
+      el.textContent = status;
+      el.className = `session-status status-${status}`;
+    }
+    const indicator = document.getElementById('typing-indicator');
+    const inputArea = document.getElementById('input-area');
+    if (status === 'running') {
+      if (!indicator) {
+        const chat = document.getElementById('chat');
+        const d = document.createElement('div');
+        d.id = 'typing-indicator';
+        d.className = 'chat-message role-assistant';
+        d.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+        chat.appendChild(d);
+        scrollToBottom();
+      }
+      if (inputArea) inputArea.style.display = 'none';
+    } else {
+      if (indicator) indicator.remove();
+      if (inputArea && sessionMode === 'interactive') inputArea.style.display = '';
+    }
+  }
+
+  async function poll() {
+    try {
+      const url = `/tasks/${taskID}/sessions/${sessionID}/messages?after=${encodeURIComponent(lastMessageID)}`;
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const data = await r.json();
+
+      (data.messages || []).forEach(msg => appendMessage(msg));
+
+      if (data.status !== currentStatus) setStatus(data.status);
+
+      if (data.status === 'complete' || data.status === 'error') {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    } catch(e) { /* network hiccup */ }
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const prompt = input.value.trim();
+    if (!prompt) return;
+    input.value = '';
+
+    // Optimistically append user message
+    appendMessage({id: 'local-' + Date.now(), role: 'user', kind: 'text', content: prompt, tool_name: ''});
+    setStatus('running');
+
+    await fetch(`/tasks/${taskID}/sessions/${sessionID}/messages`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt})
+    });
+
+    startPolling();
+  }
+
+  // Allow Ctrl+Enter or Cmd+Enter to send
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMarkdown();
+    scrollToBottom();
+
+    const input = document.getElementById('chat-input');
+    if (input) {
+      input.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') sendMessage();
+      });
+    }
+
+    if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
+  });
+
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 2000);
+  }
+</script>
+</body>
+</html>
+{{end}}

@@ -435,3 +435,266 @@ select option { background: var(--surface2); }
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Sessions panel ── */
+.sessions-panel {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.sessions-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+.new-session-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.new-session-form textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.new-session-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.new-session-controls select,
+.new-session-controls input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+.session-card:hover { border-color: var(--accent); }
+.session-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.session-card-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+.session-card-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Session status badges ── */
+.session-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.status-pending  { background: rgba(100,100,120,0.3); color: var(--text-muted); }
+.status-running  { background: rgba(59,130,246,0.2);  color: #60a5fa; }
+.status-idle     { background: rgba(234,179,8,0.2);   color: #fbbf24; }
+.status-complete { background: rgba(34,197,94,0.15);  color: #4ade80; }
+.status-error    { background: rgba(239,68,68,0.2);   color: #f87171; }
+
+/* ── Session page ── */
+.session-page {
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 80px);
+}
+.session-header {
+  padding: 16px 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.session-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.session-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.session-provider {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── Chat ── */
+.chat-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-message.role-user {
+  align-items: flex-end;
+}
+.chat-message.role-user .md-content {
+  background: var(--accent);
+  color: #000;
+  border-radius: 12px 12px 2px 12px;
+  padding: 10px 14px;
+  max-width: 75%;
+  font-size: 14px;
+}
+.chat-message.role-assistant .md-content,
+.chat-message.role-system .md-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px 12px 12px 12px;
+  padding: 12px 16px;
+  max-width: 90%;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.md-content p { margin: 0 0 8px; }
+.md-content p:last-child { margin: 0; }
+.md-content pre { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; overflow-x: auto; }
+.md-content code { font-family: monospace; font-size: 12px; }
+.md-content h2, .md-content h3 { margin: 12px 0 6px; }
+.md-content ul, .md-content ol { margin: 6px 0; padding-left: 20px; }
+
+.tool-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: monospace;
+  padding: 2px 8px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  width: fit-content;
+}
+.tool-input pre {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.thinking-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  max-width: 90%;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.thinking-block summary { cursor: pointer; }
+.thinking-content { margin-top: 8px; }
+.error-msg {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  max-width: 90%;
+}
+.msg-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+.role-user .msg-time { text-align: right; }
+
+/* Typing indicator */
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 2px 12px 12px 12px;
+  width: fit-content;
+}
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  animation: bounce 1.2s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+/* Chat input */
+.chat-input-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.chat-input-area textarea {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.5;
+}
+.chat-input-area textarea:focus { outline: none; border-color: var(--accent); }

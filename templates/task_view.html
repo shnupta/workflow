@@ -65,11 +65,93 @@
       {{end}}
 
       <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
+
+      <!-- Sessions panel -->
+      <div class="sessions-panel" id="sessions-panel">
+        <div class="sessions-header">
+          <h2 class="sessions-title">Sessions</h2>
+          <button class="btn btn-ghost" onclick="showNewSessionForm()">+ New session</button>
+        </div>
+
+        <div id="new-session-form" style="display:none" class="new-session-form">
+          <textarea id="session-prompt" placeholder="What should the agent do?" rows="3"></textarea>
+          <div class="new-session-controls">
+            <select id="session-mode">
+              <option value="fire_and_forget">Fire &amp; forget</option>
+              <option value="interactive">Interactive</option>
+            </select>
+            <input type="text" id="session-name" placeholder="Name (optional)">
+            <button class="btn btn-primary" onclick="startSession()">Start</button>
+            <button class="btn btn-ghost" onclick="hideNewSessionForm()">Cancel</button>
+          </div>
+        </div>
+
+        <div id="sessions-list" class="sessions-list">
+          <p class="empty" id="no-sessions">No sessions yet.</p>
+        </div>
+      </div>
     </div>
   </main>
 <script>
   const taskID = {{printf "%q" .Task.ID}};
   const hasSummary = {{if .Task.PRSummary}}true{{else}}false{{end}};
+
+  // ── Sessions ──
+  function showNewSessionForm() {
+    document.getElementById('new-session-form').style.display = '';
+    document.getElementById('session-prompt').focus();
+  }
+  function hideNewSessionForm() {
+    document.getElementById('new-session-form').style.display = 'none';
+  }
+
+  async function startSession() {
+    const prompt = document.getElementById('session-prompt').value.trim();
+    if (!prompt) return;
+    const mode = document.getElementById('session-mode').value;
+    const name = document.getElementById('session-name').value.trim();
+
+    const r = await fetch(`/tasks/${taskID}/sessions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({prompt, mode, name})
+    });
+    if (!r.ok) { alert('Failed to start session'); return; }
+    const data = await r.json();
+    hideNewSessionForm();
+    loadSessions();
+    // Navigate to session view
+    window.location = `/tasks/${taskID}/sessions/${data.id}`;
+  }
+
+  function statusBadge(status) {
+    const labels = {pending:'pending', running:'running', idle:'idle', complete:'done', error:'error'};
+    return `<span class="session-status status-${status}">${labels[status] || status}</span>`;
+  }
+
+  async function loadSessions() {
+    const r = await fetch(`/tasks/${taskID}/sessions`);
+    if (!r.ok) return;
+    const sessions = await r.json();
+    const list = document.getElementById('sessions-list');
+    const empty = document.getElementById('no-sessions');
+    if (!sessions || sessions.length === 0) {
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    list.innerHTML = (sessions || []).map(s => `
+      <a href="/tasks/${taskID}/sessions/${s.ID}" class="session-card">
+        <div class="session-card-main">
+          <span class="session-card-name">${s.Name || 'Session'}</span>
+          ${statusBadge(s.Status)}
+        </div>
+        <div class="session-card-meta">${s.AgentProvider} · ${s.Mode}</div>
+      </a>
+    `).join('');
+  }
+
+  document.addEventListener('DOMContentLoaded', loadSessions);
 
   function renderMarkdown() {
     document.querySelectorAll('.pr-summary-content').forEach(el => {

@@ -56,6 +56,44 @@ func (d *DB) migrate() error {
 	}
 	// Add position column to existing databases that predate this migration
 	_, _ = d.conn.Exec(`ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`)
+
+	// Sessions table
+	_, err = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS sessions (
+			id               TEXT PRIMARY KEY,
+			task_id          TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			parent_id        TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+			name             TEXT NOT NULL DEFAULT '',
+			mode             TEXT NOT NULL DEFAULT 'fire_and_forget',
+			status           TEXT NOT NULL DEFAULT 'pending',
+			agent_provider   TEXT NOT NULL DEFAULT 'claude_local',
+			agent_session_id TEXT,
+			error_message    TEXT NOT NULL DEFAULT '',
+			created_at       TEXT NOT NULL,
+			updated_at       TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Messages table — provider-agnostic, normalised
+	_, err = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS messages (
+			id         TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			role       TEXT NOT NULL,
+			kind       TEXT NOT NULL DEFAULT 'text',
+			content    TEXT NOT NULL DEFAULT '',
+			tool_name  TEXT NOT NULL DEFAULT '',
+			metadata   TEXT NOT NULL DEFAULT '{}',
+			created_at TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -225,4 +263,176 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 		t.DoneAt = &da
 	}
 	return &t, nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Sessions
+// ─────────────────────────────────────────────────────────
+
+func (d *DB) CreateSession(s *models.Session) error {
+	s.ID = uuid.New().String()
+	s.CreatedAt = time.Now()
+	s.UpdatedAt = time.Now()
+	if s.Status == "" {
+		s.Status = models.SessionStatusPending
+	}
+	if s.AgentProvider == "" {
+		s.AgentProvider = "claude_local"
+	}
+	var parentID interface{}
+	if s.ParentID != nil {
+		parentID = *s.ParentID
+	}
+	var agentSessionID interface{}
+	if s.AgentSessionID != nil {
+		agentSessionID = *s.AgentSessionID
+	}
+	_, err := d.conn.Exec(`
+		INSERT INTO sessions (id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.TaskID, parentID, s.Name, s.Mode, s.Status, s.AgentProvider,
+		agentSessionID, s.ErrorMessage,
+		s.CreatedAt.UTC().Format(time.RFC3339), s.UpdatedAt.UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+func (d *DB) UpdateSessionStatus(id string, status models.SessionStatus, errMsg string) error {
+	_, err := d.conn.Exec(`UPDATE sessions SET status=?, error_message=?, updated_at=? WHERE id=?`,
+		status, errMsg, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
+func (d *DB) UpdateSessionAgentID(id, agentSessionID string) error {
+	_, err := d.conn.Exec(`UPDATE sessions SET agent_session_id=?, updated_at=? WHERE id=?`,
+		agentSessionID, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
+func (d *DB) GetSession(id string) (*models.Session, error) {
+	row := d.conn.QueryRow(`
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
+		FROM sessions WHERE id=?`, id)
+	return scanSession(row)
+}
+
+func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
+		FROM sessions WHERE task_id=? ORDER BY created_at ASC`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Session
+	for rows.Next() {
+		s, err := scanSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+type sessionScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanSession(row sessionScanner) (*models.Session, error) {
+	var s models.Session
+	var parentID, agentSessionID sql.NullString
+	var createdAt, updatedAt string
+	err := row.Scan(
+		&s.ID, &s.TaskID, &parentID, &s.Name, &s.Mode, &s.Status,
+		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if parentID.Valid {
+		s.ParentID = &parentID.String
+	}
+	if agentSessionID.Valid {
+		s.AgentSessionID = &agentSessionID.String
+	}
+	s.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &s, nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Messages
+// ─────────────────────────────────────────────────────────
+
+func (d *DB) CreateMessage(m *models.Message) error {
+	m.ID = uuid.New().String()
+	m.CreatedAt = time.Now()
+	if m.Kind == "" {
+		m.Kind = models.MessageKindText
+	}
+	if m.Metadata == "" {
+		m.Metadata = "{}"
+	}
+	_, err := d.conn.Exec(`
+		INSERT INTO messages (id, session_id, role, kind, content, tool_name, metadata, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.SessionID, m.Role, m.Kind, m.Content, m.ToolName, m.Metadata,
+		m.CreatedAt.UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+func (d *DB) ListMessages(sessionID string) ([]*models.Message, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
+		FROM messages WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Message
+	for rows.Next() {
+		var m models.Message
+		var createdAt string
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Kind, &m.Content, &m.ToolName, &m.Metadata, &createdAt); err != nil {
+			return nil, err
+		}
+		m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		out = append(out, &m)
+	}
+	return out, rows.Err()
+}
+
+func (d *DB) ListMessagesSince(sessionID, afterID string) ([]*models.Message, error) {
+	var cutoff string
+	if afterID != "" {
+		d.conn.QueryRow(`SELECT created_at FROM messages WHERE id=?`, afterID).Scan(&cutoff)
+	}
+	var rows *sql.Rows
+	var err error
+	if cutoff != "" {
+		rows, err = d.conn.Query(`
+			SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
+			FROM messages WHERE session_id=? AND created_at > ? ORDER BY created_at ASC`, sessionID, cutoff)
+	} else {
+		rows, err = d.conn.Query(`
+			SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
+			FROM messages WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Message
+	for rows.Next() {
+		var m models.Message
+		var createdAt string
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Kind, &m.Content, &m.ToolName, &m.Metadata, &createdAt); err != nil {
+			return nil, err
+		}
+		m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		out = append(out, &m)
+	}
+	return out, rows.Err()
 }
