@@ -79,7 +79,7 @@
           {{else if eq .Task.BriefStatus "pending"}}
           <div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>
           {{else}}
-          <div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>
+          <div class="brief-empty">No brief yet — hit ↺ to run one.</div>
           {{end}}
         </div>
         {{if gt (len .BriefVersions) 1}}

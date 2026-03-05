@@ -845,6 +845,11 @@ input[type="date"] {
   color: #f87171;
   font-size: 13px;
 }
+.brief-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
 
 /* Spinner */
 .spinner {
