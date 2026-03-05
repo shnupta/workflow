@@ -116,8 +116,8 @@
 
     fetch(`/tasks/${id}/move`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `tier=${encodeURIComponent(tier)}&before_id=${encodeURIComponent(beforeID)}`
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier, before_id: beforeID })
     }).then(r => { if (r.ok) window.location.reload(); });
   }
 
