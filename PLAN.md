@@ -147,9 +147,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - REST API: GET/POST/PATCH/DELETE /api/notes; title auto-derived from first line
   - Global notes (task_id='') accessible from nav
 
-- [ ] **Weekly digest view**
-  - Summary of tasks completed this week, time spent (if timer added), sessions had
-  - Read-only view, maybe printable
+- [x] **Weekly digest view** ✅ 2026-03-05
+  - `/digest` page: week navigation (prev/next), stats bar (completed/in-progress/sessions/time), task lists
+  - Linked from nav; shows completed ✓ and in-progress ○ tasks with time tracked and session counts
 
 ---
 
