@@ -120,6 +120,9 @@ Build and run locally:
 export PATH=$PATH:/usr/local/go/bin
 go build -tags fts5 -o workflow ./cmd/workflow/
 WORKFLOW_DEV_ROOT=1 ./workflow serve -dir ./testdata -templates './templates/*.html'
+
+# The -tags fts5 flag enables session search. Without it, search shows a helpful error.
+# Always use it unless you're debugging a CGO issue.
 ```
 
 `WORKFLOW_DEV_ROOT=1` sets `CLAUDE_ALLOW_ROOT=1` for the agent subprocess — needed when running as root (e.g. on a dev server). Never use this flag in production.
