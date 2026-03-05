@@ -47,16 +47,9 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 		"-p", opts.Prompt,
 		"--output-format", "stream-json",
 		"--dangerously-skip-permissions",
-		"--no-session-persistence", // we manage session state ourselves
 	}
 	if opts.ResumeSessionID != "" {
-		// Drop --no-session-persistence so the CLI can load the session
-		args = []string{
-			"-p", opts.Prompt,
-			"--output-format", "stream-json",
-			"--dangerously-skip-permissions",
-			"--resume", opts.ResumeSessionID,
-		}
+		args = append(args, "--resume", opts.ResumeSessionID)
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
@@ -71,6 +64,9 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
 	}
+	var stderrBuf strings.Builder
+	cmd.Stderr = &stderrBuf
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start claude: %w", err)
 	}
@@ -79,7 +75,17 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 
 	go func() {
 		defer close(ch)
-		defer cmd.Wait()
+		defer func() {
+			if err := cmd.Wait(); err != nil {
+				se := strings.TrimSpace(stderrBuf.String())
+				if se != "" {
+					log.Printf("claude_local: process exited with error: %v\nstderr: %s", err, se)
+					ch <- Event{Kind: EventError, Err: fmt.Errorf("%s", se)}
+				} else {
+					log.Printf("claude_local: process exited: %v", err)
+				}
+			}
+		}()
 
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB line buffer for large diffs
