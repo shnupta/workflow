@@ -90,8 +90,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `/sessions` shows all sessions grouped by task
   - Session page has breadcrumb back to task
 
-- [ ] **Better error display when claude not configured**
-  - Currently shows raw error message; should be friendlier
+- [x] **Better error display when claude not configured** ✅ 2026-03-05
+  - Friendly message: "Set claude_bin in workflow.json..."; inline error in session form instead of alert()
 
 - [x] **Send button shows "Queue" while agent running** ✅ 2026-03-05
   - Button label changes to "Queue" at 60% opacity while agent is busy
