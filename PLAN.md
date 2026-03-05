@@ -76,6 +76,161 @@ workflow update     — git pull + rebuild + restart (if installed as service)
 
 ---
 
+## Testing
+
+### Rules
+- **Before committing any substantial change**, run the Playwright suite below and the Go tests.
+- Go tests: `cd /root/.nox/workspace/workflow && go test -tags fts5 ./...`
+- Playwright suite: spin up test server (see "How Nox works" above), run each scenario, kill server.
+- If a test fails, fix the bug before pushing.
+- Add new Playwright scenarios whenever a significant new UI feature ships.
+
+---
+
+### Go unit & integration tests
+
+Location: `internal/db/db_test.go`, `internal/models/task_test.go`, etc.
+
+**What to cover:**
+
+- `internal/models/task_test.go`
+  - [ ] `ElapsedSeconds()` / `ElapsedLabel()` — running timer, stopped timer, zero
+  - [ ] `IsOverdue()` / `IsDueToday()` — boundary cases (today, yesterday, tomorrow, nil)
+  - [ ] `DirectionLabel()` — both values
+
+- `internal/db/db_test.go` (use an in-memory SQLite DB: `file::memory:?cache=shared`)
+  - [ ] Migrations run cleanly on a fresh DB (no panics, expected tables exist)
+  - [ ] `CreateTask` / `GetTask` / `UpdateTask` / `DeleteTask` round-trip
+  - [ ] `MarkDone` sets `done=1` and `done_at`
+  - [ ] `TimerToggle` starts and stops correctly; `ElapsedSeconds` increases between calls
+  - [ ] `TimerReset` zeroes `timer_total` and clears `timer_started`
+  - [ ] `MoveTask` reorders positions correctly
+  - [ ] `CreateSession` / `GetSession` / `ListSessions` — pinned sessions sort first
+  - [ ] `ArchiveSession` hides from `ListSessions`, visible with `showArchived=true`
+  - [ ] `UpdateBrief` with `status="done"` creates a row in `brief_versions`
+  - [ ] `ListBriefVersions` returns newest-first
+  - [ ] `WeeklyDigest` returns correct counts for completed vs in-progress tasks
+  - [ ] Notes: `CreateNote` / `UpdateNote` / `ListNotes` / `DeleteNote`
+  - [ ] FTS5 search: `SearchSessions` returns results for indexed message content
+
+- `internal/handlers/` — HTTP handler integration tests using `httptest.NewServer`
+  - [ ] `GET /` returns 200
+  - [ ] `POST /tasks` creates task and redirects
+  - [ ] `POST /tasks/quick` returns JSON with new task ID
+  - [ ] `POST /tasks/{id}/done` marks done, redirects to board
+  - [ ] `POST /tasks/{id}/timer` toggles timer, returns updated elapsed
+  - [ ] `GET /digest` returns 200 with correct week stats
+  - [ ] `GET /api/notes` returns empty list on fresh DB
+  - [ ] `POST /api/notes` creates note, returns JSON
+  - [ ] `PATCH /api/notes/{id}` updates content, derives title from first line
+
+---
+
+### Playwright UI test suite
+
+Run these in order — they share the same test server and DB state within a session.
+Each scenario is listed with: **what to do** → **what to verify**.
+
+**Setup** (before all tests)
+```
+build /tmp/workflow-test
+mkdir /tmp/wf-test-data
+start server on :7071
+```
+
+**Teardown** (after all tests)
+```
+kill server, rm /tmp/workflow-test, rm -rf /tmp/wf-test-data
+```
+
+---
+
+#### P01 — Board loads
+- Navigate to `http://localhost:7071/`
+- ✓ Three columns visible: Today, This Week, Backlog
+- ✓ Nav links: Tasks, Sessions, Notes, Digest
+
+#### P02 — Create task (full form)
+- Click `+ New task`
+- Fill title: "Test PR review", type: PR Review, tier: Today
+- Click `Add task`
+- ✓ Redirected to task detail page
+- ✓ Title visible, work type badge shown
+
+#### P03 — Board shows task card
+- Navigate to board `/`
+- ✓ "Test PR review" card visible in Today column
+- ✓ No elapsed time shown (timer not started)
+
+#### P04 — Quick-add task
+- On board, click `+ Add task` in Backlog column
+- Type "Quick backlog item", press Enter
+- ✓ Redirected to new task page
+- ✓ Title is "Quick backlog item", tier is Backlog
+
+#### P05 — Board filtering
+- Navigate to board
+- Click "PR Review" filter chip
+- ✓ "Test PR review" card still visible
+- Click "Coding" filter chip
+- ✓ "Test PR review" card hidden
+
+#### P06 — Task timer
+- Navigate to "Test PR review" task page
+- Click `▶ Start timer`
+- ✓ Button changes to `⏹ Stop`, elapsed shows `< 1m`
+- Wait 2s
+- Click `⏹ Stop`
+- ✓ Button reverts to `▶ Start timer`, elapsed label still visible
+- ✓ Elapsed label also visible on board card (P07 verifies)
+
+#### P07 — Elapsed shown on board card
+- Navigate to board `/`
+- ✓ "Test PR review" card shows elapsed time label (e.g. `< 1m`)
+
+#### P08 — Notes: create and auto-save
+- Navigate to `/notes`
+- Click `+ New`
+- ✓ Editor appears, sidebar shows "Untitled note"
+- Type `# My note\n\nSome content here`
+- Wait 1.5s for debounce
+- ✓ Sidebar title updates to "My note"
+
+#### P09 — Notes: preview mode
+- On notes page with content from P08
+- Click `Preview`
+- ✓ `<h1>My note</h1>` visible in preview pane
+- Click `Edit`
+- ✓ Textarea visible again
+
+#### P10 — Weekly digest: in-progress
+- Navigate to `/digest`
+- ✓ "this week" badge present
+- ✓ Stats bar shows ≥ 1 in progress (tasks from P02/P04)
+- ✓ "Test PR review" visible under In progress
+
+#### P11 — Mark task done → digest updates
+- Navigate to "Test PR review" task page
+- Click `Mark done`
+- ✓ Redirected to board; task not shown
+- Navigate to `/digest`
+- ✓ Completed count ≥ 1
+- ✓ "Test PR review" appears under Completed with ✓
+
+#### P12 — Session search
+- Navigate to `/search`
+- ✓ Search input visible
+- (Search with content is only testable if a session with messages exists — skip for now, note as manual)
+
+#### P13 — Keyboard shortcuts
+- Navigate to board `/`
+- Press `?`
+- ✓ Shortcuts overlay visible
+- Press `Esc`
+- ✓ Overlay dismissed
+
+---
+
 ## Task list
 
 Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new tasks at the bottom of the appropriate section.
