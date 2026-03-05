@@ -141,12 +141,12 @@
     }
     if (empty) empty.style.display = 'none';
     list.innerHTML = (sessions || []).map(s => `
-      <a href="/tasks/${taskID}/sessions/${s.ID}" class="session-card">
+      <a href="/tasks/${taskID}/sessions/${s.id}" class="session-card">
         <div class="session-card-main">
-          <span class="session-card-name">${s.Name || 'Session'}</span>
-          ${statusBadge(s.Status)}
+          <span class="session-card-name">${s.name || 'Session'}</span>
+          ${statusBadge(s.status)}
         </div>
-        <div class="session-card-meta">${s.AgentProvider} · ${s.Mode}</div>
+        <div class="session-card-meta">${s.agent_provider} · ${s.mode}</div>
       </a>
     `).join('');
   }
