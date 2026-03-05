@@ -25,6 +25,12 @@
 
       <div class="chat-container" id="chat">
         {{range .Messages}}
+        {{if eq .Kind "context"}}
+        <details class="context-block" data-id="{{.ID}}">
+          <summary>Task context</summary>
+          <div class="context-content md-content">{{.Content}}</div>
+        </details>
+        {{else}}
         <div class="chat-message role-{{.Role}} kind-{{.Kind}}" data-id="{{.ID}}">
           {{if eq .Kind "tool_use"}}
           <div class="tool-badge">⚙ {{.ToolName}}</div>
@@ -41,6 +47,7 @@
           {{end}}
           <div class="msg-time">{{timeAgo .CreatedAt}}</div>
         </div>
+        {{end}}
         {{end}}
 
         {{if eq .Session.Status "running"}}
@@ -111,18 +118,24 @@
     div.className = `chat-message role-${msg.role} kind-${msg.kind}`;
     div.dataset.id = msg.id;
 
-    let inner = '';
-    if (msg.kind === 'tool_use') {
-      inner = `<div class="tool-badge">⚙ ${escHtml(msg.tool_name)}</div><div class="tool-input"><pre>${escHtml(msg.content)}</pre></div>`;
-    } else if (msg.kind === 'thinking') {
-      inner = `<details class="thinking-block"><summary>Thinking...</summary><div class="thinking-content md-content">${escHtml(msg.content)}</div></details>`;
-    } else if (msg.kind === 'error') {
-      inner = `<div class="error-msg">${escHtml(msg.content)}</div>`;
+    if (msg.kind === 'context') {
+      div.className = ''; // no chat-message styling
+      div.innerHTML = `<details class="context-block"><summary>Task context</summary><div class="context-content md-content">${escHtml(msg.content)}</div></details>`;
+      div.dataset.id = msg.id;
     } else {
-      inner = `<div class="md-content">${escHtml(msg.content)}</div>`;
+      let inner = '';
+      if (msg.kind === 'tool_use') {
+        inner = `<div class="tool-badge">⚙ ${escHtml(msg.tool_name)}</div><div class="tool-input"><pre>${escHtml(msg.content)}</pre></div>`;
+      } else if (msg.kind === 'thinking') {
+        inner = `<details class="thinking-block"><summary>Thinking...</summary><div class="thinking-content md-content">${escHtml(msg.content)}</div></details>`;
+      } else if (msg.kind === 'error') {
+        inner = `<div class="error-msg">${escHtml(msg.content)}</div>`;
+      } else {
+        inner = `<div class="md-content">${escHtml(msg.content)}</div>`;
+      }
+      inner += `<div class="msg-time">just now</div>`;
+      div.innerHTML = inner;
     }
-    inner += `<div class="msg-time">just now</div>`;
-    div.innerHTML = inner;
 
     if (indicator) {
       chat.insertBefore(div, indicator);

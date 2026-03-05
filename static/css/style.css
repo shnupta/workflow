@@ -819,3 +819,28 @@ select option { background: var(--surface2); }
   flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Task context block in session ── */
+.context-block {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.context-block summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+.context-block summary:hover { color: var(--text); }
+.context-content {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}

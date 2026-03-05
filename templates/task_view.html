@@ -56,7 +56,7 @@
         </div>
         <div id="brief-body">
           {{if eq .Task.BriefStatus "done"}}
-          <div class="brief-content md-content">{{.Task.Brief}}</div>
+          <div class="brief-content">{{markdownHTML .Task.Brief}}</div>
           {{else if eq .Task.BriefStatus "error"}}
           <div class="brief-error">Agent error: {{.Task.Brief}}</div>
           {{else if eq .Task.BriefStatus "pending"}}
@@ -128,12 +128,7 @@
       if (data.status === 'done') {
         clearInterval(briefPollTimer);
         briefPollTimer = null;
-        const div = document.createElement('div');
-        div.className = 'brief-content md-content';
-        div.textContent = data.brief;
-        body.innerHTML = '';
-        body.appendChild(div);
-        renderMarkdown();
+        body.innerHTML = `<div class="brief-content">${marked.parse(data.brief)}</div>`;
       } else if (data.status === 'error') {
         clearInterval(briefPollTimer);
         briefPollTimer = null;

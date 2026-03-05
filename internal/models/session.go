@@ -54,6 +54,7 @@ const (
 	MessageKindToolResult MessageKind = "tool_result"
 	MessageKindThinking   MessageKind = "thinking"
 	MessageKindError      MessageKind = "error"
+	MessageKindContext    MessageKind = "context" // injected task context, shown as collapsible info block
 )
 
 // Message is a single turn in a session's conversation.

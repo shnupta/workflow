@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"net/http"
 	"time"
@@ -46,7 +45,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	name := body.Name
 	if name == "" {
-		name = fmt.Sprintf("Session %s", time.Now().Format("Jan 2 15:04"))
+		name = sessionNameFromPrompt(body.Prompt)
 	}
 
 	sess := &models.Session{
@@ -69,11 +68,23 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prepend task context to the user's prompt
-	fullPrompt := buildSessionPrompt(task, body.Prompt)
+	// Build the full prompt (context + user message) for the agent,
+	// but store the context and user message as separate DB messages so
+	// the chat UI can render them differently.
+	contextBlock := buildTaskContext(task)
+	fullPrompt := contextBlock + "\n---\n\n" + body.Prompt
 
-	// Start runner in background
-	go agent.RunSession(context.Background(), h.db, sess, runner, fullPrompt)
+	// Store context as a collapsible info block (not a chat bubble)
+	_ = h.db.CreateMessage(&models.Message{
+		SessionID: sess.ID,
+		Role:      models.MessageRoleSystem,
+		Kind:      models.MessageKindContext,
+		Content:   contextBlock,
+		CreatedAt: time.Now(),
+	})
+
+	// Start runner — pass full prompt to agent, but only store user's actual words in chat
+	go agent.RunSession(context.Background(), h.db, sess, runner, fullPrompt, body.Prompt)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -183,9 +194,24 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// buildSessionPrompt wraps the user's prompt with task context so the agent
-// is never starting cold.
-func buildSessionPrompt(t *models.Task, userPrompt string) string {
+// sessionNameFromPrompt generates a short session name from the first few words of the prompt.
+func sessionNameFromPrompt(prompt string) string {
+	words := strings.Fields(prompt)
+	if len(words) == 0 {
+		return "Session"
+	}
+	if len(words) > 6 {
+		words = words[:6]
+	}
+	name := strings.Join(words, " ")
+	if len(name) > 48 {
+		name = name[:45] + "..."
+	}
+	return name
+}
+
+// buildTaskContext returns the task context block sent to the agent.
+func buildTaskContext(t *models.Task) string {
 	var b strings.Builder
 	b.WriteString("## Task context\n")
 	b.WriteString("You are working on the following task. Use this context to inform your work.\n\n")
@@ -205,7 +231,5 @@ func buildSessionPrompt(t *models.Task, userPrompt string) string {
 		b.WriteString(t.Brief)
 		b.WriteString("\n")
 	}
-	b.WriteString("\n---\n\n")
-	b.WriteString(userPrompt)
 	return b.String()
 }

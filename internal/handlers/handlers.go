@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yuin/goldmark"
 	"github.com/shnupta/workflow/internal/agent"
 	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
@@ -31,6 +33,13 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 	funcMap := template.FuncMap{
 		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
 		"timeAgo":       timeAgo,
+		"markdownHTML": func(s string) template.HTML {
+			var buf bytes.Buffer
+			if err := goldmark.Convert([]byte(s), &buf); err != nil {
+				return template.HTML(template.HTMLEscapeString(s))
+			}
+			return template.HTML(buf.String())
+		},
 		"workTypeLabel": func(key string) string {
 			if wt := h.cfg().WorkTypeByKey(key); wt != nil {
 				return wt.Label

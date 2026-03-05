@@ -17,24 +17,31 @@ type DB interface {
 
 // RunSession starts an agent session in the background, writing normalised
 // messages to the DB as events arrive. Safe to call in a goroutine.
-func RunSession(ctx context.Context, db DB, sess *models.Session, runner Runner, prompt string) {
+// promptForAgent is what the agent receives (may include injected context).
+// visiblePrompt is what gets stored as the user message in the chat (just the user's actual words).
+// If visiblePrompt is empty, promptForAgent is used for both.
+func RunSession(ctx context.Context, db DB, sess *models.Session, runner Runner, promptForAgent string, visiblePrompt ...string) {
 	if err := db.UpdateSessionStatus(sess.ID, models.SessionStatusRunning, ""); err != nil {
 		log.Printf("runner: update status running: %v", err)
 	}
 
 	opts := RunOptions{
-		Prompt: prompt,
+		Prompt: promptForAgent,
 	}
 	if sess.AgentSessionID != nil {
 		opts.ResumeSessionID = *sess.AgentSessionID
 	}
 
-	// Store the user prompt as the first message
+	// Store the visible user prompt as the first message
+	displayPrompt := promptForAgent
+	if len(visiblePrompt) > 0 && visiblePrompt[0] != "" {
+		displayPrompt = visiblePrompt[0]
+	}
 	_ = db.CreateMessage(&models.Message{
 		SessionID: sess.ID,
 		Role:      models.MessageRoleUser,
 		Kind:      models.MessageKindText,
-		Content:   prompt,
+		Content:   displayPrompt,
 		CreatedAt: time.Now(),
 	})
 

@@ -47,7 +47,6 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 		"-p", opts.Prompt,
 		"--output-format", "stream-json",
 		"--verbose",
-		"--dangerously-skip-permissions",
 	}
 	if opts.ResumeSessionID != "" {
 		args = append(args, "--resume", opts.ResumeSessionID)
@@ -57,8 +56,10 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 	if opts.WorkDir != "" {
 		cmd.Dir = opts.WorkDir
 	}
+	// Always inherit environment; add CLAUDE_ALLOW_ROOT so it runs as root without --dangerously-skip-permissions
+	cmd.Env = append(cmd.Environ(), "CLAUDE_ALLOW_ROOT=1")
 	if len(opts.Env) > 0 {
-		cmd.Env = append(cmd.Environ(), opts.Env...)
+		cmd.Env = append(cmd.Env, opts.Env...)
 	}
 
 	stdout, err := cmd.StdoutPipe()
