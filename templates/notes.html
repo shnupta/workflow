@@ -1,0 +1,26 @@
+{{define "notes.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Notes</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">Notes</h1>
+        <button class="btn btn-primary" onclick="newNote()">+ New note</button>
+      </div>
+      <p class="empty-state" style="margin-top:40px">Notes coming soon. This will be a scratchpad for anything that doesn't fit a task.</p>
+    </div>
+  </main>
+<script>
+  function newNote() { /* TODO */ }
+</script>
+</body>
+</html>
+{{end}}

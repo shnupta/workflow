@@ -1,0 +1,19 @@
+{{define "nav"}}
+<header>
+  <a href="/" class="logo">workflow</a>
+  <nav class="main-nav">
+    <a href="/"         class="nav-link {{if eq .Nav "tasks"}}active{{end}}">Tasks</a>
+    <a href="/sessions" class="nav-link {{if eq .Nav "sessions"}}active{{end}}">Sessions</a>
+    <a href="/notes"    class="nav-link {{if eq .Nav "notes"}}active{{end}}">Notes</a>
+  </nav>
+  <div class="header-actions">
+    {{if eq .Nav "tasks"}}
+    <a href="/tasks/new" class="btn btn-primary">+ New task</a>
+    {{else if eq .Nav "sessions"}}
+    <span></span>
+    {{else}}
+    <span></span>
+    {{end}}
+  </div>
+</header>
+{{end}}

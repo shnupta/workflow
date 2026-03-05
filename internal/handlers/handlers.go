@@ -141,6 +141,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":     tiers,
 		"WorkTypes": h.cfg().WorkTypes,
+		"Nav":       "tasks",
 	})
 }
 

@@ -9,10 +9,7 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <header>
-    <a href="/" class="logo">workflow</a>
-    <a href="/tasks/new" class="btn btn-primary">+ New task</a>
-  </header>
+  {{template "nav" .}}
   <main>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
