@@ -11,6 +11,15 @@
 <body>
   {{template "nav" .}}
   <main>
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-chip active" data-filter="all" onclick="setFilter('all', this)">All</button>
+      {{range .WorkTypes}}
+      <button class="filter-chip" data-filter="{{.Key}}" onclick="setFilter('{{.Key}}', this)">{{.Label}}</button>
+      {{end}}
+      <div class="filter-sep"></div>
+      <button class="filter-chip" data-filter="blocked_on_me" onclick="setFilter('blocked_on_me', this)">On me</button>
+      <button class="filter-chip" data-filter="blocked_on_them" onclick="setFilter('blocked_on_them', this)">Waiting</button>
+    </div>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
       <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}">
@@ -214,7 +223,7 @@
           <kbd>q</kbd><span>Quick-add to first column</span>
           <kbd>s</kbd><span>Search sessions</span>
           <kbd>?</kbd><span>Show / hide this</span>
-          <kbd>Esc</kbd><span>Close overlays</span>
+          <kbd>Esc</kbd><span>Close overlay / clear filter</span>
         </div>
       </div>
     `;
@@ -225,9 +234,70 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       const overlay = document.getElementById('shortcuts-overlay');
-      if (overlay) { overlay.remove(); e.preventDefault(); }
+      if (overlay) { overlay.remove(); e.preventDefault(); return; }
+      // Also clear filter on Esc if one is active
+      const active = document.querySelector('.filter-chip.active');
+      if (active && active.dataset.filter !== 'all') setFilter('all', document.querySelector('[data-filter=all]'));
     }
   });
+
+  // ── Board filtering ────────────────────────────────────────────────────────
+
+  let currentFilter = localStorage.getItem('board-filter') || 'all';
+
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    localStorage.setItem('board-filter', filter);
+
+    // Update chip styles
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const cards = document.querySelectorAll('.task-card');
+    cards.forEach(card => {
+      let show = true;
+      if (currentFilter === 'all') {
+        show = true;
+      } else if (currentFilter === 'blocked_on_me' || currentFilter === 'blocked_on_them') {
+        show = card.dataset.direction === currentFilter;
+      } else {
+        show = card.dataset.type === currentFilter;
+      }
+      card.style.display = show ? '' : 'none';
+    });
+
+    // Update empty state messages per column
+    document.querySelectorAll('.tier-col').forEach(col => {
+      const list = col.querySelector('.task-list');
+      const visible = [...list.querySelectorAll('.task-card')].filter(c => c.style.display !== 'none');
+      let empty = list.querySelector('.empty');
+      if (visible.length === 0) {
+        if (!empty) {
+          empty = document.createElement('p');
+          empty.className = 'empty filter-empty';
+          list.appendChild(empty);
+        }
+        empty.textContent = currentFilter === 'all' ? 'Nothing here' : 'No matching tasks';
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
+    });
+  }
+
+  // Restore filter on load
+  (function() {
+    const chip = document.querySelector(`[data-filter="${currentFilter}"]`);
+    if (chip && currentFilter !== 'all') {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      applyFilter();
+    }
+  })();
 </script>
 </body>
 </html>
@@ -237,6 +307,8 @@
 <div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}"
      draggable="true"
      data-id="{{.ID}}"
+     data-type="{{.WorkType}}"
+     data-direction="{{.Direction}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <div class="task-card-header">
