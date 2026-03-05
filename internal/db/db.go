@@ -3,16 +3,18 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/models"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3" // requires CGO; build with: go build -tags fts5
 )
 
 type DB struct {
 	conn *sql.DB
+	fts5 bool // true if FTS5 is available (built with -tags fts5)
 }
 
 func Open(path string) (*DB, error) {
@@ -102,42 +104,48 @@ func (d *DB) migrate() error {
 		return err
 	}
 
-	// FTS5 index over message content for session search
-	_, err = d.conn.Exec(`
+	// FTS5 index over message content for session search.
+	// FTS5 requires SQLite to be built with -DSQLITE_ENABLE_FTS5 or the Go
+	// driver built with `go build -tags fts5`. We attempt the migration but
+	// don't fatal if FTS5 is unavailable — search just won't work.
+	if _, ftsErr := d.conn.Exec(`
 		CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 			content,
 			session_id UNINDEXED,
 			content='messages',
 			content_rowid='rowid'
 		)
-	`)
-	if err != nil {
-		return err
+	`); ftsErr != nil {
+		// Not fatal — log and skip FTS setup
+		log.Printf("db: FTS5 not available (%v) — session search disabled. Build with: go build -tags fts5", ftsErr)
+		d.fts5 = false
+	} else {
+		d.fts5 = true
+
+		// Triggers to keep FTS index in sync
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON messages BEGIN
+				INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN
+				INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN
+				INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
+				INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
+			END
+		`)
+
+		// Backfill FTS for any existing messages (safe to run multiple times)
+		_, _ = d.conn.Exec(`
+			INSERT OR IGNORE INTO messages_fts(rowid, content, session_id)
+			SELECT rowid, content, session_id FROM messages
+		`)
 	}
-
-	// Triggers to keep FTS index in sync
-	_, _ = d.conn.Exec(`
-		CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON messages BEGIN
-			INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
-		END
-	`)
-	_, _ = d.conn.Exec(`
-		CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
-		END
-	`)
-	_, _ = d.conn.Exec(`
-		CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN
-			INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
-			INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
-		END
-	`)
-
-	// Backfill FTS for any existing messages (safe to run multiple times)
-	_, _ = d.conn.Exec(`
-		INSERT OR IGNORE INTO messages_fts(rowid, content, session_id)
-		SELECT rowid, content, session_id FROM messages
-	`)
 
 	return nil
 }
@@ -352,6 +360,12 @@ func (d *DB) UpdateSessionAgentID(id, agentSessionID string) error {
 	return err
 }
 
+func (d *DB) UpdateSessionName(id, name string) error {
+	_, err := d.conn.Exec(`UPDATE sessions SET name=?, updated_at=? WHERE id=?`,
+		name, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
 func (d *DB) GetSession(id string) (*models.Session, error) {
 	row := d.conn.QueryRow(`
 		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
@@ -521,6 +535,9 @@ type SearchResult struct {
 func (d *DB) SearchSessions(query string) ([]*SearchResult, error) {
 	if query == "" {
 		return nil, nil
+	}
+	if !d.fts5 {
+		return nil, fmt.Errorf("search unavailable: rebuild with `go build -tags fts5`")
 	}
 	rows, err := d.conn.Query(`
 		SELECT

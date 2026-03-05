@@ -1133,3 +1133,144 @@ select option { background: var(--surface2); }
   font-size: 11px;
   color: var(--text-muted);
 }
+
+.search-unavailable {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.search-unavailable code {
+  background: rgba(0,0,0,0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: var(--text-primary);
+}
+
+/* ─── Quick-add ────────────────────────────────────────── */
+
+.quick-add {
+  margin-top: 8px;
+  padding: 4px 0;
+}
+.quick-add-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 7px 12px;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.quick-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+.quick-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.quick-add-form.hidden { display: none; }
+.quick-add-input {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  padding: 7px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.quick-add-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.quick-add-type {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 5px 8px;
+  outline: none;
+}
+.btn-sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+/* ─── Keyboard shortcuts overlay ──────────────────────── */
+
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.shortcuts-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  min-width: 320px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.shortcuts-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+.shortcuts-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px 16px;
+  align-items: center;
+}
+.shortcuts-grid kbd {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 13px;
+  padding: 2px 7px;
+  justify-self: start;
+}
+.shortcuts-grid span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* ─── Session rename ───────────────────────────────────── */
+
+.session-title[contenteditable] {
+  border-radius: 4px;
+  cursor: text;
+  outline: none;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  transition: background 0.15s;
+}
+.session-title[contenteditable]:hover {
+  background: var(--surface-hover);
+}
+.session-title[contenteditable]:focus {
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent);
+}

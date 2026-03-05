@@ -30,7 +30,12 @@
         </div>
       </form>
 
-      {{if .Query}}
+      {{if .SearchErr}}
+        <div class="search-unavailable">
+          <p>Search is unavailable — FTS5 not compiled in.</p>
+          <p>Rebuild with: <code>go build -tags fts5 ./cmd/workflow/</code></p>
+        </div>
+      {{else if .Query}}
         {{if .Results}}
           <div class="search-results">
             <p class="search-count">{{len .Results}} session{{if gt (len .Results) 1}}s{{end}} matched</p>

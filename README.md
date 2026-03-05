@@ -7,7 +7,7 @@ A local task board for leads. Captures everything coming at you — PR reviews, 
 ```bash
 git clone https://github.com/shnupta/workflow
 cd workflow
-go build -o workflow ./cmd/workflow/
+go build -tags fts5 -o workflow ./cmd/workflow/
 ./workflow setup
 ```
 

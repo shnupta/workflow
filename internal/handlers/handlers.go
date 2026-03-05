@@ -66,6 +66,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /", h.index)
 	mux.HandleFunc("GET /tasks/new", h.newTaskForm)
 	mux.HandleFunc("POST /tasks", h.createTask)
+	mux.HandleFunc("POST /tasks/quick", h.quickCreateTask)
 	mux.HandleFunc("GET /tasks/{id}", h.viewTask)
 	mux.HandleFunc("GET /tasks/{id}/edit", h.editTaskForm)
 	mux.HandleFunc("POST /tasks/{id}", h.updateTask)
@@ -121,18 +122,19 @@ func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) searchSessions(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	var results []*db.SearchResult
+	var searchErr string
 	if q != "" {
 		var err error
 		results, err = h.db.SearchSessions(q)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
+			searchErr = err.Error()
 		}
 	}
 	h.render(w, "search.html", map[string]interface{}{
-		"Nav":     "sessions",
-		"Query":   q,
-		"Results": results,
+		"Nav":       "sessions",
+		"Query":     q,
+		"Results":   results,
+		"SearchErr": searchErr,
 	})
 }
 
@@ -196,11 +198,52 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
-	// Kick off auto-brief in background
 	go h.runAutoBrief(t)
-
 	http.Redirect(w, r, "/tasks/"+t.ID, http.StatusSeeOther)
+}
+
+// quickCreateTask handles the inline "add task" form on the board.
+// Accepts JSON: {"title","work_type","tier"} — minimal fields only.
+// Returns JSON {"id","redirect"} so JS can optionally navigate to the task.
+func (h *Handler) quickCreateTask(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Title    string `json:"title"`
+		WorkType string `json:"work_type"`
+		Tier     string `json:"tier"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	body.Title = strings.TrimSpace(body.Title)
+	if body.Title == "" {
+		http.Error(w, "title required", 400)
+		return
+	}
+	if body.WorkType == "" {
+		body.WorkType = "other"
+	}
+	if body.Tier == "" {
+		if len(h.cfg().Tiers) > 0 {
+			body.Tier = h.cfg().Tiers[0].Key
+		}
+	}
+	t := &models.Task{
+		Title:     body.Title,
+		WorkType:  body.WorkType,
+		Tier:      body.Tier,
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(t); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	go h.runAutoBrief(t)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"id":       t.ID,
+		"redirect": "/tasks/" + t.ID,
+	})
 }
 
 func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {

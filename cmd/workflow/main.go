@@ -182,7 +182,7 @@ func cmdUpdate() {
 		{"go build", func() error {
 			binary, _ := os.Executable()
 			binary, _ = filepath.Abs(binary)
-			return runInDir(repoDir, "go", "build", "-o", binary, "./cmd/workflow/")
+			return runInDir(repoDir, "go", "build", "-tags", "fts5", "-o", binary, "./cmd/workflow/")
 		}},
 		{"restart service", func() error {
 			if !daemon.IsInstalled() {

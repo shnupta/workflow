@@ -16,6 +16,7 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/sessions", h.createSession)
 	mux.HandleFunc("GET /tasks/{id}/sessions", h.listSessions)
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}", h.viewSession)
+	mux.HandleFunc("PATCH /tasks/{id}/sessions/{sid}/name", h.renameSession)
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/messages", h.getMessages)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/messages", h.sendMessage)
 }
@@ -89,6 +90,29 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"id": sess.ID})
+}
+
+// renameSession updates the name of a session.
+// Body: {"name": "New name"}
+func (h *Handler) renameSession(w http.ResponseWriter, r *http.Request) {
+	sid := r.PathValue("sid")
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		http.Error(w, "name required", 400)
+		return
+	}
+	if err := h.db.UpdateSessionName(sid, name); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // listSessions returns all sessions for a task as JSON.

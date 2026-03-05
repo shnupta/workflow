@@ -17,7 +17,13 @@
       </div>
       <div class="session-header">
         <div class="session-meta">
-          <h1 class="session-title">{{.Session.Name}}</h1>
+          <h1 class="session-title"
+              id="session-title"
+              contenteditable="true"
+              spellcheck="false"
+              title="Click to rename"
+              onkeydown="onTitleKey(event)"
+              onblur="saveSessionName(this)">{{.Session.Name}}</h1>
           <span class="session-status status-{{.Session.Status}}" id="session-status">{{.Session.Status}}</span>
           <span class="session-provider">{{.Session.AgentProvider}}</span>
         </div>
@@ -304,6 +310,46 @@
 
     if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
   });
+
+  // ── Session rename ─────────────────────────────────────────────────────────
+
+  const taskID = '{{.Task.ID}}';
+  const sessionID = '{{.Session.ID}}';
+  let originalTitle = document.getElementById('session-title')?.textContent.trim() || '';
+
+  function onTitleKey(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur(); // triggers saveSessionName
+    }
+    if (e.key === 'Escape') {
+      e.target.textContent = originalTitle;
+      e.target.blur();
+    }
+  }
+
+  async function saveSessionName(el) {
+    const newName = el.textContent.trim();
+    if (!newName || newName === originalTitle) {
+      el.textContent = originalTitle; // restore if blank
+      return;
+    }
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName })
+      });
+      if (r.ok) {
+        originalTitle = newName;
+        document.title = 'workflow — ' + newName;
+      } else {
+        el.textContent = originalTitle;
+      }
+    } catch {
+      el.textContent = originalTitle;
+    }
+  }
 </script>
 </body>
 </html>

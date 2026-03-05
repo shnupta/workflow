@@ -5,7 +5,7 @@
 ```bash
 git clone https://github.com/shnupta/workflow
 cd workflow
-go build -o workflow ./cmd/workflow/
+go build -tags fts5 -o workflow ./cmd/workflow/
 ./workflow setup
 ```
 
@@ -118,7 +118,7 @@ Build and run locally:
 
 ```bash
 export PATH=$PATH:/usr/local/go/bin
-go build -o workflow ./cmd/workflow/
+go build -tags fts5 -o workflow ./cmd/workflow/
 WORKFLOW_DEV_ROOT=1 ./workflow serve -dir ./testdata -templates './templates/*.html'
 ```
 

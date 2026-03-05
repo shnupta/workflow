@@ -21,7 +21,22 @@
              ondrop="onDrop(event)"
              ondragleave="onDragLeave(event)">
           {{range .Tasks}}{{template "task_card" .}}{{end}}
-          {{if not .Tasks}}<p class="empty">Nothing here</p>{{end}}
+          {{if not .Tasks}}<p class="empty" id="empty-{{.Key}}">Nothing here</p>{{end}}
+        </div>
+        <div class="quick-add" id="qa-{{.Key}}">
+          <button class="quick-add-btn" onclick="openQuickAdd('{{.Key}}')">+ Add task</button>
+          <form class="quick-add-form hidden" id="qaf-{{.Key}}" onsubmit="submitQuickAdd(event, '{{.Key}}')">
+            <input type="text" class="quick-add-input" placeholder="Task title…" autocomplete="off">
+            <div class="quick-add-row">
+              <select class="quick-add-type">
+                {{range $.WorkTypes}}
+                <option value="{{.Key}}">{{.Label}}</option>
+                {{end}}
+              </select>
+              <button type="submit" class="btn btn-primary btn-sm">Add</button>
+              <button type="button" class="btn btn-sm" onclick="closeQuickAdd('{{.Key}}')">✕</button>
+            </div>
+          </form>
         </div>
       </div>
       {{end}}
@@ -110,6 +125,109 @@
       return closest;
     }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
+
+  // ── Quick-add ──────────────────────────────────────────────────────────────
+
+  function openQuickAdd(tier) {
+    const form = document.getElementById('qaf-' + tier);
+    form.classList.remove('hidden');
+    form.querySelector('input').focus();
+    document.getElementById('qa-' + tier).querySelector('.quick-add-btn').classList.add('hidden');
+  }
+
+  function closeQuickAdd(tier) {
+    const form = document.getElementById('qaf-' + tier);
+    form.classList.add('hidden');
+    form.querySelector('input').value = '';
+    document.getElementById('qa-' + tier).querySelector('.quick-add-btn').classList.remove('hidden');
+  }
+
+  async function submitQuickAdd(e, tier) {
+    e.preventDefault();
+    const form = document.getElementById('qaf-' + tier);
+    const title = form.querySelector('input').value.trim();
+    const workType = form.querySelector('select').value;
+    if (!title) return;
+
+    const btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    try {
+      const r = await fetch('/tasks/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, work_type: workType, tier })
+      });
+      if (!r.ok) { alert('Failed to create task'); return; }
+      const data = await r.json();
+      // Navigate to the task page
+      window.location.href = data.redirect;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Add';
+    }
+  }
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+  document.addEventListener('keydown', e => {
+    // Don't fire when typing in an input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    switch (e.key) {
+      case 'n':
+        e.preventDefault();
+        window.location.href = '/tasks/new';
+        break;
+      case 'q':
+        e.preventDefault();
+        // Open quick-add on the first (leftmost) tier
+        const firstTier = document.querySelector('.tier-col');
+        if (firstTier) openQuickAdd(firstTier.dataset.tier);
+        break;
+      case 's':
+        e.preventDefault();
+        window.location.href = '/search';
+        break;
+      case '?':
+        e.preventDefault();
+        toggleShortcutsOverlay();
+        break;
+    }
+  });
+
+  // ── Shortcuts overlay ──────────────────────────────────────────────────────
+
+  function toggleShortcutsOverlay() {
+    let overlay = document.getElementById('shortcuts-overlay');
+    if (overlay) { overlay.remove(); return; }
+    overlay = document.createElement('div');
+    overlay.id = 'shortcuts-overlay';
+    overlay.className = 'shortcuts-overlay';
+    overlay.innerHTML = `
+      <div class="shortcuts-box">
+        <div class="shortcuts-title">Keyboard shortcuts</div>
+        <div class="shortcuts-grid">
+          <kbd>n</kbd><span>New task (full form)</span>
+          <kbd>q</kbd><span>Quick-add to first column</span>
+          <kbd>s</kbd><span>Search sessions</span>
+          <kbd>?</kbd><span>Show / hide this</span>
+          <kbd>Esc</kbd><span>Close overlays</span>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('shortcuts-overlay');
+      if (overlay) { overlay.remove(); e.preventDefault(); }
+    }
+  });
 </script>
 </body>
 </html>
