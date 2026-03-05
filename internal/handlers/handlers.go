@@ -70,7 +70,6 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return fmt.Sprintf("%dm", m)
 		},
-		"not": func(b bool) bool { return !b },
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)

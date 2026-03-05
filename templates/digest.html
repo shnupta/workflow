@@ -19,10 +19,10 @@
           Week of {{.Digest.WeekStart.Format "Jan 2"}} – {{.Digest.WeekEnd.Format "Jan 2, 2006"}}
           {{if .IsCurrentWeek}}<span class="digest-badge">this week</span>{{end}}
         </h1>
-        {{if not .IsCurrentWeek}}
-        <a href="/digest?week={{.NextWeek}}" class="digest-nav-btn">next →</a>
-        {{else}}
+        {{if .IsCurrentWeek}}
         <span class="digest-nav-btn" style="opacity:0;pointer-events:none">next →</span>
+        {{else}}
+        <a href="/digest?week={{.NextWeek}}" class="digest-nav-btn">next →</a>
         {{end}}
       </div>
 

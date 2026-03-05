@@ -10,7 +10,19 @@ Nox reads and updates this file when working on the project overnight or between
 - Build check: `cd /root/.nox/workspace/workflow && go build ./...`
 - After each change: `go build ./...` to verify, then `git add -A && git commit -m "..." && git push`
 - Casey pulls and restarts the binary on his machine to pick up changes
-- **Cannot run the app on the server** — build + push is the workflow. No test server.
+- **Nox CAN run the server on the server for testing** — run it in the background, test with Playwright, then kill it
+- Start test server:
+  ```bash
+  export PATH=$PATH:/usr/local/go/bin
+  cd /root/.nox/workspace/workflow
+  go build -tags fts5 -o /tmp/workflow-test ./cmd/workflow/
+  mkdir -p /tmp/wf-test-data
+  /tmp/workflow-test serve -addr :7071 -dir /tmp/wf-test-data -templates "$(pwd)/templates/*.html" > /tmp/workflow-test.log 2>&1 &
+  echo "started PID $!"
+  ```
+- Test with Playwright MCP (`mcp_call` with `mcp: "playwright"`) — navigate to `http://localhost:7071`, screenshot, interact
+- Kill when done: `kill $(lsof -t -i:7071) 2>/dev/null && rm -f /tmp/workflow-test`
+- After testing, always `git add -A && git commit && git push` — Casey pulls + restarts his binary
 - Claude binary on Casey's machine: `/root/.local/bin/claude` (confirmed working 2026-03-05)
 
 ## Architecture

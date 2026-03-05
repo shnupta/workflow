@@ -290,7 +290,6 @@
 
   // ── Timer ──────────────────────────────────────────────────────────────────
 
-  const taskID = '{{.Task.ID}}';
   let timerRunning = {{if .Task.TimerStarted}}true{{else}}false{{end}};
   let timerElapsed = {{.Task.ElapsedSeconds}};
   let timerTickInterval = null;
