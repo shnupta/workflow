@@ -76,26 +76,25 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Session list live refresh on task page**
-  - Currently server-rendered, stale after creating a new session (we navigate away immediately so less critical)
-  - But if someone opens task page while brief is running, session list won't show [brief] session (filtered anyway) — this is fine
-  - Real need: after creating a session the redirect handles it; but if task page is open in another tab it won't update
-  - Fix: poll `/tasks/{id}/sessions` every 5s on task page, re-render list
+- [x] **Session list live refresh on task page** ✅ 2026-03-05
+  - Polls `/tasks/{id}/sessions` every 5s, re-renders only when something changed
 
-- [ ] **Collapsible brief on task page**
-  - Brief panel is always expanded — add a toggle so it can be collapsed
-  - Remember state in localStorage
+- [x] **Collapsible brief on task page** ✅ 2026-03-05
+  - Click brief header to collapse/expand; state persisted in localStorage per task
 
-- [ ] **Brief polling cleanup**
-  - `briefPollTimer` keeps running if user navigates away — add `window.addEventListener('beforeunload', () => clearInterval(briefPollTimer))`
+- [x] **Brief polling cleanup** ✅ 2026-03-05
+  - `beforeunload` clears both brief and session poll timers
 
-- [ ] **Better error display in sessions**
-  - If auto-brief fails (claude not configured), show a clear "Claude not configured — set claude_bin in workflow.json" message instead of generic error
-  - In `runAutoBrief`: if `runner.Validate()` fails, write a helpful brief_status=error message
+- [x] **Global nav + Sessions index page** ✅ 2026-03-05
+  - Tasks / Sessions / Notes nav across all pages (Claude Code added this during auto-brief run)
+  - `/sessions` shows all sessions grouped by task
+  - Session page has breadcrumb back to task
 
-- [ ] **Session input UX**
-  - Enter to send is now set (Shift+Enter for newline) ✅
-  - Add send button disabled state while agent is running (currently just queues)
+- [ ] **Better error display when claude not configured**
+  - Currently shows raw error message; should be friendlier
+
+- [ ] **Send button disabled while agent running**
+  - Queue works fine but button looks active even when nothing will send immediately
 
 ### Lower priority / future
 
