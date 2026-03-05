@@ -1311,3 +1311,28 @@ select option { background: var(--surface2); }
   margin: 0 4px;
   flex-shrink: 0;
 }
+
+/* ─── Due dates ────────────────────────────────────────── */
+
+.due-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.due-label.due-today {
+  color: #f59e0b;
+  font-weight: 600;
+}
+.due-label.due-overdue {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Overdue card: red left border */
+.task-card.overdue {
+  border-left: 3px solid #ef4444 !important;
+}
+/* Due today: amber left border */
+.task-card.due-soon {
+  border-left: 3px solid #f59e0b !important;
+}

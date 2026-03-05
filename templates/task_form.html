@@ -64,6 +64,11 @@
           <input type="url" id="link" name="link" value="{{.Task.Link}}" placeholder="Any relevant URL">
         </div>
 
+        <div class="field">
+          <label for="due_date">Due date <span class="optional">(optional)</span></label>
+          <input type="date" id="due_date" name="due_date" value="{{formatDate .Task.DueDate}}">
+        </div>
+
         <div class="form-actions">
           <a href="{{if .Edit}}/tasks/{{.Task.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>
           <button type="submit" class="btn btn-primary">{{if .Edit}}Save changes{{else}}Add task{{end}}</button>

@@ -304,7 +304,7 @@
 {{end}}
 
 {{define "task_card"}}
-<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}"
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}"
      draggable="true"
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
@@ -318,7 +318,11 @@
   <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
   {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
   <div class="task-footer">
+    {{if .DueDate}}
+    <span class="due-label {{if .IsOverdue}}due-overdue{{else if .IsDueToday}}due-today{{end}}">{{dueDateLabel .DueDate}}</span>
+    {{else}}
     <span class="time-ago">{{timeAgo .CreatedAt}}</span>
+    {{end}}
     <div class="task-actions">
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">
         <button type="submit" class="btn-done" title="Mark done">✓</button>

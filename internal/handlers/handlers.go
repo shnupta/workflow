@@ -33,6 +33,13 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 	funcMap := template.FuncMap{
 		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
 		"timeAgo":       timeAgo,
+		"dueDateLabel":  dueDateLabel,
+		"formatDate":    func(t *time.Time) string {
+			if t == nil {
+				return ""
+			}
+			return t.Format("2006-01-02")
+		},
 		"markdownHTML": func(s string) template.HTML {
 			var buf bytes.Buffer
 			if err := goldmark.Convert([]byte(s), &buf); err != nil {
@@ -193,6 +200,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		Direction:   r.FormValue("direction"),
 		PRURL:       r.FormValue("pr_url"),
 		Link:        r.FormValue("link"),
+		DueDate:     parseDateForm(r.FormValue("due_date")),
 	}
 	if err := h.db.CreateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -294,6 +302,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	t.Direction = r.FormValue("direction")
 	t.PRURL = r.FormValue("pr_url")
 	t.Link = r.FormValue("link")
+	t.DueDate = parseDateForm(r.FormValue("due_date"))
 	if err := h.db.UpdateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -498,6 +507,46 @@ func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {
 	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("template error: %v", err)
 		http.Error(w, "render error", 500)
+	}
+}
+
+// parseDateForm parses a "2006-01-02" form value, returning nil if blank/invalid.
+func parseDateForm(s string) *time.Time {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return nil
+	}
+	return &t
+}
+
+// dueDateLabel returns a human-friendly due date string for display on cards.
+func dueDateLabel(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	due := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, now.Location())
+	diff := int(due.Sub(today).Hours() / 24)
+	switch diff {
+	case -1:
+		return "Yesterday"
+	case 0:
+		return "Today"
+	case 1:
+		return "Tomorrow"
+	default:
+		if diff < 0 {
+			return fmt.Sprintf("%dd overdue", -diff)
+		}
+		if diff <= 7 {
+			return due.Weekday().String()[:3]
+		}
+		return due.Format("Jan 2")
 	}
 }
 

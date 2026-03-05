@@ -43,7 +43,12 @@
       <p><a href="{{.Task.Link}}" target="_blank" class="external-link">→ Open link</a></p>
       {{end}}
 
-      <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
+      <p class="task-page-time">
+        Added {{timeAgo .Task.CreatedAt}}
+        {{if .Task.DueDate}}
+          · <span class="due-label {{if .Task.IsOverdue}}due-overdue{{else if .Task.IsDueToday}}due-today{{end}}">Due {{dueDateLabel .Task.DueDate}}</span>
+        {{end}}
+      </p>
 
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">

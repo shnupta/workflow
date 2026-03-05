@@ -59,6 +59,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN position     INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN brief        TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN brief_status TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE tasks ADD COLUMN due_date     TEXT`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -163,12 +164,16 @@ func (d *DB) CreateTask(t *models.Task) error {
 	d.conn.QueryRow(`SELECT COALESCE(MAX(position), -1) FROM tasks WHERE tier=? AND done=0`, t.Tier).Scan(&maxPos)
 	t.Position = maxPos + 1
 
+	var dueDate interface{}
+	if t.DueDate != nil {
+		dueDate = t.DueDate.Format("2006-01-02")
+	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil,
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate,
 	)
 	return err
 }
@@ -179,20 +184,24 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	if t.DoneAt != nil {
 		doneAt = t.DoneAt.UTC().Format(time.RFC3339)
 	}
+	var dueDate interface{}
+	if t.DueDate != nil {
+		dueDate = t.DueDate.Format("2006-01-02")
+	}
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
-		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?
+		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, t.ID,
+		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate, t.ID,
 	)
 	return err
 }
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -210,7 +219,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -280,39 +289,42 @@ func (d *DB) MoveTask(id, tier, beforeID string) error {
 	return tx.Commit()
 }
 
-func scanTask(row *sql.Row) (*models.Task, error) {
-	var t models.Task
-	var createdAt, updatedAt string
-	var doneAt *string
-	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
-	if err != nil {
-		return nil, err
-	}
+func parseTaskScanned(t *models.Task, createdAt, updatedAt string, doneAt, dueDate *string) {
 	t.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	t.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	if doneAt != nil {
 		da, _ := time.Parse(time.RFC3339, *doneAt)
 		t.DoneAt = &da
 	}
+	if dueDate != nil {
+		dd, _ := time.Parse("2006-01-02", *dueDate)
+		t.DueDate = &dd
+	}
+}
+
+func scanTask(row *sql.Row) (*models.Task, error) {
+	var t models.Task
+	var createdAt, updatedAt string
+	var doneAt, dueDate *string
+	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate)
+	if err != nil {
+		return nil, err
+	}
+	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate)
 	return &t, nil
 }
 
 func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
-	var doneAt *string
+	var doneAt, dueDate *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate)
 	if err != nil {
 		return nil, err
 	}
-	t.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	t.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
-	if doneAt != nil {
-		da, _ := time.Parse(time.RFC3339, *doneAt)
-		t.DoneAt = &da
-	}
+	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate)
 	return &t, nil
 }
 
