@@ -66,8 +66,8 @@
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
           <span class="brief-title">Agent brief</span>
           <span class="brief-header-right">
-            <button class="brief-rerun" id="rebrief-btn" onclick="event.stopPropagation();rebrief()" title="Re-run" {{if eq .Task.BriefStatus "pending"}}style="display:none"{{end}}>↺</button>
-            <button class="brief-interrupt" id="brief-interrupt-btn" onclick="event.stopPropagation();interruptBrief()" title="Stop brief" {{if ne .Task.BriefStatus "pending"}}style="display:none"{{end}}>■</button>
+            <button class="brief-icon-btn brief-rerun" id="rebrief-btn" onclick="event.stopPropagation();rebrief()" title="Re-run brief" {{if eq .Task.BriefStatus "pending"}}style="display:none"{{end}}>↺</button>
+            <button class="brief-icon-btn brief-interrupt" id="brief-interrupt-btn" onclick="event.stopPropagation();interruptBrief()" title="Stop brief" {{if ne .Task.BriefStatus "pending"}}style="display:none"{{end}}>◼</button>
             <span class="brief-toggle" id="brief-toggle">▾</span>
           </span>
         </div>
