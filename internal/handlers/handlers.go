@@ -135,6 +135,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/timer/reset", h.timerReset)
 	mux.HandleFunc("GET /tasks/{id}/timer", h.timerStatus)
 	mux.HandleFunc("GET /tasks/{id}/brief-history", h.briefHistory)
+	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
@@ -377,6 +378,16 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // briefHistory returns all brief versions for a task as JSON.
+func (h *Handler) interruptBrief(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if cancelled := h.registry.cancel(briefRegistryKey(taskID)); !cancelled {
+		http.Error(w, "no brief in progress", 409)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "interrupted"})
+}
+
 func (h *Handler) briefHistory(w http.ResponseWriter, r *http.Request) {
 	versions, err := h.db.ListBriefVersions(r.PathValue("id"))
 	if err != nil {
@@ -541,6 +552,9 @@ func shouldAutoBrief(t *models.Task, requested bool) bool {
 	return t.WorkType == "pr_review" || requested
 }
 
+// briefRegistryKey returns the registry key used for a task's auto-brief cancel func.
+func briefRegistryKey(taskID string) string { return "brief:" + taskID }
+
 func (h *Handler) runAutoBrief(t *models.Task) {
 	if err := h.db.UpdateBrief(t.ID, "", "pending"); err != nil {
 		log.Printf("auto-brief: mark pending: %v", err)
@@ -570,7 +584,13 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 		return
 	}
 
-	ch, err := runner.Run(context.Background(), agent.RunOptions{Prompt: prompt})
+	// Register a cancellable context so the brief can be interrupted
+	ctx, cancel := context.WithCancel(context.Background())
+	briefKey := briefRegistryKey(t.ID)
+	h.registry.register(briefKey, cancel)
+	defer h.registry.deregister(briefKey)
+
+	ch, err := runner.Run(ctx, agent.RunOptions{Prompt: prompt})
 	if err != nil {
 		log.Printf("auto-brief: start agent: %v", err)
 		h.db.UpdateBrief(t.ID, "Agent failed to start: "+err.Error(), "error")
@@ -582,12 +602,22 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 	// Collect the last text event — that's the agent's final brief
 	var lastText string
 	for evt := range ch {
+		if ctx.Err() != nil {
+			h.db.UpdateBrief(t.ID, "", "")
+			h.db.UpdateSessionStatus(sess.ID, models.SessionStatusInterrupted, "interrupted by user")
+			return
+		}
 		switch evt.Kind {
 		case agent.EventText:
 			if evt.Content != "" {
 				lastText = evt.Content
 			}
 		case agent.EventError:
+			if ctx.Err() != nil {
+				h.db.UpdateBrief(t.ID, "", "")
+				h.db.UpdateSessionStatus(sess.ID, models.SessionStatusInterrupted, "interrupted by user")
+				return
+			}
 			errMsg := "agent error"
 			if evt.Err != nil {
 				errMsg = evt.Err.Error()
@@ -597,6 +627,12 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 			h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, errMsg)
 			return
 		}
+	}
+
+	if ctx.Err() != nil {
+		h.db.UpdateBrief(t.ID, "", "")
+		h.db.UpdateSessionStatus(sess.ID, models.SessionStatusInterrupted, "interrupted by user")
+		return
 	}
 
 	if lastText == "" {

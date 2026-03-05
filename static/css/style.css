@@ -788,6 +788,19 @@ select option { background: var(--surface2); }
 }
 .brief-rerun:hover { color: var(--accent); }
 .brief-rerun:disabled { opacity: 0.4; cursor: default; }
+.brief-interrupt {
+  background: none;
+  border: none;
+  color: var(--red, #f87171);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.brief-interrupt:hover { color: #fca5a5; }
+.brief-interrupt:disabled { opacity: 0.4; cursor: default; }
 #brief-body {
   padding: 16px;
 }

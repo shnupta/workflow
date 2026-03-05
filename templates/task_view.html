@@ -66,7 +66,8 @@
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
           <span class="brief-title">Agent brief</span>
           <span class="brief-header-right">
-            <button class="brief-rerun" id="rebrief-btn" onclick="event.stopPropagation();rebrief()" title="Re-run">↺</button>
+            <button class="brief-rerun" id="rebrief-btn" onclick="event.stopPropagation();rebrief()" title="Re-run" {{if eq .Task.BriefStatus "pending"}}style="display:none"{{end}}>↺</button>
+            <button class="brief-interrupt" id="brief-interrupt-btn" onclick="event.stopPropagation();interruptBrief()" title="Stop brief" {{if ne .Task.BriefStatus "pending"}}style="display:none"{{end}}>■</button>
             <span class="brief-toggle" id="brief-toggle">▾</span>
           </span>
         </div>
@@ -149,6 +150,14 @@
   }
 
   // ── Brief polling ──
+
+  function setBriefRunning(running) {
+    const rerunBtn = document.getElementById('rebrief-btn');
+    const interruptBtn = document.getElementById('brief-interrupt-btn');
+    if (rerunBtn)    rerunBtn.style.display    = running ? 'none' : '';
+    if (interruptBtn) interruptBtn.style.display = running ? ''     : 'none';
+  }
+
   async function pollBrief() {
     try {
       const r = await fetch(`/tasks/${taskID}/brief-status`);
@@ -160,16 +169,25 @@
       if (data.status === 'done') {
         clearInterval(briefPollTimer);
         briefPollTimer = null;
+        setBriefRunning(false);
         body.innerHTML = `<div class="brief-content">${marked.parse(data.brief)}</div>`;
       } else if (data.status === 'error') {
         clearInterval(briefPollTimer);
         briefPollTimer = null;
+        setBriefRunning(false);
         body.innerHTML = `<div class="brief-error">Agent error: ${data.brief}</div>`;
+      } else if (data.status === '' || data.status === null) {
+        // brief was interrupted and cleared
+        clearInterval(briefPollTimer);
+        briefPollTimer = null;
+        setBriefRunning(false);
+        body.innerHTML = `<div class="brief-error" style="color:var(--text-muted)">Brief stopped.</div>`;
       }
     } catch(e) { /* network hiccup */ }
   }
 
   function startBriefPolling() {
+    setBriefRunning(true);
     if (briefPollTimer) clearInterval(briefPollTimer);
     briefPollTimer = setInterval(pollBrief, 2000);
   }
@@ -183,6 +201,21 @@
     briefStatus = 'pending';
     startBriefPolling();
     setTimeout(() => { btn.disabled = false; }, 2000);
+  }
+
+  async function interruptBrief() {
+    const btn = document.getElementById('brief-interrupt-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      await fetch(`/tasks/${taskID}/brief/interrupt`, {method: 'POST'});
+    } catch(e) { /* ignore */ }
+    clearInterval(briefPollTimer);
+    briefPollTimer = null;
+    briefStatus = '';
+    setBriefRunning(false);
+    document.getElementById('brief-body').innerHTML =
+      `<div class="brief-error" style="color:var(--text-muted)">Brief stopped.</div>`;
+    if (btn) btn.disabled = false;
   }
 
   // ── Sessions ──
@@ -277,7 +310,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     renderMarkdown();
     initBriefCollapse();
-    if (briefStatus === 'pending' || briefStatus === '') startBriefPolling();
+    if (briefStatus === 'pending') startBriefPolling();
     // Poll session list every 5s
     sessionPollTimer = setInterval(refreshSessions, 5000);
   });
