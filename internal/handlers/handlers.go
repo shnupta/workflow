@@ -59,6 +59,18 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return key
 		},
+		"totalTimeLabel": func(secs int) string {
+			if secs < 60 {
+				return "< 1m"
+			}
+			h := secs / 3600
+			m := (secs % 3600) / 60
+			if h > 0 {
+				return fmt.Sprintf("%dh %dm", h, m)
+			}
+			return fmt.Sprintf("%dm", m)
+		},
+		"not": func(b bool) bool { return !b },
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -89,6 +101,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
+	mux.HandleFunc("GET /digest", h.weeklyDigest)
 	h.registerSessionRoutes(mux)
 	h.registerWebhookRoutes(mux)
 	h.registerNoteRoutes(mux)
@@ -125,6 +138,47 @@ func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
 		"Groups":       groups,
 		"ShowArchived": showArchived,
 		"Nav":          "sessions",
+	})
+}
+
+func (h *Handler) weeklyDigest(w http.ResponseWriter, r *http.Request) {
+	// Determine which week to show. ?week=YYYY-MM-DD (any day in that week).
+	// Default: current week (Monday).
+	now := time.Now().UTC()
+	weekParam := r.URL.Query().Get("week")
+	var anchor time.Time
+	if weekParam != "" {
+		if t, err := time.Parse("2006-01-02", weekParam); err == nil {
+			anchor = t
+		} else {
+			anchor = now
+		}
+	} else {
+		anchor = now
+	}
+	// Find Monday of that week
+	wd := int(anchor.Weekday())
+	if wd == 0 {
+		wd = 7 // Sunday → 7
+	}
+	monday := time.Date(anchor.Year(), anchor.Month(), anchor.Day()-wd+1, 0, 0, 0, 0, time.UTC)
+
+	digest, err := h.db.WeeklyDigest(monday)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	prevWeek := monday.AddDate(0, 0, -7).Format("2006-01-02")
+	nextWeek := monday.AddDate(0, 0, 7).Format("2006-01-02")
+	isCurrentWeek := monday.Format("2006-01-02") == time.Date(now.Year(), now.Month(), now.Day()-int(now.Weekday()-1), 0, 0, 0, 0, time.UTC).Format("2006-01-02")
+
+	h.render(w, "digest.html", map[string]interface{}{
+		"Nav":           "digest",
+		"Digest":        digest,
+		"PrevWeek":      prevWeek,
+		"NextWeek":      nextWeek,
+		"IsCurrentWeek": isCurrentWeek,
 	})
 }
 

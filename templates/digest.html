@@ -1,0 +1,98 @@
+{{define "digest.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Weekly Digest</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="digest-page">
+
+      <!-- Week navigation -->
+      <div class="digest-nav">
+        <a href="/digest?week={{.PrevWeek}}" class="digest-nav-btn">← prev</a>
+        <h1 class="digest-title">
+          Week of {{.Digest.WeekStart.Format "Jan 2"}} – {{.Digest.WeekEnd.Format "Jan 2, 2006"}}
+          {{if .IsCurrentWeek}}<span class="digest-badge">this week</span>{{end}}
+        </h1>
+        {{if not .IsCurrentWeek}}
+        <a href="/digest?week={{.NextWeek}}" class="digest-nav-btn">next →</a>
+        {{else}}
+        <span class="digest-nav-btn" style="opacity:0;pointer-events:none">next →</span>
+        {{end}}
+      </div>
+
+      <!-- Stats bar -->
+      <div class="digest-stats">
+        <div class="digest-stat">
+          <div class="digest-stat-value">{{len .Digest.Done}}</div>
+          <div class="digest-stat-label">completed</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-value">{{len .Digest.InProgress}}</div>
+          <div class="digest-stat-label">in progress</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-value">{{.Digest.SessionCount}}</div>
+          <div class="digest-stat-label">sessions</div>
+        </div>
+        {{if gt .Digest.TotalTimeSecs 0}}
+        <div class="digest-stat">
+          <div class="digest-stat-value">{{totalTimeLabel .Digest.TotalTimeSecs}}</div>
+          <div class="digest-stat-label">time tracked</div>
+        </div>
+        {{end}}
+      </div>
+
+      <!-- Completed tasks -->
+      <section class="digest-section">
+        <h2 class="digest-section-title">Completed</h2>
+        {{if .Digest.Done}}
+        <div class="digest-task-list">
+          {{range .Digest.Done}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row">
+            <span class="digest-task-check">✓</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+              {{if gt .ElapsedSeconds 0}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
+              {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
+              {{if .DoneAt}}<span class="digest-task-date">done {{.DoneAt.Format "Mon Jan 2"}}</span>{{end}}
+            </span>
+          </a>
+          {{end}}
+        </div>
+        {{else}}
+        <p class="digest-empty">No tasks completed this week yet.</p>
+        {{end}}
+      </section>
+
+      <!-- In-progress tasks -->
+      {{if .Digest.InProgress}}
+      <section class="digest-section">
+        <h2 class="digest-section-title">In progress</h2>
+        <div class="digest-task-list">
+          {{range .Digest.InProgress}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row">
+            <span class="digest-task-check digest-task-check--open">○</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+              {{if gt .ElapsedSeconds 0}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
+              {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
+            </span>
+          </a>
+          {{end}}
+        </div>
+      </section>
+      {{end}}
+
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

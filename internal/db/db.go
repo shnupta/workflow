@@ -819,3 +819,135 @@ func scanNote(row noteScanner) (*models.Note, error) {
 	n.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	return &n, nil
 }
+
+// ─── Weekly Digest ────────────────────────────────────────────────────────────
+
+// DigestTask is a task summary used in the weekly digest.
+type DigestTask struct {
+	ID           string
+	Title        string
+	WorkType     string
+	Tier         string
+	Done         bool
+	DoneAt       *time.Time
+	CreatedAt    time.Time
+	TimerTotal   int
+	TimerStarted *time.Time
+	SessionCount int
+}
+
+func (t *DigestTask) ElapsedSeconds() int {
+	total := t.TimerTotal
+	if t.TimerStarted != nil {
+		total += int(time.Since(*t.TimerStarted).Seconds())
+	}
+	return total
+}
+
+func (t *DigestTask) ElapsedLabel() string {
+	secs := t.ElapsedSeconds()
+	if secs < 60 {
+		if secs == 0 {
+			return ""
+		}
+		return "< 1m"
+	}
+	h := secs / 3600
+	m := (secs % 3600) / 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+	return fmt.Sprintf("%dm", m)
+}
+
+// DigestWeek holds all data for a given ISO week.
+type DigestWeek struct {
+	WeekStart   time.Time // Monday 00:00 UTC
+	WeekEnd     time.Time // Sunday 23:59 UTC
+	Done        []*DigestTask
+	InProgress  []*DigestTask
+	TotalTimeSecs int
+	SessionCount  int
+}
+
+func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
+	weekEnd := weekStart.AddDate(0, 0, 7)
+
+	// Tasks completed this week
+	rows, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 1 AND t.done_at >= ? AND t.done_at < ?
+		GROUP BY t.id
+		ORDER BY t.done_at DESC
+	`, weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	dw := &DigestWeek{WeekStart: weekStart, WeekEnd: weekEnd.Add(-time.Second)}
+	for rows.Next() {
+		var dt DigestTask
+		var doneAt, createdAt, timerStarted sql.NullString
+		if err := rows.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
+			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount); err != nil {
+			return nil, err
+		}
+		if doneAt.Valid {
+			t, _ := time.Parse(time.RFC3339, doneAt.String)
+			dt.DoneAt = &t
+		}
+		if timerStarted.Valid {
+			t, _ := time.Parse(time.RFC3339, timerStarted.String)
+			dt.TimerStarted = &t
+		}
+		dt.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)
+		dw.Done = append(dw.Done, &dt)
+		dw.TotalTimeSecs += dt.ElapsedSeconds()
+	}
+	rows.Close()
+
+	// In-progress tasks (not done, created or updated this week)
+	rows2, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 0 AND (t.created_at >= ? OR t.updated_at >= ?)
+		GROUP BY t.id
+		ORDER BY t.updated_at DESC
+		LIMIT 20
+	`, weekStart.Format(time.RFC3339), weekStart.Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	defer rows2.Close()
+	for rows2.Next() {
+		var dt DigestTask
+		var doneAt, createdAt, timerStarted sql.NullString
+		if err := rows2.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
+			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount); err != nil {
+			return nil, err
+		}
+		if timerStarted.Valid {
+			t, _ := time.Parse(time.RFC3339, timerStarted.String)
+			dt.TimerStarted = &t
+		}
+		dt.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)
+		dw.InProgress = append(dw.InProgress, &dt)
+		dw.TotalTimeSecs += dt.ElapsedSeconds()
+	}
+
+	// Session count for the week
+	var sc int
+	d.conn.QueryRow(`SELECT COUNT(*) FROM sessions WHERE created_at >= ? AND created_at < ?`,
+		weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339)).Scan(&sc)
+	dw.SessionCount = sc
+
+	return dw, nil
+}
