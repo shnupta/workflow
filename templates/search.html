@@ -1,0 +1,58 @@
+{{define "search.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Search</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">Search</h1>
+      </div>
+
+      <form class="search-form" action="/search" method="get">
+        <div class="search-input-wrap">
+          <input
+            type="search"
+            name="q"
+            value="{{.Query}}"
+            placeholder="Search sessions and messages…"
+            class="search-input"
+            autofocus
+            autocomplete="off"
+          >
+          <button type="submit" class="btn btn-primary search-btn">Search</button>
+        </div>
+      </form>
+
+      {{if .Query}}
+        {{if .Results}}
+          <div class="search-results">
+            <p class="search-count">{{len .Results}} session{{if gt (len .Results) 1}}s{{end}} matched</p>
+            {{range .Results}}
+            <a href="/tasks/{{.TaskID}}/sessions/{{.ID}}" class="search-result-row">
+              <div class="search-result-meta">
+                <span class="search-result-task">{{.TaskTitle}}</span>
+                <span class="search-result-sep">›</span>
+                <span class="search-result-session">{{if .Name}}{{.Name}}{{else}}Untitled session{{end}}</span>
+                <span class="session-status status-{{.Status}}">{{.Status}}</span>
+              </div>
+              <div class="search-result-snippet">{{.Snippet}}</div>
+              <div class="search-result-time">{{.UpdatedAt.Format "Jan 2, 15:04"}}</div>
+            </a>
+            {{end}}
+          </div>
+        {{else}}
+          <p class="empty-state">No sessions found for "{{.Query}}"</p>
+        {{end}}
+      {{end}}
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

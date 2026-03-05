@@ -75,6 +75,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/rebrief", h.rebrief)
 	mux.HandleFunc("GET /tasks/{id}/brief-status", h.briefStatus)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
+	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	h.registerSessionRoutes(mux)
 }
@@ -114,6 +115,24 @@ func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "notes.html", map[string]interface{}{
 		"Nav": "notes",
+	})
+}
+
+func (h *Handler) searchSessions(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	var results []*db.SearchResult
+	if q != "" {
+		var err error
+		results, err = h.db.SearchSessions(q)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+	}
+	h.render(w, "search.html", map[string]interface{}{
+		"Nav":     "sessions",
+		"Query":   q,
+		"Results": results,
 	})
 }
 

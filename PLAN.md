@@ -10,7 +10,8 @@ Nox reads and updates this file when working on the project overnight or between
 - Build check: `cd /root/.nox/workspace/workflow && go build ./...`
 - After each change: `go build ./...` to verify, then `git add -A && git commit -m "..." && git push`
 - Casey pulls and restarts the binary on his machine to pick up changes
-- Can't run the app on the server — build + push is the workflow
+- **Cannot run the app on the server** — build + push is the workflow. No test server.
+- Claude binary on Casey's machine: `/root/.local/bin/claude` (confirmed working 2026-03-05)
 
 ## Architecture
 
@@ -31,70 +32,86 @@ static/css/style.css         — All styles (dark theme, CSS variables)
 workflow.json                — User config (claude_bin only; created on first run)
 ```
 
-## Current state (as of 2026-03-04)
+## Current state (as of 2026-03-05)
 
 **Working:**
 - Three-tier kanban board with drag-drop
 - Task CRUD (create, edit, mark done, delete, move)
 - Sessions: interactive chat with live polling (1.5s), client-side message queue
 - Auto-brief: on task creation, a background agent runs and writes findings to `tasks.brief`
-- Task context injected into every session prompt (title, description, type, PR URL, brief)
-- Sessions sorted by updated_at DESC
-- Brief panel on task page with live spinner + ↺ re-run button
-- Provider-agnostic agent abstraction (ClaudeLocal is the only impl)
+- Task context injected into every session as a collapsible system block (not a user bubble)
+- Sessions auto-named from first 6 words of prompt
+- Brief rendered as markdown (goldmark server-side, marked.parse client-side for polling)
+- Brief panel: collapsible, live spinner, ↺ re-run button
+- Session list on task page: live refresh every 3s
+- Global nav: Tasks / Sessions / Notes
+- `/sessions` — flat + grouped-by-task, toggle persisted in localStorage
+- `/notes` — stub page
+- Friendly error messages when claude not configured
+- Send button shows "Queue" label while agent is running
 
-**Known issues / rough edges:**
-- Task context block (`## Task context\n...`) appears as a visible user message in the chat — should be stripped or shown differently
-- Session names are auto-generated as "Session Mar 4 22:14" — should use first few words of prompt
-- Session list on task page is server-rendered (static) — doesn't update live after new sessions created without a page refresh
-- Brief content not rendered as markdown in the brief panel — shows raw markdown text
+**Not yet implemented (see task list below)**
 
 ---
 
 ## Task list
 
-Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new tasks at the bottom.
+Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new tasks at the bottom of the appropriate section.
 
 ### High priority (do first)
 
-- [x] **Hide/style injected task context in chat** ✅ 2026-03-05
-  - Stored as `role=system, kind=context` — renders as collapsible block, not a chat bubble
-  - User's actual prompt stored separately and displayed normally
-  - `buildTaskContext()` handles context; `RunSession` takes optional `visiblePrompt` arg
+- [ ] **Session search**
+  - Search bar on `/sessions` page (and possibly task page session list)
+  - SQLite FTS5 on `messages.content` + `sessions.name`
+  - Results show: session name, task name, matching message excerpt, timestamp
+  - Implemented as `GET /search?q=...` returning rendered results (HTMX or plain page)
+  - Add FTS5 virtual table in migration: `CREATE VIRTUAL TABLE messages_fts USING fts5(content, content='messages', content_rowid='id')`
+  - Trigger to keep FTS index in sync on insert
 
-- [x] **Render brief as markdown** ✅ 2026-03-05
-  - Added `goldmark` for server-side markdown → HTML rendering
-  - `markdownHTML` template func renders brief safely
-  - Polled briefs use `marked.parse()` client-side
+- [ ] **Task quick-capture from board**
+  - Inline "Add task" button at the bottom of each column — opens a minimal form (title + type only)
+  - Saves immediately, auto-brief fires
+  - Avoids full `/tasks/new` page load for quick capture
 
-- [x] **Auto-name sessions from prompt** ✅ 2026-03-05
-  - `sessionNameFromPrompt()`: first 6 words, max 48 chars
-
-- [x] **Fix CLAUDE_ALLOW_ROOT** ✅ 2026-03-05
-  - Removed `--dangerously-skip-permissions` (blocked on root)
-  - Set `CLAUDE_ALLOW_ROOT=1` env var — works correctly
+- [ ] **Pinned sessions**
+  - Pin a session to the top of the task's session list
+  - Useful when one session becomes the "main" investigation thread
+  - `pinned bool` column on sessions table
 
 ### Medium priority
 
-- [x] **Session list live refresh on task page** ✅ 2026-03-05
-  - Polls `/tasks/{id}/sessions` every 5s, re-renders only when something changed
+- [ ] **Session rename**
+  - Click session name in header to edit inline (contenteditable or small input)
+  - Saves on blur or Enter
+  - `PATCH /sessions/{id}` endpoint
 
-- [x] **Collapsible brief on task page** ✅ 2026-03-05
-  - Click brief header to collapse/expand; state persisted in localStorage per task
+- [ ] **Session archive / soft-delete**
+  - Brief sessions (`[brief]`) clutter the sessions list — option to hide or archive them
+  - `archived bool` column; `/sessions` and task session list filter them out by default
+  - Toggle to show archived sessions
 
-- [x] **Brief polling cleanup** ✅ 2026-03-05
-  - `beforeunload` clears both brief and session poll timers
+- [ ] **Task timer / time tracking**
+  - Start/stop timer on a task
+  - Shows elapsed time on card and task page
+  - Stored in DB; useful for knowing how long things actually take
+  - Could feed a weekly summary view later
 
-- [x] **Global nav + Sessions index page** ✅ 2026-03-05
-  - Tasks / Sessions / Notes nav across all pages (Claude Code added this during auto-brief run)
-  - `/sessions` shows all sessions grouped by task
-  - Session page has breadcrumb back to task
+- [ ] **Keyboard shortcuts**
+  - `n` — new task
+  - `s` — focus search
+  - `Esc` — close modals / cancel
+  - `?` — show shortcuts overlay
+  - Most valuable on the board page
 
-- [x] **Better error display when claude not configured** ✅ 2026-03-05
-  - Friendly message: "Set claude_bin in workflow.json..."; inline error in session form instead of alert()
+- [ ] **Board filtering**
+  - Filter by work type (PR Review, Coding, etc.)
+  - Filter by "blocked on me" / "blocked on them"
+  - Filter persisted in URL params so it's shareable/bookmarkable
 
-- [x] **Send button shows "Queue" while agent running** ✅ 2026-03-05
-  - Button label changes to "Queue" at 60% opacity while agent is busy
+- [ ] **Task due dates / urgency**
+  - Optional due date on tasks
+  - Overdue tasks shown with red highlight on board
+  - Could auto-move overdue tasks to Today on startup
 
 ### Lower priority / future
 
@@ -117,38 +134,33 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Sessions can spawn sub-sessions (parent_id is already in schema)
   - UI for this is a future concern
 
-- [x] **Update README** ✅ 2026-03-05
-  - Fully rewritten to reflect current state
+- [ ] **Notes page**
+  - Currently a stub
+  - Freeform markdown notes scoped to a task or global
+  - Auto-save with debounce (500ms)
+  - Could be a second tab on the task page rather than a separate nav item
+
+- [ ] **Weekly digest view**
+  - Summary of tasks completed this week, time spent (if timer added), sessions had
+  - Read-only view, maybe printable
 
 ---
 
 ## Completed ✅
 
-- Sessions DB schema + migrations (brief, brief_status columns added safely)
-- Provider-agnostic agent abstraction (Runner interface, Event types)
-- ClaudeLocal runner (stream-json, --verbose, stderr capture, event normalisation)
-- RunSession driver (normalises events → DB messages, manages status transitions)
-- Interactive sessions with live polling chat (1.5s interval)
-- Client-side message queue (cancel, edit inline, drain on agent idle)
-- Auto-brief on task creation (PR review prompt, generic prompt)
-- Task context injected into session prompt (title, desc, type, PR URL, brief)
-- Fire-and-forget mode removed — all sessions are interactive
-- GitHub token / Anthropic API key / PR prompt config removed
-- Sessions sorted by updated_at DESC (most recently active first)
-- Tasks sorted by updated_at DESC within tier
-- Request logging middleware
-- Deduplication in chat poll (rowid-based, not created_at)
-- [brief] sessions filtered from session list
-- Mark done button height fix (display:contents on form)
-- Enter to send, Shift+Enter for newline in session input
+### Completed 2026-03-05
 
-### Completed tonight ✅ (2026-03-05)
-
-- [x] Task context shown as collapsible info block in chat (not a user bubble)
-- [x] Brief rendered as markdown (goldmark server-side, marked.parse client-side)
+- [x] Hide/style injected task context in chat — collapsible system block, not a user bubble
+- [x] Render brief as markdown (goldmark server-side, marked.parse client-side)
 - [x] Sessions auto-named from first 6 words of prompt
-- [x] CLAUDE_ALLOW_ROOT: gated behind WORKFLOW_DEV_ROOT=1 env var — safe to push
-- [x] Global /sessions page: flat list + "by task" grouped view, view toggle persisted in localStorage
+- [x] CLAUDE_ALLOW_ROOT: gated behind WORKFLOW_DEV_ROOT=1 env var
+- [x] Global /sessions page: flat list + "by task" grouped view, view toggle in localStorage
 - [x] Global /notes page stub
-- [x] Shared nav bar across all pages (Tasks / Sessions / Notes) with active state
-- [x] RUNNING.md created — server setup, build, run, workarounds all documented
+- [x] Shared nav bar across all pages (Tasks / Sessions / Notes)
+- [x] Session list live refresh on task page (every 3s)
+- [x] Collapsible brief panel, state persisted in localStorage
+- [x] Brief poll cleanup on page unload
+- [x] Better error messages for missing claude CLI (inline in session form, friendly brief error)
+- [x] Send button shows "Queue" while agent is running
+- [x] README rewritten to reflect current state
+- [x] RUNNING.md created — server setup, build, run, workarounds documented

@@ -1031,3 +1031,105 @@ select option { background: var(--surface2); }
   font-size: 13px;
   margin-bottom: 8px;
 }
+
+/* ─── Search ──────────────────────────────────────────── */
+
+.nav-search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-search-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.search-form {
+  margin-bottom: 24px;
+}
+.search-input-wrap {
+  display: flex;
+  gap: 8px;
+}
+.search-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.search-input:focus {
+  border-color: var(--accent);
+}
+.search-btn {
+  flex-shrink: 0;
+}
+
+.search-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.search-result-row {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.search-result-row:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+.search-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.search-result-task {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.search-result-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.search-result-session {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.search-result-snippet {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.search-result-snippet mark {
+  background: rgba(99, 102, 241, 0.25);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.search-result-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}

@@ -9,7 +9,8 @@ A local web app for managing work inflows as a lead/IC. Captures everything comi
 - **Blocked on me vs them** — visually distinguish what's in your court vs waiting on someone.
 - **Auto-brief** — on task creation, an agent (Claude) automatically investigates the task and writes a brief. For PR review tasks it reads the PR, identifies risks and focus areas. Visible immediately on the task page.
 - **Interactive sessions** — start a chat session with an agent on any task. Full task context (title, description, PR URL, brief) is injected automatically. Message queue so you can type ahead while the agent works.
-- **Global sessions view** — `/sessions` shows all sessions across all tasks.
+- **Session search** — full-text search across all session messages via SQLite FTS5. Hit the search icon (top right) or go to `/search`.
+- **Global sessions view** — `/sessions` shows all sessions, flat or grouped by task.
 - **Single config file** — minimal config in `workflow.json`.
 - **SQLite storage** — one local file, no external services.
 

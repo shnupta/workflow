@@ -98,7 +98,48 @@ func (d *DB) migrate() error {
 			created_at TEXT NOT NULL
 		)
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// FTS5 index over message content for session search
+	_, err = d.conn.Exec(`
+		CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+			content,
+			session_id UNINDEXED,
+			content='messages',
+			content_rowid='rowid'
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// Triggers to keep FTS index in sync
+	_, _ = d.conn.Exec(`
+		CREATE TRIGGER IF NOT EXISTS messages_fts_insert AFTER INSERT ON messages BEGIN
+			INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
+		END
+	`)
+	_, _ = d.conn.Exec(`
+		CREATE TRIGGER IF NOT EXISTS messages_fts_delete AFTER DELETE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
+		END
+	`)
+	_, _ = d.conn.Exec(`
+		CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN
+			INSERT INTO messages_fts(messages_fts, rowid, content, session_id) VALUES ('delete', old.rowid, old.content, old.session_id);
+			INSERT INTO messages_fts(rowid, content, session_id) VALUES (new.rowid, new.content, new.session_id);
+		END
+	`)
+
+	// Backfill FTS for any existing messages (safe to run multiple times)
+	_, _ = d.conn.Exec(`
+		INSERT OR IGNORE INTO messages_fts(rowid, content, session_id)
+		SELECT rowid, content, session_id FROM messages
+	`)
+
+	return nil
 }
 
 // ─────────────────────────────────────────────────────────
@@ -465,6 +506,64 @@ func (d *DB) ListAllSessions() ([]*models.SessionWithTask, error) {
 		sw.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 		sw.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 		out = append(out, &sw)
+	}
+	return out, rows.Err()
+}
+
+// SearchResult is a session hit from full-text search, with a snippet of the matching message.
+type SearchResult struct {
+	models.SessionWithTask
+	Snippet string
+}
+
+// SearchSessions searches message content (and session names) for the given query.
+// Returns up to 20 results, deduplicated by session, with a content snippet.
+func (d *DB) SearchSessions(query string) ([]*SearchResult, error) {
+	if query == "" {
+		return nil, nil
+	}
+	rows, err := d.conn.Query(`
+		SELECT
+			s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
+			s.agent_provider, s.agent_session_id, s.error_message, s.created_at, s.updated_at,
+			t.title,
+			snippet(messages_fts, 0, '<mark>', '</mark>', '…', 16) AS snippet
+		FROM messages_fts
+		JOIN messages m ON m.rowid = messages_fts.rowid
+		JOIN sessions s ON s.id = m.session_id
+		JOIN tasks t ON t.id = s.task_id
+		WHERE messages_fts.content MATCH ? AND s.name != '[brief]'
+		GROUP BY s.id
+		ORDER BY rank
+		LIMIT 20
+	`, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*SearchResult
+	for rows.Next() {
+		var sr SearchResult
+		var parentID, agentSessionID sql.NullString
+		var createdAt, updatedAt string
+		err := rows.Scan(
+			&sr.ID, &sr.TaskID, &parentID, &sr.Name, &sr.Mode, &sr.Status,
+			&sr.AgentProvider, &agentSessionID, &sr.ErrorMessage, &createdAt, &updatedAt,
+			&sr.TaskTitle, &sr.Snippet,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if parentID.Valid {
+			sr.ParentID = &parentID.String
+		}
+		if agentSessionID.Valid {
+			sr.AgentSessionID = &agentSessionID.String
+		}
+		sr.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		sr.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		out = append(out, &sr)
 	}
 	return out, rows.Err()
 }
