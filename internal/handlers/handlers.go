@@ -195,6 +195,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "task_view.html", map[string]interface{}{
 		"Task":     t,
 		"Sessions": sessions,
+		"Nav":      "tasks",
 	})
 }
 

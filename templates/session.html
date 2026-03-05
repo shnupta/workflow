@@ -11,7 +11,14 @@
 <body>
   <header>
     <a href="/" class="logo">workflow</a>
-    <a href="/tasks/{{.Task.ID}}" class="btn btn-ghost">← {{.Task.Title}}</a>
+    <nav class="main-nav">
+      <a href="/"         class="nav-link">Tasks</a>
+      <a href="/sessions" class="nav-link active">Sessions</a>
+      <a href="/notes"    class="nav-link">Notes</a>
+    </nav>
+    <div class="header-actions">
+      <a href="/tasks/{{.Task.ID}}" class="btn btn-ghost">← {{.Task.Title}}</a>
+    </div>
   </header>
   <main>
     <div class="session-page">

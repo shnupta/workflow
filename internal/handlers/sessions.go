@@ -127,6 +127,7 @@ func (h *Handler) viewSession(w http.ResponseWriter, r *http.Request) {
 		"Task":     task,
 		"Session":  sess,
 		"Messages": messages,
+		"Nav":      "sessions",
 	})
 }
 
