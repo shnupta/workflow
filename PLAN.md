@@ -93,10 +93,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Saves on blur/Enter, reverts on Esc or error
   - `PATCH /tasks/{id}/sessions/{sid}/name`
 
-- [ ] **Session archive / soft-delete**
-  - Brief sessions (`[brief]`) clutter the sessions list — option to hide or archive them
-  - `archived bool` column; `/sessions` and task session list filter them out by default
-  - Toggle to show archived sessions
+- [x] **Session archive / soft-delete** ✅ 2026-03-05
+  - Archive/Unarchive button on session page
+  - Archived sessions hidden by default on /sessions and task session list
+  - 'Show archived' toggle on /sessions page
 
 - [ ] **Task timer / time tracking**
   - Start/stop timer on a task
@@ -113,10 +113,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Client-side (no server round-trip), persisted in localStorage
   - Esc clears active filter
 
-- [ ] **Task due dates / urgency**
-  - Optional due date on tasks
-  - Overdue tasks shown with red highlight on board
-  - Could auto-move overdue tasks to Today on startup
+- [x] **Task due dates / urgency** ✅ 2026-03-05
+  - Optional date field on create/edit forms
+  - Red left border + "Xd overdue" label on overdue cards
+  - Amber border + "Today" label for tasks due today
+  - `IsOverdue()` / `IsDueToday()` helpers on Task model
+  - `dueDateLabel()` template func: Yesterday / Today / Tomorrow / day name / Jan 2
 
 ### Lower priority / future
 
