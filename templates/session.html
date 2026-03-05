@@ -55,7 +55,7 @@
       <div id="queue-preview"></div>
 
       <div class="chat-input-area" id="input-area">
-        <textarea id="chat-input" placeholder="Send a message... (⌘↵ to send)" rows="3" autofocus></textarea>
+        <textarea id="chat-input" placeholder="Send a message... (⇧↵ for new line)" rows="3" autofocus></textarea>
         <button class="btn btn-primary" id="send-btn" onclick="enqueue()">Send</button>
       </div>
       {{end}}
@@ -273,7 +273,7 @@
         input.style.height = Math.min(input.scrollHeight, 200) + 'px';
       });
       input.addEventListener('keydown', e => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           enqueue();
         }
