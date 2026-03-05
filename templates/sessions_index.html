@@ -13,9 +13,14 @@
     <div class="page-content">
       <div class="page-header">
         <h1 class="page-title">Sessions</h1>
-        <div class="view-toggle" id="view-toggle">
-          <button class="view-btn active" id="btn-flat" onclick="setView('flat')">All</button>
-          <button class="view-btn" id="btn-grouped" onclick="setView('grouped')">By task</button>
+        <div class="page-header-controls">
+          <a href="/sessions?archived={{if .ShowArchived}}0{{else}}1{{end}}" class="btn btn-ghost btn-sm">
+            {{if .ShowArchived}}Hide archived{{else}}Show archived{{end}}
+          </a>
+          <div class="view-toggle" id="view-toggle">
+            <button class="view-btn active" id="btn-flat" onclick="setView('flat')">All</button>
+            <button class="view-btn" id="btn-grouped" onclick="setView('grouped')">By task</button>
+          </div>
         </div>
       </div>
 

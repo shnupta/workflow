@@ -64,6 +64,13 @@ func (d *DB) migrate() error {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
 
+	// Session migrations
+	for _, col := range []string{
+		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
+	} {
+		_, _ = d.conn.Exec(col)
+	}
+
 	// Migrate old pr_summary → brief for existing rows
 	_, _ = d.conn.Exec(`
 		UPDATE tasks SET brief = pr_summary, brief_status = 'done'
@@ -380,15 +387,15 @@ func (d *DB) UpdateSessionName(id, name string) error {
 
 func (d *DB) GetSession(id string) (*models.Session, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, created_at, updated_at
 		FROM sessions WHERE id=?`, id)
 	return scanSession(row)
 }
 
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
-		FROM sessions WHERE task_id=? AND name != '[brief]' ORDER BY updated_at DESC`, taskID)
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, created_at, updated_at
+		FROM sessions WHERE task_id=? AND name != '[brief]' AND archived=0 ORDER BY updated_at DESC`, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -404,6 +411,16 @@ func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	return out, rows.Err()
 }
 
+func (d *DB) ArchiveSession(id string, archived bool) error {
+	v := 0
+	if archived {
+		v = 1
+	}
+	_, err := d.conn.Exec(`UPDATE sessions SET archived=?, updated_at=? WHERE id=?`,
+		v, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
 type sessionScanner interface {
 	Scan(dest ...any) error
 }
@@ -414,7 +431,7 @@ func scanSession(row sessionScanner) (*models.Session, error) {
 	var createdAt, updatedAt string
 	err := row.Scan(
 		&s.ID, &s.TaskID, &parentID, &s.Name, &s.Mode, &s.Status,
-		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &createdAt, &updatedAt,
+		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -495,17 +512,23 @@ func scanMessages(rows *sql.Rows) ([]*models.Message, error) {
 	return out, rows.Err()
 }
 
-// ListAllSessions returns all non-brief sessions across all tasks, joined with task title.
-func (d *DB) ListAllSessions() ([]*models.SessionWithTask, error) {
-	rows, err := d.conn.Query(`
+// ListAllSessions returns all non-brief, non-archived sessions across all tasks, joined with task title.
+// If showArchived is true, archived sessions are included too.
+func (d *DB) ListAllSessions(showArchived bool) ([]*models.SessionWithTask, error) {
+	archiveClause := "AND s.archived=0"
+	if showArchived {
+		archiveClause = ""
+	}
+	q := fmt.Sprintf(`
 		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
-		       s.agent_provider, s.agent_session_id, s.error_message, s.created_at, s.updated_at,
+		       s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.created_at, s.updated_at,
 		       t.title
 		FROM sessions s
 		JOIN tasks t ON t.id = s.task_id
-		WHERE s.name != '[brief]'
+		WHERE s.name != '[brief]' %s
 		ORDER BY s.updated_at DESC
-	`)
+	`, archiveClause)
+	rows, err := d.conn.Query(q)
 	if err != nil {
 		return nil, err
 	}
@@ -517,7 +540,7 @@ func (d *DB) ListAllSessions() ([]*models.SessionWithTask, error) {
 		var createdAt, updatedAt string
 		err := rows.Scan(
 			&sw.ID, &sw.TaskID, &parentID, &sw.Name, &sw.Mode, &sw.Status,
-			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &createdAt, &updatedAt,
+			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &sw.Archived, &createdAt, &updatedAt,
 			&sw.TaskTitle,
 		)
 		if err != nil {

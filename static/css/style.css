@@ -1336,3 +1336,30 @@ select option { background: var(--surface2); }
 .task-card.due-soon {
   border-left: 3px solid #f59e0b !important;
 }
+
+/* ─── Session archive ──────────────────────────────────── */
+
+.tag-archived {
+  background: rgba(107,114,128,0.15);
+  border: 1px solid rgba(107,114,128,0.3);
+  color: #9ca3af;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 7px;
+  font-weight: 500;
+}
+.session-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.session-header-actions {
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+.page-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

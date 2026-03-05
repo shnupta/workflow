@@ -17,7 +17,7 @@
       </div>
       <div class="session-header">
         <div class="session-meta">
-          <h1 class="session-title"
+          <h1 class="session-title" {{if .Session.Archived}}style="opacity:0.5"{{end}}
               id="session-title"
               contenteditable="true"
               spellcheck="false"
@@ -26,6 +26,14 @@
               onblur="saveSessionName(this)">{{.Session.Name}}</h1>
           <span class="session-status status-{{.Session.Status}}" id="session-status">{{.Session.Status}}</span>
           <span class="session-provider">{{.Session.AgentProvider}}</span>
+          {{if .Session.Archived}}<span class="tag tag-archived">archived</span>{{end}}
+        </div>
+        <div class="session-header-actions">
+          <button class="btn btn-ghost btn-sm" id="archive-btn"
+            onclick="toggleArchive()"
+            title="{{if .Session.Archived}}Unarchive{{else}}Archive{{end}} session">
+            {{if .Session.Archived}}Unarchive{{else}}Archive{{end}}
+          </button>
         </div>
       </div>
 
@@ -310,6 +318,40 @@
 
     if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
   });
+
+  // ── Session archive ────────────────────────────────────────────────────────
+
+  let isArchived = {{if .Session.Archived}}true{{else}}false{{end}};
+
+  async function toggleArchive() {
+    const btn = document.getElementById('archive-btn');
+    btn.disabled = true;
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: !isArchived })
+      });
+      if (r.ok) {
+        isArchived = !isArchived;
+        btn.textContent = isArchived ? 'Unarchive' : 'Archive';
+        btn.title = isArchived ? 'Unarchive session' : 'Archive session';
+        const title = document.getElementById('session-title');
+        title.style.opacity = isArchived ? '0.5' : '';
+        const tag = document.querySelector('.tag-archived');
+        if (isArchived && !tag) {
+          const span = document.createElement('span');
+          span.className = 'tag tag-archived';
+          span.textContent = 'archived';
+          document.querySelector('.session-meta').appendChild(span);
+        } else if (!isArchived && tag) {
+          tag.remove();
+        }
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
 
   // ── Session rename ─────────────────────────────────────────────────────────
 

@@ -89,7 +89,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
-	sessions, err := h.db.ListAllSessions()
+	showArchived := r.URL.Query().Get("archived") == "1"
+	sessions, err := h.db.ListAllSessions(showArchived)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -114,9 +115,10 @@ func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
 		groups = append(groups, groupMap[id])
 	}
 	h.render(w, "sessions_index.html", map[string]interface{}{
-		"Sessions": sessions,
-		"Groups":   groups,
-		"Nav":      "sessions",
+		"Sessions":     sessions,
+		"Groups":       groups,
+		"ShowArchived": showArchived,
+		"Nav":          "sessions",
 	})
 }
 
