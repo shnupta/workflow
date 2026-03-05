@@ -7,15 +7,15 @@ Nox reads and updates this file when working on the project overnight or between
 
 - Repo lives at `/root/.nox/workspace/workflow/` on the server
 - Go is at `/usr/local/go/bin/go` — always use `export PATH=$PATH:/usr/local/go/bin` before running go commands
-- Build check: `cd /root/.nox/workspace/workflow && go build ./...`
-- After each change: `go build ./...` to verify, then `git add -A && git commit -m "..." && git push`
+- Build check: `cd /root/.nox/workspace/workflow && make build` (or `go build -tags fts5 ./...`)
+- After each change: `make build` to verify, then `git add -A && git commit -m "..." && git push`
 - Casey pulls and restarts the binary on his machine to pick up changes
 - **Nox CAN run the server on the server for testing** — run it in the background, test with Playwright, then kill it
 - Start test server:
   ```bash
   export PATH=$PATH:/usr/local/go/bin
   cd /root/.nox/workspace/workflow
-  go build -tags fts5 -o /tmp/workflow-test ./cmd/workflow/
+  make build BINARY=/tmp/workflow-test  # or: go build -tags fts5 -o /tmp/workflow-test ./cmd/workflow/
   mkdir -p /tmp/wf-test-data
   /tmp/workflow-test serve -addr :7071 -dir /tmp/wf-test-data -templates "$(pwd)/templates/*.html" > /tmp/workflow-test.log 2>&1 &
   echo "started PID $!"
