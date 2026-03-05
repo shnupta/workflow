@@ -1,4 +1,7 @@
 /workflow
 !/cmd/workflow/
 *.db
+*.db-shm
+*.db-wal
 workflow.json
+workflow-server
