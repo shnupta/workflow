@@ -60,11 +60,11 @@
   </main>
 
 <script>
-  const taskID = {{printf "%q" .Task.ID}};
-  const sessionID = {{printf "%q" .Session.ID}};
-  const sessionMode = {{printf "%q" .Session.Mode}};
+  const taskID = "{{.Task.ID}}";
+  const sessionID = "{{.Session.ID}}";
+  const sessionMode = "{{.Session.Mode}}";
   let lastMessageID = {{if .Messages}}{{printf "%q" (lastMessageID .Messages)}}{{else}}""{{end}};
-  let currentStatus = {{printf "%q" .Session.Status}};
+  let currentStatus = "{{.Session.Status}}";
   let pollTimer = null;
 
   marked.setOptions({ breaks: true });

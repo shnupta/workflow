@@ -93,7 +93,7 @@
     </div>
   </main>
 <script>
-  const taskID = {{printf "%q" .Task.ID}};
+  const taskID = "{{.Task.ID}}";
   const hasSummary = {{if .Task.PRSummary}}true{{else}}false{{end}};
 
   // ── Sessions ──
