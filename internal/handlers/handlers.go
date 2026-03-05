@@ -86,6 +86,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	h.registerSessionRoutes(mux)
+	h.registerWebhookRoutes(mux)
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {

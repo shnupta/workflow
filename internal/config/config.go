@@ -27,6 +27,11 @@ type Config struct {
 	// Defaults to searching PATH for "claude".
 	ClaudeBin string `json:"claude_bin"`
 
+	// WebhookSecret is the GitHub webhook secret for verifying incoming PR events.
+	// Set this to the same value you enter in GitHub's webhook settings.
+	// If empty, webhook signature verification is skipped (not recommended for production).
+	WebhookSecret string `json:"webhook_secret"`
+
 	// Board config
 	WorkTypes []WorkType `json:"work_types"`
 	Tiers     []Tier     `json:"tiers"`

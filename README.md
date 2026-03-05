@@ -33,6 +33,27 @@ workflow update    # git pull + rebuild + restart
 workflow serve     # run in foreground (dev)
 ```
 
+## GitHub webhook (optional but recommended)
+
+Point a GitHub webhook at `https://your-machine.example.com/webhooks/github` and workflow will automatically create a task whenever a PR is opened against your repos — with auto-brief firing immediately.
+
+**Setup:**
+1. In your repo (or org): Settings → Webhooks → Add webhook
+2. Set Payload URL to your workflow instance
+3. Content type: `application/json`
+4. Choose "Let me select individual events" → **Pull requests** only
+5. Generate a secret: `openssl rand -hex 20`
+6. Add the secret to `~/.workflow/workflow.json`:
+   ```json
+   { "claude_bin": "...", "webhook_secret": "your-secret-here" }
+   ```
+
+**What it does:**
+- `opened` / `reopened` / `ready_for_review` → creates a new PR Review task in Today, fires auto-brief
+- `synchronize` (new commits pushed) → re-runs the brief on the existing task
+- Draft PRs on open are skipped
+- If a task for that PR URL already exists, it's updated rather than duplicated
+
 ## Updating
 
 ```bash

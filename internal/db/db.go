@@ -252,6 +252,21 @@ func (d *DB) DeleteTask(id string) error {
 	return err
 }
 
+// GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
+func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
+	row := d.conn.QueryRow(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
+		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
+	t, err := scanTask(row)
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return t, nil
+}
+
 func (d *DB) MarkDone(id string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, updated_at=? WHERE id=?`, now, now, id)
