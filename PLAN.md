@@ -143,3 +143,14 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [brief] sessions filtered from session list
 - Mark done button height fix (display:contents on form)
 - Enter to send, Shift+Enter for newline in session input
+
+### Completed tonight ✅ (2026-03-05)
+
+- [x] Task context shown as collapsible info block in chat (not a user bubble)
+- [x] Brief rendered as markdown (goldmark server-side, marked.parse client-side)
+- [x] Sessions auto-named from first 6 words of prompt
+- [x] CLAUDE_ALLOW_ROOT: gated behind WORKFLOW_DEV_ROOT=1 env var — safe to push
+- [x] Global /sessions page: flat list + "by task" grouped view, view toggle persisted in localStorage
+- [x] Global /notes page stub
+- [x] Shared nav bar across all pages (Tasks / Sessions / Notes) with active state
+- [x] RUNNING.md created — server setup, build, run, workarounds all documented
