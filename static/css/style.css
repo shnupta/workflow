@@ -698,3 +698,56 @@ select option { background: var(--surface2); }
   line-height: 1.5;
 }
 .chat-input-area textarea:focus { outline: none; border-color: var(--accent); }
+
+/* ── Message queue preview ── */
+#queue-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(139,92,246,0.08);
+  border: 1px dashed rgba(139,92,246,0.35);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.queue-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a78bfa;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.queue-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  min-height: 1em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+.queue-text:focus {
+  border-bottom: 1px solid var(--accent);
+}
+.queue-cancel {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.queue-cancel:hover { color: #f87171; }
+
+/* Keep input always visible, just dim send btn while running */
+.chat-input-area textarea { min-height: 44px; max-height: 200px; }

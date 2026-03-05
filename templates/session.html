@@ -51,9 +51,12 @@
       </div>
 
       {{if eq .Session.Mode "interactive"}}
-      <div class="chat-input-area" id="input-area" {{if eq .Session.Status "running"}}style="display:none"{{end}}>
-        <textarea id="chat-input" placeholder="Send a message..." rows="3"></textarea>
-        <button class="btn btn-primary" id="send-btn" onclick="sendMessage()">Send</button>
+      <!-- Queue preview: shows pending messages above the input -->
+      <div id="queue-preview"></div>
+
+      <div class="chat-input-area" id="input-area">
+        <textarea id="chat-input" placeholder="Send a message... (⌘↵ to send)" rows="3" autofocus></textarea>
+        <button class="btn btn-primary" id="send-btn" onclick="enqueue()">Send</button>
       </div>
       {{end}}
     </div>
@@ -67,7 +70,20 @@
   let currentStatus = "{{.Session.Status}}";
   let pollTimer = null;
 
+  // ── Message queue ──────────────────────────────────────────
+  // Each item: { id, text, localId }
+  // Queued messages are held client-side and sent one-at-a-time
+  // when the agent is idle/complete. While running, they sit in
+  // the queue preview so you can cancel or edit them.
+  let queue = [];
+
   marked.setOptions({ breaks: true });
+
+  // ── Rendering helpers ──────────────────────────────────────
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
   function renderMarkdown() {
     document.querySelectorAll('.md-content:not([data-rendered])').forEach(el => {
@@ -82,7 +98,12 @@
   }
 
   function appendMessage(msg) {
-    if (document.querySelector(`[data-id="${msg.id}"]`)) return; // dedupe
+    if (document.querySelector(`#chat [data-id="${msg.id}"]`)) return; // dedupe
+
+    // Remove any local optimistic placeholder for this content
+    const local = document.querySelector(`#chat [data-local-id]`);
+    // We no longer use optimistic DOM insertion — poll handles it
+
     const chat = document.getElementById('chat');
     const indicator = document.getElementById('typing-indicator');
 
@@ -92,7 +113,7 @@
 
     let inner = '';
     if (msg.kind === 'tool_use') {
-      inner = `<div class="tool-badge">⚙ ${msg.tool_name}</div><div class="tool-input"><pre>${escHtml(msg.content)}</pre></div>`;
+      inner = `<div class="tool-badge">⚙ ${escHtml(msg.tool_name)}</div><div class="tool-input"><pre>${escHtml(msg.content)}</pre></div>`;
     } else if (msg.kind === 'thinking') {
       inner = `<details class="thinking-block"><summary>Thinking...</summary><div class="thinking-content md-content">${escHtml(msg.content)}</div></details>`;
     } else if (msg.kind === 'error') {
@@ -113,9 +134,7 @@
     scrollToBottom();
   }
 
-  function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+  // ── Status management ──────────────────────────────────────
 
   function setStatus(status) {
     currentStatus = status;
@@ -124,9 +143,9 @@
       el.textContent = status;
       el.className = `session-status status-${status}`;
     }
+
     const indicator = document.getElementById('typing-indicator');
-    const inputArea = document.getElementById('input-area');
-    if (status === 'running') {
+    if (status === 'running' || status === 'pending') {
       if (!indicator) {
         const chat = document.getElementById('chat');
         const d = document.createElement('div');
@@ -136,12 +155,14 @@
         chat.appendChild(d);
         scrollToBottom();
       }
-      if (inputArea) inputArea.style.display = 'none';
     } else {
       if (indicator) indicator.remove();
-      if (inputArea && sessionMode === 'interactive') inputArea.style.display = '';
+      // Agent is free — drain the queue
+      drainQueue();
     }
   }
+
+  // ── Polling ────────────────────────────────────────────────
 
   async function poll() {
     try {
@@ -161,26 +182,81 @@
     } catch(e) { /* network hiccup */ }
   }
 
-  async function sendMessage() {
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 1500);
+  }
+
+  // ── Queue ──────────────────────────────────────────────────
+
+  function renderQueue() {
+    const el = document.getElementById('queue-preview');
+    if (!el) return;
+    if (queue.length === 0) { el.innerHTML = ''; return; }
+
+    el.innerHTML = queue.map((item, i) => `
+      <div class="queue-item" data-qid="${item.id}">
+        <span class="queue-label">queued</span>
+        <div class="queue-text" contenteditable="true" onblur="onQueueEdit(${item.id}, this)">${escHtml(item.text)}</div>
+        <button class="queue-cancel" onclick="cancelQueued(${item.id})" title="Remove">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function onQueueEdit(id, el) {
+    const item = queue.find(q => q.id === id);
+    if (item) item.text = el.textContent.trim();
+  }
+
+  function cancelQueued(id) {
+    queue = queue.filter(q => q.id !== id);
+    renderQueue();
+  }
+
+  let queueIdCounter = 0;
+
+  function enqueue() {
     const input = document.getElementById('chat-input');
-    const prompt = input.value.trim();
-    if (!prompt) return;
+    const text = input.value.trim();
+    if (!text) return;
     input.value = '';
+    input.style.height = '';
 
-    // Optimistically append user message
-    appendMessage({id: 'local-' + Date.now(), role: 'user', kind: 'text', content: prompt, tool_name: ''});
-    setStatus('running');
+    queue.push({ id: ++queueIdCounter, text });
+    renderQueue();
 
-    await fetch(`/tasks/${taskID}/sessions/${sessionID}/messages`, {
+    // If agent is free right now, drain immediately
+    if (currentStatus !== 'running' && currentStatus !== 'pending') {
+      drainQueue();
+    }
+  }
+
+  async function drainQueue() {
+    if (queue.length === 0) return;
+    if (currentStatus === 'running' || currentStatus === 'pending') return;
+
+    const item = queue.shift();
+    renderQueue();
+
+    const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/messages`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt})
+      body: JSON.stringify({prompt: item.text})
     });
 
+    if (!r.ok) {
+      // Put it back at the front if send failed
+      queue.unshift(item);
+      renderQueue();
+      return;
+    }
+
+    setStatus('running');
     startPolling();
   }
 
-  // Allow Ctrl+Enter or Cmd+Enter to send
+  // ── Init ───────────────────────────────────────────────────
+
   document.addEventListener('DOMContentLoaded', () => {
     // Seed lastMessageID from the last server-rendered message in the DOM
     const rendered = document.querySelectorAll('#chat [data-id]');
@@ -189,20 +265,23 @@
     renderMarkdown();
     scrollToBottom();
 
+    // Auto-grow textarea
     const input = document.getElementById('chat-input');
     if (input) {
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+      });
       input.addEventListener('keydown', e => {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') sendMessage();
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          enqueue();
+        }
       });
     }
 
     if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
   });
-
-  function startPolling() {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(poll, 2000);
-  }
 </script>
 </body>
 </html>

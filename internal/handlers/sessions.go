@@ -161,8 +161,11 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session is not interactive", 400)
 		return
 	}
-	if sess.Status != models.SessionStatusIdle && sess.Status != models.SessionStatusComplete {
-		http.Error(w, "session is not idle", 400)
+	switch sess.Status {
+	case models.SessionStatusIdle, models.SessionStatusComplete:
+		// OK — agent is free to accept the next message
+	default:
+		http.Error(w, "session is busy (status: "+string(sess.Status)+")", 409)
 		return
 	}
 
