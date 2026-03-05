@@ -47,6 +47,7 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 		"-p", opts.Prompt,
 		"--output-format", "stream-json",
 		"--verbose",
+		"--dangerously-skip-permissions",
 	}
 	if opts.ResumeSessionID != "" {
 		args = append(args, "--resume", opts.ResumeSessionID)
