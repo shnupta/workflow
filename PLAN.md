@@ -57,24 +57,22 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### High priority (do first)
 
-- [ ] **Hide/style injected task context in chat**
-  - The `buildSessionPrompt()` function prepends `## Task context\n...` to the user's first message
-  - This renders as a giant user bubble in the chat which is wrong — it's system info, not a message
-  - Fix: either (a) store the system context as a `role=system, kind=context` message and render it as a collapsible info block rather than a chat bubble, or (b) strip it from the chat display by detecting messages that start with `## Task context`
-  - Option (b) is simpler — filter in `getMessages` handler or in JS
+- [x] **Hide/style injected task context in chat** ✅ 2026-03-05
+  - Stored as `role=system, kind=context` — renders as collapsible block, not a chat bubble
+  - User's actual prompt stored separately and displayed normally
+  - `buildTaskContext()` handles context; `RunSession` takes optional `visiblePrompt` arg
 
-- [ ] **Render brief as markdown**
-  - `#brief-body .brief-content` has class `md-content` but `textContent` is set not `innerHTML`
-  - In `briefStatus` handler, the brief is returned as a JSON string
-  - In `pollBrief` JS: `div.textContent = data.brief` — change to set `div.textContent` then call `renderMarkdown()` on it... actually `renderMarkdown()` calls `marked.parse(el.textContent)` and sets `innerHTML`, so it should already work if the element has `md-content` class and `data-rendered` is not set
-  - Check: is `renderMarkdown()` called after injecting the brief div? Yes it is. So the issue may be that the initial server-rendered brief (`{{.Task.Brief}}`) is being HTML-escaped by Go templates — use `{{.Task.Brief | html}}` or a `safe` helper, or pre-render server-side with a markdown lib
-  - Simplest fix: add a `markdownToHTML` template func using `github.com/yuin/goldmark`, render server-side; for the polled brief, call `marked.parse()` client-side (already done)
-  - Actually check the CSS first — may just be a missing `renderMarkdown()` call on initial load
+- [x] **Render brief as markdown** ✅ 2026-03-05
+  - Added `goldmark` for server-side markdown → HTML rendering
+  - `markdownHTML` template func renders brief safely
+  - Polled briefs use `marked.parse()` client-side
 
-- [ ] **Auto-name sessions from prompt**
-  - In `createSession`: `name = fmt.Sprintf("Session %s", time.Now().Format("Jan 2 15:04"))` 
-  - Change to: take first 6 words of prompt, truncate to 40 chars
-  - Simple string manipulation, no AI needed
+- [x] **Auto-name sessions from prompt** ✅ 2026-03-05
+  - `sessionNameFromPrompt()`: first 6 words, max 48 chars
+
+- [x] **Fix CLAUDE_ALLOW_ROOT** ✅ 2026-03-05
+  - Removed `--dangerously-skip-permissions` (blocked on root)
+  - Set `CLAUDE_ALLOW_ROOT=1` env var — works correctly
 
 ### Medium priority
 
