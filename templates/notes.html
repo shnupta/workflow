@@ -6,20 +6,191 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>workflow — Notes</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   {{template "nav" .}}
   <main>
-    <div class="page-content">
-      <div class="page-header">
-        <h1 class="page-title">Notes</h1>
-        <button class="btn btn-primary" onclick="newNote()">+ New note</button>
+    <div class="notes-layout">
+
+      <!-- Sidebar: note list -->
+      <div class="notes-sidebar" id="notes-sidebar">
+        <div class="notes-sidebar-header">
+          <span class="notes-sidebar-title">Notes</span>
+          <button class="btn btn-primary btn-sm" onclick="newNote()">+ New</button>
+        </div>
+        <div class="notes-list" id="notes-list">
+          {{if .Notes}}
+            {{range .Notes}}
+            <div class="note-list-item" data-id="{{.ID}}" onclick="loadNote('{{.ID}}')">
+              <div class="note-list-title">{{.DisplayTitle}}</div>
+              <div class="note-list-time">{{timeAgo .UpdatedAt}}</div>
+            </div>
+            {{end}}
+          {{else}}
+            <p class="notes-empty">No notes yet.</p>
+          {{end}}
+        </div>
       </div>
-      <p class="empty-state" style="margin-top:40px">Notes coming soon. This will be a scratchpad for anything that doesn't fit a task.</p>
+
+      <!-- Editor pane -->
+      <div class="notes-editor-pane" id="notes-editor-pane">
+        <div class="notes-editor-toolbar" id="notes-toolbar" style="display:none">
+          <span class="notes-save-status" id="notes-save-status"></span>
+          <div class="notes-toolbar-right">
+            <button class="btn btn-ghost btn-sm" id="notes-preview-btn" onclick="togglePreview()">Preview</button>
+            <button class="btn btn-ghost btn-sm" onclick="deleteNote()" title="Delete note">Delete</button>
+          </div>
+        </div>
+        <div id="notes-editor-wrap" style="display:none">
+          <textarea id="notes-editor" class="notes-editor" placeholder="Start writing in Markdown…" oninput="onEditorInput()"></textarea>
+        </div>
+        <div id="notes-preview" class="notes-preview md-content" style="display:none"></div>
+        <div class="notes-empty-state" id="notes-empty-state">
+          <p>Select a note or create a new one.</p>
+          <button class="btn btn-primary" onclick="newNote()">+ New note</button>
+        </div>
+      </div>
+
     </div>
   </main>
+
 <script>
-  function newNote() { /* TODO */ }
+  let currentNoteID = null;
+  let saveTimer = null;
+  let previewing = false;
+
+  // ── Load note ──────────────────────────────────────────────────────────────
+
+  async function loadNote(id) {
+    const r = await fetch(`/api/notes/${id}`);
+    if (!r.ok) return;
+    const note = await r.json();
+    currentNoteID = id;
+
+    document.getElementById('notes-editor').value = note.content;
+    document.getElementById('notes-toolbar').style.display = '';
+    document.getElementById('notes-editor-wrap').style.display = previewing ? 'none' : '';
+    document.getElementById('notes-preview').style.display = previewing ? '' : 'none';
+    document.getElementById('notes-empty-state').style.display = 'none';
+    setSaveStatus('');
+    if (previewing) renderPreview(note.content);
+
+    // Highlight active item
+    document.querySelectorAll('.note-list-item').forEach(el => el.classList.remove('active'));
+    const item = document.querySelector(`.note-list-item[data-id="${id}"]`);
+    if (item) item.classList.add('active');
+
+    document.getElementById('notes-editor').focus();
+  }
+
+  // ── New note ───────────────────────────────────────────────────────────────
+
+  async function newNote() {
+    const r = await fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: '', content: '' })
+    });
+    if (!r.ok) return;
+    const note = await r.json();
+
+    // Add to sidebar
+    const list = document.getElementById('notes-list');
+    const emptyMsg = list.querySelector('.notes-empty');
+    if (emptyMsg) emptyMsg.remove();
+
+    const item = document.createElement('div');
+    item.className = 'note-list-item';
+    item.dataset.id = note.id;
+    item.onclick = () => loadNote(note.id);
+    item.innerHTML = `<div class="note-list-title">Untitled note</div><div class="note-list-time">just now</div>`;
+    list.prepend(item);
+
+    await loadNote(note.id);
+  }
+
+  // ── Auto-save ──────────────────────────────────────────────────────────────
+
+  function onEditorInput() {
+    setSaveStatus('Unsaved');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNote, 800);
+    if (previewing) renderPreview(document.getElementById('notes-editor').value);
+  }
+
+  async function saveNote() {
+    if (!currentNoteID) return;
+    const content = document.getElementById('notes-editor').value;
+    setSaveStatus('Saving…');
+    const r = await fetch(`/api/notes/${currentNoteID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content })
+    });
+    if (r.ok) {
+      const note = await r.json();
+      setSaveStatus('Saved');
+      // Update sidebar title
+      const item = document.querySelector(`.note-list-item[data-id="${currentNoteID}"] .note-list-title`);
+      if (item) item.textContent = note.title || 'Untitled note';
+      setTimeout(() => { if (document.getElementById('notes-save-status').textContent === 'Saved') setSaveStatus(''); }, 2000);
+    } else {
+      setSaveStatus('Save failed');
+    }
+  }
+
+  function setSaveStatus(s) {
+    document.getElementById('notes-save-status').textContent = s;
+  }
+
+  // ── Preview toggle ─────────────────────────────────────────────────────────
+
+  function togglePreview() {
+    previewing = !previewing;
+    const btn = document.getElementById('notes-preview-btn');
+    btn.textContent = previewing ? 'Edit' : 'Preview';
+    const editor = document.getElementById('notes-editor-wrap');
+    const preview = document.getElementById('notes-preview');
+    editor.style.display = previewing ? 'none' : '';
+    preview.style.display = previewing ? '' : 'none';
+    if (previewing) renderPreview(document.getElementById('notes-editor').value);
+  }
+
+  function renderPreview(content) {
+    document.getElementById('notes-preview').innerHTML = marked.parse(content || '');
+  }
+
+  // ── Delete note ────────────────────────────────────────────────────────────
+
+  async function deleteNote() {
+    if (!currentNoteID) return;
+    if (!confirm('Delete this note?')) return;
+    const r = await fetch(`/api/notes/${currentNoteID}`, { method: 'DELETE' });
+    if (!r.ok) return;
+
+    const item = document.querySelector(`.note-list-item[data-id="${currentNoteID}"]`);
+    if (item) item.remove();
+
+    currentNoteID = null;
+    document.getElementById('notes-editor').value = '';
+    document.getElementById('notes-toolbar').style.display = 'none';
+    document.getElementById('notes-editor-wrap').style.display = 'none';
+    document.getElementById('notes-preview').style.display = 'none';
+    document.getElementById('notes-empty-state').style.display = '';
+
+    if (!document.querySelector('.note-list-item')) {
+      document.getElementById('notes-list').innerHTML = '<p class="notes-empty">No notes yet.</p>';
+    }
+  }
+
+  // ── Keyboard shortcut ──────────────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      saveNote();
+    }
+  });
 </script>
 </body>
 </html>

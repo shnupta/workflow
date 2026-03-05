@@ -32,6 +32,7 @@ type Session struct {
 	AgentSessionID *string       `db:"agent_session_id" json:"agent_session_id"`
 	ErrorMessage   string        `db:"error_message"   json:"error_message"`
 	Archived       bool          `db:"archived"        json:"archived"`
+	Pinned         bool          `db:"pinned"          json:"pinned"`
 	CreatedAt      time.Time     `db:"created_at"      json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at"      json:"updated_at"`
 }

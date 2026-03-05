@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Task struct {
 	ID          string     `db:"id"           json:"id"`
@@ -18,7 +21,9 @@ type Task struct {
 	CreatedAt   time.Time  `db:"created_at"    json:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"    json:"updated_at"`
 	DoneAt      *time.Time `db:"done_at"       json:"done_at"`
-	DueDate     *time.Time `db:"due_date"      json:"due_date"` // optional due date (date only, no time)
+	DueDate      *time.Time `db:"due_date"       json:"due_date"`      // optional due date (date only, no time)
+	TimerStarted *time.Time `db:"timer_started"  json:"timer_started"` // non-nil when timer is running
+	TimerTotal   int        `db:"timer_total"    json:"timer_total"`   // accumulated seconds (not counting current run)
 }
 
 func (t *Task) DirectionLabel() string {
@@ -47,4 +52,30 @@ func (t *Task) IsDueToday() bool {
 	}
 	now := time.Now()
 	return t.DueDate.Year() == now.Year() && t.DueDate.Month() == now.Month() && t.DueDate.Day() == now.Day()
+}
+
+// ElapsedSeconds returns total elapsed seconds including any current run.
+func (t *Task) ElapsedSeconds() int {
+	total := t.TimerTotal
+	if t.TimerStarted != nil {
+		total += int(time.Since(*t.TimerStarted).Seconds())
+	}
+	return total
+}
+
+// ElapsedLabel formats elapsed time as "1h 23m" or "45m" or "< 1m".
+func (t *Task) ElapsedLabel() string {
+	secs := t.ElapsedSeconds()
+	if secs < 60 {
+		if secs == 0 {
+			return ""
+		}
+		return "< 1m"
+	}
+	h := secs / 3600
+	m := (secs % 3600) / 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+	return fmt.Sprintf("%dm", m)
 }

@@ -82,11 +82,15 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/rebrief", h.rebrief)
 	mux.HandleFunc("GET /tasks/{id}/brief-status", h.briefStatus)
+	mux.HandleFunc("POST /tasks/{id}/timer", h.timerToggle)
+	mux.HandleFunc("POST /tasks/{id}/timer/reset", h.timerReset)
+	mux.HandleFunc("GET /tasks/{id}/timer", h.timerStatus)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	h.registerSessionRoutes(mux)
 	h.registerWebhookRoutes(mux)
+	h.registerNoteRoutes(mux)
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
@@ -124,8 +128,10 @@ func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
+	notes, _ := h.db.ListNotes("")
 	h.render(w, "notes.html", map[string]interface{}{
-		"Nav": "notes",
+		"Nav":   "notes",
+		"Notes": notes,
 	})
 }
 
@@ -362,6 +368,42 @@ func (h *Handler) rebrief(w http.ResponseWriter, r *http.Request) {
 }
 
 // briefStatus returns the current brief as JSON for polling.
+// timerToggle starts/stops the timer for a task. Returns updated elapsed info as JSON.
+func (h *Handler) timerToggle(w http.ResponseWriter, r *http.Request) {
+	t, err := h.db.TimerToggle(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	running := t.TimerStarted != nil
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"running":%v,"elapsed_secs":%d,"label":%s}`,
+		running, t.ElapsedSeconds(), jsonStr(t.ElapsedLabel()))
+}
+
+// timerReset clears the timer.
+func (h *Handler) timerReset(w http.ResponseWriter, r *http.Request) {
+	if err := h.db.TimerReset(r.PathValue("id")); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"running":false,"elapsed_secs":0,"label":""}`)
+}
+
+// timerStatus returns current timer state as JSON (for polling).
+func (h *Handler) timerStatus(w http.ResponseWriter, r *http.Request) {
+	t, err := h.db.GetTask(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	running := t.TimerStarted != nil
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"running":%v,"elapsed_secs":%d,"label":%s}`,
+		running, t.ElapsedSeconds(), jsonStr(t.ElapsedLabel()))
+}
+
 func (h *Handler) briefStatus(w http.ResponseWriter, r *http.Request) {
 	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {

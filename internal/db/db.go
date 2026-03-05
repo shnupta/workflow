@@ -59,14 +59,29 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN position     INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN brief        TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN brief_status TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE tasks ADD COLUMN due_date     TEXT`,
+		`ALTER TABLE tasks ADD COLUMN due_date      TEXT`,
+		`ALTER TABLE tasks ADD COLUMN timer_started TEXT`,
+		`ALTER TABLE tasks ADD COLUMN timer_total   INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
 
+	// Notes table
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS notes (
+			id         TEXT PRIMARY KEY,
+			task_id    TEXT NOT NULL DEFAULT '',
+			title      TEXT NOT NULL DEFAULT '',
+			content    TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)
+	`)
+
 	// Session migrations
 	for _, col := range []string{
 		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN pinned   INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = d.conn.Exec(col)
 	}
@@ -176,11 +191,11 @@ func (d *DB) CreateTask(t *models.Task) error {
 		dueDate = t.DueDate.Format("2006-01-02")
 	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate,
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0,
 	)
 	return err
 }
@@ -195,20 +210,58 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	if t.DueDate != nil {
 		dueDate = t.DueDate.Format("2006-01-02")
 	}
+	var timerStarted interface{}
+	if t.TimerStarted != nil {
+		timerStarted = t.TimerStarted.UTC().Format(time.RFC3339)
+	}
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
-		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?
+		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?,
+		timer_started=?, timer_total=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate, t.ID,
+		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate,
+		timerStarted, t.TimerTotal, t.ID,
 	)
+	return err
+}
+
+// TimerToggle starts the timer if stopped, or stops it and accumulates elapsed time.
+func (d *DB) TimerToggle(id string) (*models.Task, error) {
+	t, err := d.GetTask(id)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	if t.TimerStarted != nil {
+		// Stop: accumulate elapsed
+		t.TimerTotal += int(now.Sub(*t.TimerStarted).Seconds())
+		t.TimerStarted = nil
+	} else {
+		// Start
+		t.TimerStarted = &now
+	}
+	t.UpdatedAt = now
+	var timerStarted interface{}
+	if t.TimerStarted != nil {
+		timerStarted = t.TimerStarted.UTC().Format(time.RFC3339)
+	}
+	_, err = d.conn.Exec(`UPDATE tasks SET timer_started=?, timer_total=?, updated_at=? WHERE id=?`,
+		timerStarted, t.TimerTotal, now.UTC().Format(time.RFC3339), id)
+	return t, err
+}
+
+// TimerReset clears the timer entirely.
+func (d *DB) TimerReset(id string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.conn.Exec(`UPDATE tasks SET timer_started=NULL, timer_total=0, updated_at=? WHERE id=?`, now, id)
 	return err
 }
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -226,7 +279,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -255,7 +308,7 @@ func (d *DB) DeleteTask(id string) error {
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
 func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
 		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
 	t, err := scanTask(row)
 	if err != nil {
@@ -311,7 +364,7 @@ func (d *DB) MoveTask(id, tier, beforeID string) error {
 	return tx.Commit()
 }
 
-func parseTaskScanned(t *models.Task, createdAt, updatedAt string, doneAt, dueDate *string) {
+func parseTaskScanned(t *models.Task, createdAt, updatedAt string, doneAt, dueDate, timerStarted *string) {
 	t.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	t.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	if doneAt != nil {
@@ -322,31 +375,35 @@ func parseTaskScanned(t *models.Task, createdAt, updatedAt string, doneAt, dueDa
 		dd, _ := time.Parse("2006-01-02", *dueDate)
 		t.DueDate = &dd
 	}
+	if timerStarted != nil {
+		ts, _ := time.Parse(time.RFC3339, *timerStarted)
+		t.TimerStarted = &ts
+	}
 }
 
 func scanTask(row *sql.Row) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
-	var doneAt, dueDate *string
+	var doneAt, dueDate, timerStarted *string
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal)
 	if err != nil {
 		return nil, err
 	}
-	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate)
+	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
 	return &t, nil
 }
 
 func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
-	var doneAt, dueDate *string
+	var doneAt, dueDate, timerStarted *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal)
 	if err != nil {
 		return nil, err
 	}
-	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate)
+	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
 	return &t, nil
 }
 
@@ -402,15 +459,16 @@ func (d *DB) UpdateSessionName(id, name string) error {
 
 func (d *DB) GetSession(id string) (*models.Session, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, created_at, updated_at
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, created_at, updated_at
 		FROM sessions WHERE id=?`, id)
 	return scanSession(row)
 }
 
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, created_at, updated_at
-		FROM sessions WHERE task_id=? AND name != '[brief]' AND archived=0 ORDER BY updated_at DESC`, taskID)
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, created_at, updated_at
+		FROM sessions WHERE task_id=? AND name != '[brief]' AND archived=0
+		ORDER BY pinned DESC, updated_at DESC`, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -436,6 +494,16 @@ func (d *DB) ArchiveSession(id string, archived bool) error {
 	return err
 }
 
+func (d *DB) PinSession(id string, pinned bool) error {
+	v := 0
+	if pinned {
+		v = 1
+	}
+	_, err := d.conn.Exec(`UPDATE sessions SET pinned=?, updated_at=? WHERE id=?`,
+		v, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
 type sessionScanner interface {
 	Scan(dest ...any) error
 }
@@ -446,7 +514,7 @@ func scanSession(row sessionScanner) (*models.Session, error) {
 	var createdAt, updatedAt string
 	err := row.Scan(
 		&s.ID, &s.TaskID, &parentID, &s.Name, &s.Mode, &s.Status,
-		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &createdAt, &updatedAt,
+		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &s.Pinned, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -536,12 +604,12 @@ func (d *DB) ListAllSessions(showArchived bool) ([]*models.SessionWithTask, erro
 	}
 	q := fmt.Sprintf(`
 		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
-		       s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.created_at, s.updated_at,
+		       s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.pinned, s.created_at, s.updated_at,
 		       t.title
 		FROM sessions s
 		JOIN tasks t ON t.id = s.task_id
 		WHERE s.name != '[brief]' %s
-		ORDER BY s.updated_at DESC
+		ORDER BY s.pinned DESC, s.updated_at DESC
 	`, archiveClause)
 	rows, err := d.conn.Query(q)
 	if err != nil {
@@ -555,7 +623,7 @@ func (d *DB) ListAllSessions(showArchived bool) ([]*models.SessionWithTask, erro
 		var createdAt, updatedAt string
 		err := rows.Scan(
 			&sw.ID, &sw.TaskID, &parentID, &sw.Name, &sw.Mode, &sw.Status,
-			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &sw.Archived, &createdAt, &updatedAt,
+			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &sw.Archived, &sw.Pinned, &createdAt, &updatedAt,
 			&sw.TaskTitle,
 		)
 		if err != nil {
@@ -592,7 +660,7 @@ func (d *DB) SearchSessions(query string) ([]*SearchResult, error) {
 	rows, err := d.conn.Query(`
 		SELECT
 			s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
-			s.agent_provider, s.agent_session_id, s.error_message, s.created_at, s.updated_at,
+			s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.pinned, s.created_at, s.updated_at,
 			t.title,
 			snippet(messages_fts, 0, '<mark>', '</mark>', '…', 16) AS snippet
 		FROM messages_fts
@@ -616,7 +684,7 @@ func (d *DB) SearchSessions(query string) ([]*SearchResult, error) {
 		var createdAt, updatedAt string
 		err := rows.Scan(
 			&sr.ID, &sr.TaskID, &parentID, &sr.Name, &sr.Mode, &sr.Status,
-			&sr.AgentProvider, &agentSessionID, &sr.ErrorMessage, &createdAt, &updatedAt,
+			&sr.AgentProvider, &agentSessionID, &sr.ErrorMessage, &sr.Archived, &sr.Pinned, &createdAt, &updatedAt,
 			&sr.TaskTitle, &sr.Snippet,
 		)
 		if err != nil {
@@ -633,4 +701,78 @@ func (d *DB) SearchSessions(query string) ([]*SearchResult, error) {
 		out = append(out, &sr)
 	}
 	return out, rows.Err()
+}
+
+// ─────────────────────────────────────────────────────────
+// Notes
+// ─────────────────────────────────────────────────────────
+
+func (d *DB) CreateNote(n *models.Note) error {
+	n.ID = uuid.New().String()
+	n.CreatedAt = time.Now()
+	n.UpdatedAt = time.Now()
+	_, err := d.conn.Exec(`
+		INSERT INTO notes (id, task_id, title, content, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		n.ID, n.TaskID, n.Title, n.Content,
+		n.CreatedAt.UTC().Format(time.RFC3339),
+		n.UpdatedAt.UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+func (d *DB) UpdateNote(n *models.Note) error {
+	n.UpdatedAt = time.Now()
+	_, err := d.conn.Exec(`UPDATE notes SET title=?, content=?, updated_at=? WHERE id=?`,
+		n.Title, n.Content, n.UpdatedAt.UTC().Format(time.RFC3339), n.ID)
+	return err
+}
+
+func (d *DB) GetNote(id string) (*models.Note, error) {
+	row := d.conn.QueryRow(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE id=?`, id)
+	return scanNote(row)
+}
+
+func (d *DB) ListNotes(taskID string) ([]*models.Note, error) {
+	var rows *sql.Rows
+	var err error
+	if taskID == "" {
+		rows, err = d.conn.Query(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE task_id='' ORDER BY updated_at DESC`)
+	} else {
+		rows, err = d.conn.Query(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE task_id=? ORDER BY updated_at DESC`, taskID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Note
+	for rows.Next() {
+		n, err := scanNote(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+func (d *DB) DeleteNote(id string) error {
+	_, err := d.conn.Exec(`DELETE FROM notes WHERE id=?`, id)
+	return err
+}
+
+type noteScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanNote(row noteScanner) (*models.Note, error) {
+	var n models.Note
+	var createdAt, updatedAt string
+	err := row.Scan(&n.ID, &n.TaskID, &n.Title, &n.Content, &createdAt, &updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	n.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	n.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	return &n, nil
 }

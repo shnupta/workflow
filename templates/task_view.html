@@ -50,6 +50,17 @@
         {{end}}
       </p>
 
+      <!-- Timer -->
+      <div class="timer-bar" id="timer-bar">
+        <button class="timer-btn" id="timer-toggle-btn" onclick="timerToggle()">
+          {{if .Task.TimerStarted}}⏹ Stop{{else}}▶ Start timer{{end}}
+        </button>
+        <span class="timer-display" id="timer-display">{{.Task.ElapsedLabel}}</span>
+        {{if or .Task.TimerStarted (gt .Task.TimerTotal 0)}}
+        <button class="timer-reset-btn" id="timer-reset-btn" onclick="timerReset()" title="Reset timer">↺</button>
+        {{end}}
+      </div>
+
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
@@ -91,8 +102,9 @@
         <div id="sessions-list" class="sessions-list">
           {{if .Sessions}}
           {{range .Sessions}}
-          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card">
+          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card {{if .Pinned}}session-card-pinned{{end}}">
             <div class="session-card-main">
+              {{if .Pinned}}<span class="pin-icon" title="Pinned">📌</span>{{end}}
               <span class="session-card-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
               <span class="session-status status-{{.Status}}">{{.Status}}</span>
             </div>
@@ -258,7 +270,78 @@
   window.addEventListener('beforeunload', () => {
     clearInterval(briefPollTimer);
     clearInterval(sessionPollTimer);
+    clearInterval(timerTickInterval);
   });
+
+  // ── Timer ──────────────────────────────────────────────────────────────────
+
+  const taskID = '{{.Task.ID}}';
+  let timerRunning = {{if .Task.TimerStarted}}true{{else}}false{{end}};
+  let timerElapsed = {{.Task.ElapsedSeconds}};
+  let timerTickInterval = null;
+
+  function timerLabel(secs) {
+    if (secs < 60) return secs > 0 ? '< 1m' : '';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  function startTicking() {
+    timerTickInterval = setInterval(() => {
+      timerElapsed++;
+      document.getElementById('timer-display').textContent = timerLabel(timerElapsed);
+    }, 1000);
+  }
+
+  if (timerRunning) startTicking();
+
+  async function timerToggle() {
+    const btn = document.getElementById('timer-toggle-btn');
+    btn.disabled = true;
+    try {
+      const r = await fetch(`/tasks/${taskID}/timer`, { method: 'POST' });
+      if (!r.ok) return;
+      const data = await r.json();
+      timerRunning = data.running;
+      timerElapsed = data.elapsed_secs;
+
+      btn.textContent = timerRunning ? '⏹ Stop' : '▶ Start timer';
+      document.getElementById('timer-display').textContent = data.label;
+
+      clearInterval(timerTickInterval);
+      if (timerRunning) startTicking();
+
+      // Show reset button if there's elapsed time
+      let resetBtn = document.getElementById('timer-reset-btn');
+      if (timerElapsed > 0 || timerRunning) {
+        if (!resetBtn) {
+          resetBtn = document.createElement('button');
+          resetBtn.id = 'timer-reset-btn';
+          resetBtn.className = 'timer-reset-btn';
+          resetBtn.title = 'Reset timer';
+          resetBtn.textContent = '↺';
+          resetBtn.onclick = timerReset;
+          document.getElementById('timer-bar').appendChild(resetBtn);
+        }
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function timerReset() {
+    if (!confirm('Reset timer to 0?')) return;
+    const r = await fetch(`/tasks/${taskID}/timer/reset`, { method: 'POST' });
+    if (!r.ok) return;
+    timerRunning = false;
+    timerElapsed = 0;
+    clearInterval(timerTickInterval);
+    document.getElementById('timer-toggle-btn').textContent = '▶ Start timer';
+    document.getElementById('timer-display').textContent = '';
+    const resetBtn = document.getElementById('timer-reset-btn');
+    if (resetBtn) resetBtn.remove();
+  }
 </script>
 </body>
 </html>

@@ -29,6 +29,11 @@
           {{if .Session.Archived}}<span class="tag tag-archived">archived</span>{{end}}
         </div>
         <div class="session-header-actions">
+          <button class="btn btn-ghost btn-sm" id="pin-btn"
+            onclick="togglePin()"
+            title="{{if .Session.Pinned}}Unpin session{{else}}Pin to top of list{{end}}">
+            {{if .Session.Pinned}}📌 Pinned{{else}}Pin{{end}}
+          </button>
           <button class="btn btn-ghost btn-sm" id="archive-btn"
             onclick="toggleArchive()"
             title="{{if .Session.Archived}}Unarchive{{else}}Archive{{end}} session">
@@ -318,6 +323,29 @@
 
     if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
   });
+
+  // ── Session pin ────────────────────────────────────────────────────────────
+
+  let isPinned = {{if .Session.Pinned}}true{{else}}false{{end}};
+
+  async function togglePin() {
+    const btn = document.getElementById('pin-btn');
+    btn.disabled = true;
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned: !isPinned })
+      });
+      if (r.ok) {
+        isPinned = !isPinned;
+        btn.textContent = isPinned ? '📌 Pinned' : 'Pin';
+        btn.title = isPinned ? 'Unpin session' : 'Pin to top of list';
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
 
   // ── Session archive ────────────────────────────────────────────────────────
 
