@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"net/http"
 	"time"
 
@@ -21,10 +22,11 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 }
 
 // createSession starts a new agent session on a task.
-// Body: {"prompt": "...", "name": "...", "mode": "fire_and_forget|interactive"}
+// Body: {"prompt": "...", "name": "...", "mode": "interactive"}
 func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	taskID := r.PathValue("id")
-	if _, err := h.db.GetTask(taskID); err != nil {
+	task, err := h.db.GetTask(taskID)
+	if err != nil {
 		http.Error(w, "task not found", 404)
 		return
 	}
@@ -42,10 +44,6 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "prompt required", 400)
 		return
 	}
-	mode := models.SessionModeFireAndForget
-	if body.Mode == string(models.SessionModeInteractive) {
-		mode = models.SessionModeInteractive
-	}
 	name := body.Name
 	if name == "" {
 		name = fmt.Sprintf("Session %s", time.Now().Format("Jan 2 15:04"))
@@ -54,7 +52,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	sess := &models.Session{
 		TaskID:        taskID,
 		Name:          name,
-		Mode:          mode,
+		Mode:          models.SessionModeInteractive,
 		Status:        models.SessionStatusPending,
 		AgentProvider: "claude_local",
 	}
@@ -66,14 +64,16 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	// Validate claude binary is reachable before creating the session
 	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
 	if err := runner.Validate(); err != nil {
-		// Clean up the session we just created
 		_ = h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
 		http.Error(w, "claude CLI not available: "+err.Error(), 503)
 		return
 	}
 
+	// Prepend task context to the user's prompt
+	fullPrompt := buildSessionPrompt(task, body.Prompt)
+
 	// Start runner in background
-	go agent.RunSession(context.Background(), h.db, sess, runner, body.Prompt)
+	go agent.RunSession(context.Background(), h.db, sess, runner, fullPrompt)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -177,8 +177,35 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runner := &agent.ClaudeLocal{}
+	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
 	go agent.RunSession(context.Background(), h.db, sess, runner, body.Prompt)
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// buildSessionPrompt wraps the user's prompt with task context so the agent
+// is never starting cold.
+func buildSessionPrompt(t *models.Task, userPrompt string) string {
+	var b strings.Builder
+	b.WriteString("## Task context\n")
+	b.WriteString("You are working on the following task. Use this context to inform your work.\n\n")
+	b.WriteString("**Title:** " + t.Title + "\n")
+	if t.Description != "" {
+		b.WriteString("**Description:** " + t.Description + "\n")
+	}
+	b.WriteString("**Type:** " + t.WorkType + "\n")
+	if t.PRURL != "" {
+		b.WriteString("**PR URL:** " + t.PRURL + "\n")
+	}
+	if t.Link != "" {
+		b.WriteString("**Link:** " + t.Link + "\n")
+	}
+	if t.Brief != "" && t.BriefStatus == "done" {
+		b.WriteString("\n**Preliminary investigation:**\n")
+		b.WriteString(t.Brief)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n---\n\n")
+	b.WriteString(userPrompt)
+	return b.String()
 }

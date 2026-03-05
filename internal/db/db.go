@@ -16,14 +16,11 @@ type DB struct {
 }
 
 func Open(path string) (*DB, error) {
-	// Use WAL mode + allow concurrent readers alongside the background writer.
-	// Two separate DSNs: one write connection (MaxOpenConns=1) and a read pool.
 	dsn := path + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
 	conn, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, err
 	}
-	// Allow multiple concurrent readers; writer serialised by SQLite WAL.
 	conn.SetMaxOpenConns(10)
 	d := &DB{conn: conn}
 	if err := d.migrate(); err != nil {
@@ -35,36 +32,48 @@ func Open(path string) (*DB, error) {
 func (d *DB) migrate() error {
 	_, err := d.conn.Exec(`
 		CREATE TABLE IF NOT EXISTS tasks (
-			id          TEXT PRIMARY KEY,
-			title       TEXT NOT NULL,
-			description TEXT NOT NULL DEFAULT '',
-			work_type   TEXT NOT NULL,
-			tier        TEXT NOT NULL,
-			direction   TEXT NOT NULL,
-			pr_url      TEXT NOT NULL DEFAULT '',
-			pr_summary  TEXT NOT NULL DEFAULT '',
-			link        TEXT NOT NULL DEFAULT '',
-			done        INTEGER NOT NULL DEFAULT 0,
-			position    INTEGER NOT NULL DEFAULT 0,
-			created_at  TEXT NOT NULL,
-			updated_at  TEXT NOT NULL,
-			done_at     TEXT
+			id           TEXT PRIMARY KEY,
+			title        TEXT NOT NULL,
+			description  TEXT NOT NULL DEFAULT '',
+			work_type    TEXT NOT NULL,
+			tier         TEXT NOT NULL,
+			direction    TEXT NOT NULL,
+			pr_url       TEXT NOT NULL DEFAULT '',
+			brief        TEXT NOT NULL DEFAULT '',
+			brief_status TEXT NOT NULL DEFAULT '',
+			link         TEXT NOT NULL DEFAULT '',
+			done         INTEGER NOT NULL DEFAULT 0,
+			position     INTEGER NOT NULL DEFAULT 0,
+			created_at   TEXT NOT NULL,
+			updated_at   TEXT NOT NULL,
+			done_at      TEXT
 		)
 	`)
 	if err != nil {
 		return err
 	}
-	// Add position column to existing databases that predate this migration
-	_, _ = d.conn.Exec(`ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0`)
+	// Safe migrations for existing databases
+	for _, col := range []string{
+		`ALTER TABLE tasks ADD COLUMN position     INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE tasks ADD COLUMN brief        TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE tasks ADD COLUMN brief_status TEXT NOT NULL DEFAULT ''`,
+	} {
+		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
+	}
 
-	// Sessions table
+	// Migrate old pr_summary → brief for existing rows
+	_, _ = d.conn.Exec(`
+		UPDATE tasks SET brief = pr_summary, brief_status = 'done'
+		WHERE brief = '' AND pr_summary != '' AND pr_summary IS NOT NULL
+	`)
+
 	_, err = d.conn.Exec(`
 		CREATE TABLE IF NOT EXISTS sessions (
 			id               TEXT PRIMARY KEY,
 			task_id          TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 			parent_id        TEXT REFERENCES sessions(id) ON DELETE SET NULL,
 			name             TEXT NOT NULL DEFAULT '',
-			mode             TEXT NOT NULL DEFAULT 'fire_and_forget',
+			mode             TEXT NOT NULL DEFAULT 'interactive',
 			status           TEXT NOT NULL DEFAULT 'pending',
 			agent_provider   TEXT NOT NULL DEFAULT 'claude_local',
 			agent_session_id TEXT,
@@ -77,7 +86,6 @@ func (d *DB) migrate() error {
 		return err
 	}
 
-	// Messages table — provider-agnostic, normalised
 	_, err = d.conn.Exec(`
 		CREATE TABLE IF NOT EXISTS messages (
 			id         TEXT PRIMARY KEY,
@@ -90,28 +98,27 @@ func (d *DB) migrate() error {
 			created_at TEXT NOT NULL
 		)
 	`)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
+
+// ─────────────────────────────────────────────────────────
+// Tasks
+// ─────────────────────────────────────────────────────────
 
 func (d *DB) CreateTask(t *models.Task) error {
 	t.ID = uuid.New().String()
 	t.CreatedAt = time.Now()
 	t.UpdatedAt = time.Now()
 
-	// Place at end of tier
 	var maxPos int
 	d.conn.QueryRow(`SELECT COALESCE(MAX(position), -1) FROM tasks WHERE tier=? AND done=0`, t.Tier).Scan(&maxPos)
 	t.Position = maxPos + 1
 
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, pr_summary, link, done, position, created_at, updated_at, done_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
-		t.PRURL, t.PRSummary, t.Link, t.Done, t.Position,
+		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil,
 	)
 	return err
@@ -125,10 +132,10 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	}
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
-		pr_url=?, pr_summary=?, link=?, done=?, position=?, updated_at=?, done_at=?
+		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
-		t.PRURL, t.PRSummary, t.Link, t.Done, t.Position,
+		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, t.ID,
 	)
 	return err
@@ -136,7 +143,7 @@ func (d *DB) UpdateTask(t *models.Task) error {
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, pr_summary, link, done, position, created_at, updated_at, done_at
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -154,7 +161,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, pr_summary, link, done, position, created_at, updated_at, done_at
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -186,14 +193,12 @@ func (d *DB) MarkDone(id string) error {
 	return err
 }
 
-func (d *DB) UpdatePRSummary(id, summary string) error {
+func (d *DB) UpdateBrief(id, brief, status string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := d.conn.Exec(`UPDATE tasks SET pr_summary=?, updated_at=? WHERE id=?`, summary, now, id)
+	_, err := d.conn.Exec(`UPDATE tasks SET brief=?, brief_status=?, updated_at=? WHERE id=?`, brief, status, now, id)
 	return err
 }
 
-// MoveTask moves a task to a new tier and inserts it before the task with
-// beforeID. If beforeID is empty, it appends to the end of the tier.
 func (d *DB) MoveTask(id, tier, beforeID string) error {
 	tx, err := d.conn.Begin()
 	if err != nil {
@@ -205,15 +210,12 @@ func (d *DB) MoveTask(id, tier, beforeID string) error {
 
 	var targetPos int
 	if beforeID == "" {
-		// Append to end
 		tx.QueryRow(`SELECT COALESCE(MAX(position), -1) FROM tasks WHERE tier=? AND done=0 AND id!=?`, tier, id).Scan(&targetPos)
 		targetPos++
 	} else {
-		// Get the position of the "before" card
 		if err := tx.QueryRow(`SELECT position FROM tasks WHERE id=?`, beforeID).Scan(&targetPos); err != nil {
 			return fmt.Errorf("before task not found: %w", err)
 		}
-		// Shift everything at targetPos and above up by 1 (within same tier)
 		_, err = tx.Exec(`UPDATE tasks SET position=position+1, updated_at=? WHERE tier=? AND done=0 AND id!=? AND position>=?`,
 			now, tier, id, targetPos)
 		if err != nil {
@@ -234,7 +236,7 @@ func scanTask(row *sql.Row) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt *string
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.PRSummary, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +254,7 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.PRSummary, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +321,7 @@ func (d *DB) GetSession(id string) (*models.Session, error) {
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
-		FROM sessions WHERE task_id=? ORDER BY updated_at DESC`, taskID)
+		FROM sessions WHERE task_id=? AND name != '[brief]' ORDER BY updated_at DESC`, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -366,13 +368,8 @@ func scanSession(row sessionScanner) (*models.Session, error) {
 // ─────────────────────────────────────────────────────────
 
 func (d *DB) CreateMessage(m *models.Message) error {
-	m.ID = uuid.New().String()
-	m.CreatedAt = time.Now()
-	if m.Kind == "" {
-		m.Kind = models.MessageKindText
-	}
-	if m.Metadata == "" {
-		m.Metadata = "{}"
+	if m.ID == "" {
+		m.ID = uuid.New().String()
 	}
 	_, err := d.conn.Exec(`
 		INSERT INTO messages (id, session_id, role, kind, content, tool_name, metadata, created_at)
@@ -386,22 +383,12 @@ func (d *DB) CreateMessage(m *models.Message) error {
 func (d *DB) ListMessages(sessionID string) ([]*models.Message, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
-		FROM messages WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+		FROM messages WHERE session_id=? ORDER BY rowid ASC`, sessionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*models.Message
-	for rows.Next() {
-		var m models.Message
-		var createdAt string
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Role, &m.Kind, &m.Content, &m.ToolName, &m.Metadata, &createdAt); err != nil {
-			return nil, err
-		}
-		m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		out = append(out, &m)
-	}
-	return out, rows.Err()
+	return scanMessages(rows)
 }
 
 func (d *DB) ListMessagesSince(sessionID, afterID string) ([]*models.Message, error) {
@@ -424,6 +411,10 @@ func (d *DB) ListMessagesSince(sessionID, afterID string) ([]*models.Message, er
 		return nil, err
 	}
 	defer rows.Close()
+	return scanMessages(rows)
+}
+
+func scanMessages(rows *sql.Rows) ([]*models.Message, error) {
 	var out []*models.Message
 	for rows.Next() {
 		var m models.Message

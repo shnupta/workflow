@@ -1,25 +1,24 @@
 package handlers
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/shnupta/workflow/internal/agent"
 	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
 	"github.com/shnupta/workflow/internal/models"
 )
 
 type Handler struct {
-	db      *db.DB
-	watcher *config.Watcher
+	db       *db.DB
+	watcher  *config.Watcher
 	tmplGlob string
 	templates *template.Template
 }
@@ -32,14 +31,6 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 	funcMap := template.FuncMap{
 		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
 		"timeAgo":       timeAgo,
-		"lastMessageID": func(msgs interface{}) string {
-			type hasID interface{ GetID() string }
-			// msgs is []*models.Message
-			if ms, ok := msgs.([]*models.Message); ok && len(ms) > 0 {
-				return ms[len(ms)-1].ID
-			}
-			return ""
-		},
 		"workTypeLabel": func(key string) string {
 			if wt := h.cfg().WorkTypeByKey(key); wt != nil {
 				return wt.Label
@@ -72,8 +63,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/done", h.markDone)
 	mux.HandleFunc("POST /tasks/{id}/move", h.moveTask)
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
-	mux.HandleFunc("POST /tasks/{id}/analyse-pr", h.analysePR)
-	mux.HandleFunc("GET /tasks/{id}/pr-summary", h.getPRSummary)
+	mux.HandleFunc("POST /tasks/{id}/rebrief", h.rebrief)
+	mux.HandleFunc("GET /tasks/{id}/brief-status", h.briefStatus)
 	h.registerSessionRoutes(mux)
 }
 
@@ -113,7 +104,7 @@ func (h *Handler) newTaskForm(w http.ResponseWriter, r *http.Request) {
 		"WorkTypes": h.cfg().WorkTypes,
 		"Tiers":     h.cfg().Tiers,
 		"Task":      &models.Task{Tier: defaultTier, Direction: "blocked_on_me"},
-		"Edit":      false,
+		"IsNew":     true,
 	})
 }
 
@@ -136,44 +127,29 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Kick off PR analysis in the background if a PR URL was provided
-	if t.PRURL != "" && h.cfg().AnthropicKey != "" {
-		go func() {
-			diff, err := h.fetchPRDiff(t.PRURL)
-			if err != nil {
-				log.Printf("auto PR analysis: fetch diff failed for %s: %v", t.PRURL, err)
-				return
-			}
-			summary, err := h.claudeSummarisePR(t.PRURL, diff)
-			if err != nil {
-				log.Printf("auto PR analysis: claude failed for %s: %v", t.PRURL, err)
-				return
-			}
-			if err := h.db.UpdatePRSummary(t.ID, summary); err != nil {
-				log.Printf("auto PR analysis: save failed for %s: %v", t.ID, err)
-			}
-		}()
-	}
+	// Kick off auto-brief in background
+	go h.runAutoBrief(t)
 
 	http.Redirect(w, r, "/tasks/"+t.ID, http.StatusSeeOther)
 }
 
 func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	t, err := h.db.GetTask(id)
+	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
+	sessions, _ := h.db.ListSessions(t.ID)
+	messages, _ := h.db.ListMessages(t.ID) // for task-level messages (unused for now)
+	_ = messages
 	h.render(w, "task_view.html", map[string]interface{}{
-		"Task":   t,
-		"Config": h.cfg(),
+		"Task":     t,
+		"Sessions": sessions,
 	})
 }
 
 func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	t, err := h.db.GetTask(id)
+	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
@@ -182,13 +158,12 @@ func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
 		"WorkTypes": h.cfg().WorkTypes,
 		"Tiers":     h.cfg().Tiers,
 		"Task":      t,
-		"Edit":      true,
+		"IsNew":     false,
 	})
 }
 
 func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	t, err := h.db.GetTask(id)
+	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
@@ -208,7 +183,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	http.Redirect(w, r, "/tasks/"+id, http.StatusSeeOther)
+	http.Redirect(w, r, "/tasks/"+t.ID, http.StatusSeeOther)
 }
 
 func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
@@ -220,22 +195,19 @@ func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := r.ParseForm(); err != nil {
+	var body struct {
+		Tier     string `json:"tier"`
+		BeforeID string `json:"before_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
-	tier := r.FormValue("tier")
-	if h.cfg().TierByKey(tier) == nil {
-		http.Error(w, "unknown tier", 400)
-		return
-	}
-	beforeID := r.FormValue("before_id") // empty = append to end
-	if err := h.db.MoveTask(id, tier, beforeID); err != nil {
+	if err := h.db.MoveTask(r.PathValue("id"), body.Tier, body.BeforeID); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
@@ -243,211 +215,161 @@ func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) analysePR(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	t, err := h.db.GetTask(id)
+// rebrief re-runs the auto-brief agent for a task.
+func (h *Handler) rebrief(w http.ResponseWriter, r *http.Request) {
+	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
-	if t.PRURL == "" {
-		http.Error(w, "no PR URL on this task", 400)
-		return
-	}
-	if h.cfg().AnthropicKey == "" {
-		http.Error(w, "anthropic_key not set in workflow.json", 400)
-		return
-	}
-
-	// Clear any existing summary so the poll endpoint returns ready:false while we work
-	if err := h.db.UpdatePRSummary(id, ""); err != nil {
+	if err := h.db.UpdateBrief(t.ID, "", "pending"); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
-	// Kick off analysis in the background
-	go func() {
-		diff, err := h.fetchPRDiff(t.PRURL)
-		if err != nil {
-			log.Printf("analyse-pr: fetch diff failed for %s: %v", t.PRURL, err)
-			return
-		}
-		summary, err := h.claudeSummarisePR(t.PRURL, diff)
-		if err != nil {
-			log.Printf("analyse-pr: claude failed for %s: %v", t.PRURL, err)
-			return
-		}
-		if err := h.db.UpdatePRSummary(id, summary); err != nil {
-			log.Printf("analyse-pr: save failed for %s: %v", id, err)
-		}
-	}()
-
-	// Return 202 — client polls /pr-summary until ready
+	t.BriefStatus = "pending"
+	go h.runAutoBrief(t)
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (h *Handler) fetchPRDiff(prURL string) (string, error) {
-	prURL = strings.TrimRight(prURL, "/")
-	parts := strings.Split(strings.TrimPrefix(prURL, "https://github.com/"), "/")
-	if len(parts) < 4 || parts[2] != "pull" {
-		return "", fmt.Errorf("invalid GitHub PR URL — expected https://github.com/owner/repo/pull/number")
-	}
-	owner, repo, number := parts[0], parts[1], parts[3]
-
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%s", owner, repo, number)
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Set("Accept", "application/vnd.github.v3.diff")
-	req.Header.Set("User-Agent", "workflow-app")
-	if h.cfg().GitHubToken != "" {
-		req.Header.Set("Authorization", "Bearer "+h.cfg().GitHubToken)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
-	}
-	return string(body), nil
-}
-
-func isThinkingModel(model string) bool {
-	return strings.Contains(model, "claude-3-7") || strings.Contains(model, "claude-opus-4")
-}
-
-func (h *Handler) claudeSummarisePR(prURL, diff string) (string, error) {
-	promptTmpl := h.cfg().PRPrompt
-	prompt := strings.NewReplacer("{{.PRURL}}", prURL, "{{.Diff}}", diff).Replace(promptTmpl)
-
-	if h.cfg().ClaudeMode == "local" {
-		return h.claudeSummarisePRLocal(prompt)
-	}
-	return h.claudeSummarisePRAPI(prompt)
-}
-
-func (h *Handler) claudeSummarisePRLocal(prompt string) (string, error) {
-	// Locate claude binary
-	claudeBin, err := exec.LookPath("claude")
-	if err != nil {
-		return "", fmt.Errorf("claude CLI not found in PATH: %w", err)
-	}
-
-	cmd := exec.Command(claudeBin,
-		"-p", prompt,
-		"--output-format", "json",
-		"--dangerously-skip-permissions",
-	)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("claude CLI error: %w\nstderr: %s", err, stderr.String())
-	}
-
-	// Claude JSON output: {"type":"result","subtype":"success","result":"...","session_id":"..."}
-	var out struct {
-		Result string `json:"result"`
-		Error  string `json:"error"`
-	}
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		return "", fmt.Errorf("claude CLI: failed to parse JSON output: %w\nraw: %s", err, stdout.String())
-	}
-	if out.Error != "" {
-		return "", fmt.Errorf("claude CLI returned error: %s", out.Error)
-	}
-	if out.Result == "" {
-		return "", fmt.Errorf("claude CLI returned empty result\nraw: %s", stdout.String())
-	}
-	return out.Result, nil
-}
-
-func (h *Handler) claudeSummarisePRAPI(prompt string) (string, error) {
-
-	payload := map[string]interface{}{
-		"model":      h.cfg().ClaudeModel,
-		"max_tokens": 24000,
-		"messages": []map[string]string{
-			{"role": "user", "content": prompt},
-		},
-	}
-
-	if isThinkingModel(h.cfg().ClaudeModel) {
-		payload["thinking"] = map[string]interface{}{
-			"type":         "enabled",
-			"budget_tokens": 16000,
-		}
-	}
-
-	body, _ := json.Marshal(payload)
-	baseURL := strings.TrimRight(h.cfg().ClaudeBaseURL, "/")
-
-	req, _ := http.NewRequest("POST", baseURL+"/v1/messages", strings.NewReader(string(body)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-api-key", h.cfg().AnthropicKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
-	}
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Claude API error: %s", result.Error.Message)
-	}
-	var parts []string
-	for _, block := range result.Content {
-		if block.Type == "text" && block.Text != "" {
-			parts = append(parts, block.Text)
-		}
-	}
-	if len(parts) == 0 {
-		return "", fmt.Errorf("empty response from Claude")
-	}
-	return strings.Join(parts, "\n\n"), nil
-}
-
-// getPRSummary returns the current PR summary as a JSON payload.
-// Returns {"ready": false} if analysis is still pending, {"ready": true, "html": "..."} when done.
-func (h *Handler) getPRSummary(w http.ResponseWriter, r *http.Request) {
+// briefStatus returns the current brief as JSON for polling.
+func (h *Handler) briefStatus(w http.ResponseWriter, r *http.Request) {
 	t, err := h.db.GetTask(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", 404)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if t.PRSummary == "" {
-		fmt.Fprintf(w, `{"ready":false}`)
+	switch t.BriefStatus {
+	case "done":
+		fmt.Fprintf(w, `{"status":"done","brief":%s}`, jsonStr(t.Brief))
+	case "error":
+		fmt.Fprintf(w, `{"status":"error","brief":%s}`, jsonStr(t.Brief))
+	case "pending":
+		fmt.Fprintf(w, `{"status":"pending"}`)
+	default:
+		fmt.Fprintf(w, `{"status":"none"}`)
+	}
+}
+
+// ─────────────────────────────────────────────────────────
+// Auto-brief
+// ─────────────────────────────────────────────────────────
+
+func (h *Handler) runAutoBrief(t *models.Task) {
+	if err := h.db.UpdateBrief(t.ID, "", "pending"); err != nil {
+		log.Printf("auto-brief: mark pending: %v", err)
 		return
 	}
-	// Escape for JSON string embedding
-	b, _ := json.Marshal(t.PRSummary)
-	fmt.Fprintf(w, `{"ready":true,"text":%s}`, string(b))
+
+	prompt := buildBriefPrompt(t)
+	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
+
+	// Use a hidden session (name "[brief]") to run the agent
+	sess := &models.Session{
+		TaskID: t.ID,
+		Name:   "[brief]",
+		Mode:   models.SessionModeInteractive,
+	}
+	if err := h.db.CreateSession(sess); err != nil {
+		log.Printf("auto-brief: create session: %v", err)
+		h.db.UpdateBrief(t.ID, "Failed to create agent session", "error")
+		return
+	}
+
+	ch, err := runner.Run(context.Background(), agent.RunOptions{Prompt: prompt})
+	if err != nil {
+		log.Printf("auto-brief: start agent: %v", err)
+		h.db.UpdateBrief(t.ID, err.Error(), "error")
+		h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
+		return
+	}
+	h.db.UpdateSessionStatus(sess.ID, models.SessionStatusRunning, "")
+
+	// Collect the last text event — that's the agent's final brief
+	var lastText string
+	for evt := range ch {
+		switch evt.Kind {
+		case agent.EventText:
+			if evt.Content != "" {
+				lastText = evt.Content
+			}
+		case agent.EventError:
+			errMsg := "agent error"
+			if evt.Err != nil {
+				errMsg = evt.Err.Error()
+			}
+			log.Printf("auto-brief: agent error: %s", errMsg)
+			h.db.UpdateBrief(t.ID, errMsg, "error")
+			h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, errMsg)
+			return
+		}
+	}
+
+	if lastText == "" {
+		lastText = "Agent completed but returned no content."
+	}
+
+	h.db.UpdateBrief(t.ID, lastText, "done")
+	h.db.UpdateSessionStatus(sess.ID, models.SessionStatusComplete, "")
+	log.Printf("auto-brief: done for task %s", t.ID)
 }
+
+func buildBriefPrompt(t *models.Task) string {
+	var b strings.Builder
+	b.WriteString("You are a senior software engineer acting as a preparation agent for a colleague's work task. ")
+	b.WriteString("Your job is to investigate this task thoroughly and produce a concise, useful brief that helps your colleague hit the ground running.\n\n")
+
+	b.WriteString("## Task details\n")
+	b.WriteString("Title: " + t.Title + "\n")
+	if t.Description != "" {
+		b.WriteString("Description: " + t.Description + "\n")
+	}
+	b.WriteString("Type: " + t.WorkType + "\n")
+	if t.PRURL != "" {
+		b.WriteString("PR URL: " + t.PRURL + "\n")
+	}
+	if t.Link != "" {
+		b.WriteString("Link: " + t.Link + "\n")
+	}
+
+	b.WriteString("\n## Your job\n")
+	switch t.WorkType {
+	case "pr_review":
+		b.WriteString(`This is a pull request review task. Do the following:
+1. Open the PR URL and read the description and diff thoroughly.
+2. Understand what the PR is trying to achieve.
+3. Identify any bugs, logic errors, edge cases, security concerns, or missing tests.
+4. Note which files/areas deserve the most scrutiny.
+5. Flag anything that feels off, unclear, or that warrants a comment.
+
+Produce a structured brief with:
+- **Summary**: what this PR does in 2-3 sentences
+- **Key changes**: the most important files/functions changed and why they matter
+- **Things to focus on**: specific areas that deserve careful review
+- **Potential issues**: anything that looks wrong, risky, or incomplete — be specific
+- **Questions to raise**: things worth discussing with the author
+
+Be direct and specific. Skip pleasantries. Your output will be displayed directly to the reviewer.`)
+	default:
+		b.WriteString(`Investigate this task and produce a helpful brief. Consider:
+- What is the goal and context?
+- What systems, files, or people are likely involved?
+- What are the key risks or unknowns?
+- What would be most useful for someone picking this up to know?
+
+Be concise and direct. Your output will be displayed to the person doing the task.`)
+	}
+
+	b.WriteString("\n\nWrite your final brief now. Do not add preamble like 'Here is my brief' — just the content.")
+	return b.String()
+}
+
+// ─────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────
 
 func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {
 	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
@@ -469,3 +391,29 @@ func timeAgo(t time.Time) string {
 		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 	}
 }
+
+func jsonStr(s string) string {
+	// Simple JSON string encoding
+	b := make([]byte, 0, len(s)+2)
+	b = append(b, '"')
+	for _, c := range []byte(s) {
+		switch c {
+		case '"':
+			b = append(b, '\\', '"')
+		case '\\':
+			b = append(b, '\\', '\\')
+		case '\n':
+			b = append(b, '\\', 'n')
+		case '\r':
+			b = append(b, '\\', 'r')
+		case '\t':
+			b = append(b, '\\', 't')
+		default:
+			b = append(b, c)
+		}
+	}
+	b = append(b, '"')
+	return string(b)
+}
+
+

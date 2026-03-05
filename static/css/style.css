@@ -751,3 +751,71 @@ select option { background: var(--surface2); }
 
 /* Keep input always visible, just dim send btn while running */
 .chat-input-area textarea { min-height: 44px; max-height: 200px; }
+
+/* ── Agent brief panel ── */
+.brief-panel {
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.brief-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brief-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.brief-rerun {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.brief-rerun:hover { color: var(--accent); }
+.brief-rerun:disabled { opacity: 0.4; cursor: default; }
+#brief-body {
+  padding: 16px;
+}
+.brief-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.brief-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.brief-error {
+  color: #f87171;
+  font-size: 13px;
+}
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

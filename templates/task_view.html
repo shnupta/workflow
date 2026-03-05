@@ -39,32 +39,33 @@
       <p class="task-page-desc">{{.Task.Description}}</p>
       {{end}}
 
+      {{if .Task.PRURL}}
+      <p><a href="{{.Task.PRURL}}" target="_blank" class="external-link">→ Open PR</a></p>
+      {{end}}
       {{if .Task.Link}}
       <p><a href="{{.Task.Link}}" target="_blank" class="external-link">→ Open link</a></p>
       {{end}}
 
-      {{if .Task.PRURL}}
-      <div class="pr-section">
-        <div class="pr-section-header">
-          <a href="{{.Task.PRURL}}" target="_blank" class="external-link">→ Open PR</a>
-          <button id="analyse-btn" class="btn btn-ghost" onclick="triggerAnalysis()">
-            {{if .Task.PRSummary}}Re-analyse{{else}}Analyse PR{{end}}
-          </button>
-        </div>
+      <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
 
-        <div id="pr-summary" class="pr-summary">
-          {{if .Task.PRSummary}}
-          <div class="pr-summary-content">{{.Task.PRSummary}}</div>
+      <!-- Agent brief -->
+      <div class="brief-panel" id="brief-panel">
+        <div class="brief-header">
+          <span class="brief-title">Agent brief</span>
+          <button class="brief-rerun" id="rebrief-btn" onclick="rebrief()" title="Re-run">↺</button>
+        </div>
+        <div id="brief-body">
+          {{if eq .Task.BriefStatus "done"}}
+          <div class="brief-content md-content">{{.Task.Brief}}</div>
+          {{else if eq .Task.BriefStatus "error"}}
+          <div class="brief-error">Agent error: {{.Task.Brief}}</div>
+          {{else if eq .Task.BriefStatus "pending"}}
+          <div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>
           {{else}}
-          <div id="pr-pending" class="pr-pending">
-            <span class="spinner"></span> Analysing PR with Claude...
-          </div>
+          <div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>
           {{end}}
         </div>
       </div>
-      {{end}}
-
-      <p class="task-page-time">Added {{timeAgo .Task.CreatedAt}}</p>
 
       <!-- Sessions panel -->
       <div class="sessions-panel" id="sessions-panel">
@@ -76,10 +77,6 @@
         <div id="new-session-form" style="display:none" class="new-session-form">
           <textarea id="session-prompt" placeholder="What should the agent do?" rows="3"></textarea>
           <div class="new-session-controls">
-            <select id="session-mode">
-              <option value="fire_and_forget">Fire &amp; forget</option>
-              <option value="interactive">Interactive</option>
-            </select>
             <input type="text" id="session-name" placeholder="Name (optional)">
             <button class="btn btn-primary" onclick="startSession()">Start</button>
             <button class="btn btn-ghost" onclick="hideNewSessionForm()">Cancel</button>
@@ -87,14 +84,79 @@
         </div>
 
         <div id="sessions-list" class="sessions-list">
+          {{if .Sessions}}
+          {{range .Sessions}}
+          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card">
+            <div class="session-card-main">
+              <span class="session-card-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
+              <span class="session-status status-{{.Status}}">{{.Status}}</span>
+            </div>
+            <div class="session-card-meta">{{.AgentProvider}} · {{timeAgo .UpdatedAt}}</div>
+          </a>
+          {{end}}
+          {{else}}
           <p class="empty" id="no-sessions">No sessions yet.</p>
+          {{end}}
         </div>
       </div>
     </div>
   </main>
+
 <script>
+  marked.setOptions({ breaks: true });
+
   const taskID = "{{.Task.ID}}";
-  const hasSummary = {{if .Task.PRSummary}}true{{else}}false{{end}};
+  let briefStatus = "{{.Task.BriefStatus}}";
+  let briefPollTimer = null;
+
+  function renderMarkdown() {
+    document.querySelectorAll('.md-content:not([data-rendered])').forEach(el => {
+      el.dataset.rendered = '1';
+      el.innerHTML = marked.parse(el.textContent);
+    });
+  }
+
+  // ── Brief polling ──
+  async function pollBrief() {
+    try {
+      const r = await fetch(`/tasks/${taskID}/brief-status`);
+      const data = await r.json();
+      if (data.status === briefStatus) return;
+      briefStatus = data.status;
+
+      const body = document.getElementById('brief-body');
+      if (data.status === 'done') {
+        clearInterval(briefPollTimer);
+        briefPollTimer = null;
+        const div = document.createElement('div');
+        div.className = 'brief-content md-content';
+        div.textContent = data.brief;
+        body.innerHTML = '';
+        body.appendChild(div);
+        renderMarkdown();
+      } else if (data.status === 'error') {
+        clearInterval(briefPollTimer);
+        briefPollTimer = null;
+        body.innerHTML = `<div class="brief-error">Agent error: ${data.brief}</div>`;
+      }
+    } catch(e) { /* network hiccup */ }
+  }
+
+  function startBriefPolling() {
+    if (briefPollTimer) clearInterval(briefPollTimer);
+    briefPollTimer = setInterval(pollBrief, 2000);
+  }
+
+  async function rebrief() {
+    const btn = document.getElementById('rebrief-btn');
+    btn.disabled = true;
+    await fetch(`/tasks/${taskID}/rebrief`, {method: 'POST'});
+    document.getElementById('brief-body').innerHTML =
+      '<div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>';
+    briefStatus = 'pending';
+    startBriefPolling();
+    setTimeout(() => { btn.disabled = false; }, 2000);
+  }
 
   // ── Sessions ──
   function showNewSessionForm() {
@@ -108,110 +170,21 @@
   async function startSession() {
     const prompt = document.getElementById('session-prompt').value.trim();
     if (!prompt) return;
-    const mode = document.getElementById('session-mode').value;
     const name = document.getElementById('session-name').value.trim();
 
     const r = await fetch(`/tasks/${taskID}/sessions`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({prompt, mode, name})
+      body: JSON.stringify({prompt, mode: 'interactive', name})
     });
     if (!r.ok) { alert('Failed to start session'); return; }
     const data = await r.json();
-    hideNewSessionForm();
-    loadSessions();
-    // Navigate to session view
     window.location = `/tasks/${taskID}/sessions/${data.id}`;
-  }
-
-  function statusBadge(status) {
-    const labels = {pending:'pending', running:'running', idle:'idle', complete:'done', error:'error'};
-    return `<span class="session-status status-${status}">${labels[status] || status}</span>`;
-  }
-
-  async function loadSessions() {
-    const r = await fetch(`/tasks/${taskID}/sessions`);
-    if (!r.ok) return;
-    const sessions = await r.json();
-    const list = document.getElementById('sessions-list');
-    const empty = document.getElementById('no-sessions');
-    if (!sessions || sessions.length === 0) {
-      if (empty) empty.style.display = '';
-      return;
-    }
-    if (empty) empty.style.display = 'none';
-    list.innerHTML = (sessions || []).map(s => `
-      <a href="/tasks/${taskID}/sessions/${s.id}" class="session-card">
-        <div class="session-card-main">
-          <span class="session-card-name">${s.name || 'Session'}</span>
-          ${statusBadge(s.status)}
-        </div>
-        <div class="session-card-meta">${s.agent_provider} · ${s.mode}</div>
-      </a>
-    `).join('');
-  }
-
-  document.addEventListener('DOMContentLoaded', loadSessions);
-
-  function renderMarkdown() {
-    document.querySelectorAll('.pr-summary-content').forEach(el => {
-      if (el.dataset.rendered) return;
-      el.dataset.rendered = '1';
-      el.innerHTML = marked.parse(el.textContent);
-    });
-  }
-
-  function showPending() {
-    document.getElementById('pr-summary').innerHTML =
-      '<div id="pr-pending" class="pr-pending"><span class="spinner"></span> Analysing PR with Claude...</div>';
-  }
-
-  function showSummary(text) {
-    const container = document.getElementById('pr-summary');
-    const div = document.createElement('div');
-    div.className = 'pr-summary-content';
-    div.textContent = text;
-    container.innerHTML = '';
-    container.appendChild(div);
-    renderMarkdown();
-    const btn = document.getElementById('analyse-btn');
-    if (btn) btn.textContent = 'Re-analyse';
-  }
-
-  let pollTimer = null;
-
-  function startPolling() {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(async () => {
-      try {
-        const r = await fetch(`/tasks/${taskID}/pr-summary`);
-        const data = await r.json();
-        if (data.ready) {
-          clearInterval(pollTimer);
-          pollTimer = null;
-          showSummary(data.text);
-        }
-      } catch(e) {
-        // network hiccup — keep polling
-      }
-    }, 2000);
-  }
-
-  async function triggerAnalysis() {
-    const btn = document.getElementById('analyse-btn');
-    if (btn) btn.disabled = true;
-    showPending();
-    try {
-      await fetch(`/tasks/${taskID}/analyse-pr`, { method: 'POST' });
-    } catch(e) { /* ignore */ }
-    if (btn) { btn.disabled = false; }
-    startPolling();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     renderMarkdown();
-    // If the page loaded without a summary, auto-analysis is in progress — start polling
-    if (!hasSummary) startPolling();
+    if (briefStatus === 'pending' || briefStatus === '') startBriefPolling();
   });
 </script>
 </body>

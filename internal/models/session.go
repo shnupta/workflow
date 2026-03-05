@@ -6,8 +6,7 @@ import "time"
 type SessionMode string
 
 const (
-	SessionModeFireAndForget SessionMode = "fire_and_forget"
-	SessionModeInteractive   SessionMode = "interactive"
+	SessionModeInteractive SessionMode = "interactive"
 )
 
 // SessionStatus is the lifecycle state of a session.
