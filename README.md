@@ -1,14 +1,16 @@
 # workflow
 
-A local web app for managing work inflows as a lead/IC. Captures everything coming at you — PR reviews, deployments, docs, design discussions, chases, approvals — and routes them into a three-tier board (Today / This Week / Backlog) with a focus on what's blocking you vs what you're waiting on.
+A local web app for managing work inflows as a lead/IC. Captures everything coming at you — PR reviews, deployments, docs, design discussions, chases, approvals — and routes them into a three-tier board (Today / This Week / Backlog) with agent-powered investigation.
 
 ## Features
 
 - **Three-tier kanban board** — Today, This Week, Backlog. Drag cards between columns.
-- **Work types** — PR Review, Deployment, Doc, Design, Coding, Timeline, Approval, Chase, Meeting, Misc. Cards colour-coded by depth (deep / medium / shallow).
-- **Blocked on me vs them** — tasks waiting on someone else are visually dimmed.
-- **PR analysis** — paste a GitHub PR URL, click Analyse, and Claude fetches the full diff and returns a markdown-rendered review brief.
-- **Single config file** — everything (credentials, board structure) lives in `workflow.json`.
+- **Work types** — PR Review, Deployment, Coding, Design, Docs, Meeting, Approval, Chase, Other. Cards colour-coded by depth.
+- **Blocked on me vs them** — visually distinguish what's in your court vs waiting on someone.
+- **Auto-brief** — on task creation, an agent (Claude) automatically investigates the task and writes a brief. For PR review tasks it reads the PR, identifies risks and focus areas. Visible immediately on the task page.
+- **Interactive sessions** — start a chat session with an agent on any task. Full task context (title, description, PR URL, brief) is injected automatically. Message queue so you can type ahead while the agent works.
+- **Global sessions view** — `/sessions` shows all sessions across all tasks.
+- **Single config file** — minimal config in `workflow.json`.
 - **SQLite storage** — one local file, no external services.
 
 ## Setup
@@ -16,11 +18,17 @@ A local web app for managing work inflows as a lead/IC. Captures everything comi
 ```bash
 git clone https://github.com/shnupta/workflow
 cd workflow
-./setup.sh
+go build -o workflow ./cmd/workflow/
 ```
 
-Edit `workflow.json` to add your API keys, then run:
+Create `workflow.json`:
+```json
+{
+  "claude_bin": "/path/to/claude"
+}
+```
 
+Then run:
 ```bash
 ./workflow
 ```
@@ -31,6 +39,7 @@ Open [http://localhost:7070](http://localhost:7070).
 
 - Go 1.22+
 - libsqlite3 (`brew install sqlite` on macOS, `apt install libsqlite3-dev` on Linux)
+- [Claude Code CLI](https://docs.anthropic.com/claude-code) — `npm install -g @anthropic-ai/claude-code`, then `claude` to authenticate
 
 ## CLI flags
 
@@ -45,53 +54,32 @@ Open [http://localhost:7070](http://localhost:7070).
 
 ## Configuration (`workflow.json`)
 
-Created automatically on first run. All settings live here — no `.env` file needed.
+Created automatically on first run with defaults. Only `claude_bin` is required.
 
 ```json
 {
-  "github_token":    "",
-  "anthropic_key":   "",
-  "claude_model":    "claude-opus-4-6",
-  "claude_base_url": "https://api.anthropic.com",
-  "claude_mode":     "api",
-  "pr_prompt":       "... see default below ...",
+  "claude_bin": "/usr/local/bin/claude",
   "tiers": [
     { "key": "today",     "label": "Today",     "order": 1 },
     { "key": "this_week", "label": "This Week",  "order": 2 },
     { "key": "backlog",   "label": "Backlog",    "order": 3 }
   ],
   "work_types": [
-    { "key": "pr_review",  "label": "PR Review",  "depth": "deep"    },
-    { "key": "coding",     "label": "Coding",     "depth": "deep"    },
-    { "key": "deployment", "label": "Deployment", "depth": "deep"    },
-    { "key": "design",     "label": "Design",     "depth": "deep"    },
-    { "key": "doc",        "label": "Doc",        "depth": "medium"  },
-    { "key": "timeline",   "label": "Timeline",   "depth": "medium"  },
-    { "key": "approval",   "label": "Approval",   "depth": "shallow" },
-    { "key": "chase",      "label": "Chase",      "depth": "shallow" },
-    { "key": "meeting",    "label": "Meeting",    "depth": "shallow" },
-    { "key": "misc",       "label": "Misc",       "depth": "shallow" }
+    { "key": "pr_review",  "label": "PR Review",  "depth": "medium" },
+    { "key": "coding",     "label": "Coding",     "depth": "deep"   },
+    ...
   ]
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `github_token` | For private repos | Personal access token with `repo` scope. Get it with `gh auth token`. Without it, only public repos work (60 req/hr). |
-| `anthropic_key` | For PR analysis | Your Anthropic API key. |
-| `claude_model` | No | Defaults to `claude-opus-4-6`. Extended thinking auto-enabled for `claude-opus-4-*` and `claude-3-7-*` models. |
-| `claude_base_url` | No | Defaults to `https://api.anthropic.com`. Override for proxies or API-compatible providers. |
-| `claude_mode` | No | `"api"` (default) calls the Anthropic API directly. `"local"` runs the `claude` CLI with `--dangerously-skip-permissions` — uses your local Claude Code install, no `anthropic_key` needed. |
-| `pr_prompt` | No | The prompt sent to Claude for PR analysis. Use `{{.PRURL}}` and `{{.Diff}}` as placeholders. Defaults to a structured review brief (summary, key files, potential issues, suggestions). Config is hot-reloaded — edit and save, no restart needed. |
-
 **`depth`** controls card border colour: `deep` = purple, `medium` = amber, `shallow` = grey.
 
-## PR Analysis
+## How it works
 
-On any task with a PR URL set, click **Analyse PR** to:
+### Auto-brief
+When you create a task, an agent session runs immediately in the background. For PR review tasks, it's given a detailed prompt: read the PR, understand the changes, identify risks, focus areas, and anything that looks off. The brief appears on the task page within ~30 seconds and can be re-run with the ↺ button.
 
-1. Fetch the full diff from the GitHub API
-2. Send it to Claude with a structured prompt
-3. Get back a markdown-rendered brief: summary, key files, potential issues, suggestions
+### Sessions
+Click "+ New session" on any task page to start an interactive chat with the agent. The agent automatically receives the task's full context — title, description, PR URL, and the auto-brief — so it's never starting cold. You can queue up messages while the agent is working; they drain one at a time.
 
-The result is stored in the DB — click **Re-analyse** to refresh.
+The agent has full tool access (bash, file read/write, web fetch, etc.) so it can do real investigation work, not just answer questions.

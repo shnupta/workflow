@@ -158,6 +158,7 @@
     }
 
     const indicator = document.getElementById('typing-indicator');
+    const sendBtn = document.getElementById('send-btn');
     if (status === 'running' || status === 'pending') {
       if (!indicator) {
         const chat = document.getElementById('chat');
@@ -168,8 +169,16 @@
         chat.appendChild(d);
         scrollToBottom();
       }
+      if (sendBtn && queue.length === 0) {
+        sendBtn.textContent = 'Queue';
+        sendBtn.style.opacity = '0.6';
+      }
     } else {
       if (indicator) indicator.remove();
+      if (sendBtn) {
+        sendBtn.textContent = 'Send';
+        sendBtn.style.opacity = '';
+      }
       // Agent is free — drain the queue
       drainQueue();
     }
