@@ -156,7 +156,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	q := fmt.Sprintf(`
 		SELECT id, title, description, work_type, tier, direction, pr_url, pr_summary, link, done, position, created_at, updated_at, done_at
 		FROM tasks %s
-		ORDER BY CASE tier %s END, position ASC, created_at ASC`, where, tierOrder)
+		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
 	rows, err := d.conn.Query(q)
 	if err != nil {
@@ -319,7 +319,7 @@ func (d *DB) GetSession(id string) (*models.Session, error) {
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, created_at, updated_at
-		FROM sessions WHERE task_id=? ORDER BY created_at ASC`, taskID)
+		FROM sessions WHERE task_id=? ORDER BY updated_at DESC`, taskID)
 	if err != nil {
 		return nil, err
 	}
