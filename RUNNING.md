@@ -1,62 +1,125 @@
-# Running workflow locally (server / dev environment)
+# RUNNING.md — workflow server setup
 
-## Server setup
-
-- Go: `/usr/local/go/bin/go` — always `export PATH=$PATH:/usr/local/go/bin` first
-- Claude CLI: `/root/.local/bin/claude` (version 2.1.63, Claude Code)
-- Claude auth: already authenticated, persists in `~/.claude/`
-- Git: push access to `https://github.com/shnupta/workflow.git` configured
-
-## Building
+## Quick start (first time)
 
 ```bash
-export PATH=$PATH:/usr/local/go/bin
-cd /root/.nox/workspace/workflow
-go build ./...                    # verify
-go build -o workflow-server ./cmd/workflow/  # produce binary
+git clone https://github.com/shnupta/workflow
+cd workflow
+go build -o workflow ./cmd/workflow/
+./workflow setup
 ```
 
-## Running on the server (for testing with Playwright)
+`setup` will:
+- Find your Claude binary automatically (or let you specify it)
+- Create `~/.workflow/` with `workflow.db` and `workflow.json`
+- Install a launchd service (macOS) so workflow starts on login
+- Start the server immediately
+
+Then open **http://localhost:7070**.
+
+---
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `workflow setup` | First-time interactive setup wizard |
+| `workflow serve` | Run server in foreground (dev mode) |
+| `workflow start` | Start background service |
+| `workflow stop` | Stop background service |
+| `workflow restart` | Restart background service |
+| `workflow status` | Show whether service is running |
+| `workflow update` | Pull latest, rebuild, restart |
+
+### serve flags
+
+```
+workflow serve [flags]
+  -addr        Listen address (default: :7070)
+  -dir         Data directory — workflow.db + workflow.json (default: ~/.workflow)
+  -templates   Template glob override (default: <binary dir>/templates/*.html)
+```
+
+---
+
+## Updating to the latest version
 
 ```bash
-cd /root/.nox/workspace/workflow
-nohup ./workflow-server \
-  -addr :7070 \
-  -db ./test.db \
-  -templates './templates/*.html' \
-  -config ./workflow.json \
-  > /tmp/workflow.log 2>&1 &
-echo $! > /tmp/workflow.pid
+workflow update
 ```
 
-Stop: `kill $(cat /tmp/workflow.pid)`
-Logs: `tail -f /tmp/workflow.log`
-Health: `curl -s -o /dev/null -w "%{http_code}" http://localhost:7070/`
+This runs `git pull`, rebuilds the binary in place, and restarts the launchd service. If you need to set the repo path explicitly:
 
-## workflow.json (server-side, gitignored)
+```bash
+WORKFLOW_REPO=/path/to/workflow workflow update
+```
+
+---
+
+## Manual install (no launchd)
+
+If you skipped service setup or are on Linux:
+
+```bash
+workflow serve
+# or with explicit data dir:
+workflow serve -dir ~/.workflow
+```
+
+To run in background with nohup:
+
+```bash
+nohup workflow serve > ~/.workflow/workflow.log 2>&1 &
+echo $! > ~/.workflow/workflow.pid
+
+# Stop it:
+kill $(cat ~/.workflow/workflow.pid)
+```
+
+---
+
+## Logs
+
+If running as a launchd service:
+
+```bash
+tail -f ~/.workflow/workflow.log
+```
+
+---
+
+## Config (`~/.workflow/workflow.json`)
+
+Only `claude_bin` is required. Everything else has defaults.
 
 ```json
 {
-  "claude_bin": "/root/.local/bin/claude",
-  "tiers": [...],
-  "work_types": [...]
+  "claude_bin": "/path/to/claude",
+  "tiers": [
+    { "key": "today",     "label": "Today",     "order": 1 },
+    { "key": "this_week", "label": "This Week",  "order": 2 },
+    { "key": "backlog",   "label": "Backlog",    "order": 3 }
+  ],
+  "work_types": [
+    { "key": "pr_review",  "label": "PR Review",  "depth": "medium" },
+    { "key": "coding",     "label": "Coding",     "depth": "deep"   },
+    ...
+  ]
 }
 ```
 
-## Root / permission workaround (SERVER ONLY)
+Config hot-reloads every 2 seconds — no restart needed after edits.
 
-Claude CLI refuses `--dangerously-skip-permissions` when running as root.
-On this server: set `CLAUDE_ALLOW_ROOT=1` env var in the agent subprocess.
-This is injected in `claude_local.go` only when `WORKFLOW_DEV_ROOT=1` is set in the server environment.
-**Do not enable this in production / on Casey's machine — it's a server-only workaround.**
+---
 
-## Playwright testing
+## Development
 
-Playwright MCP is available. Navigate to `http://localhost:7070` after starting the server.
+Build and run locally:
 
-## Casey's machine (production)
+```bash
+export PATH=$PATH:/usr/local/go/bin
+go build -o workflow ./cmd/workflow/
+WORKFLOW_DEV_ROOT=1 ./workflow serve -dir ./testdata -templates './templates/*.html'
+```
 
-- Casey runs `./workflow` directly on his Mac
-- Config: `~/workflow.json` with `claude_bin` pointing to his local Claude CLI
-- `workflow.json` is gitignored — never committed
-- Casey pulls + rebuilds after each push: `git pull && go build ./cmd/workflow/ && ./workflow`
+`WORKFLOW_DEV_ROOT=1` sets `CLAUDE_ALLOW_ROOT=1` for the agent subprocess — needed when running as root (e.g. on a dev server). Never use this flag in production.

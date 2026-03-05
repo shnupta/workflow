@@ -1,86 +1,70 @@
 # workflow
 
-A local web app for managing work inflows as a lead/IC. Captures everything coming at you — PR reviews, deployments, docs, design discussions, chases, approvals — and routes them into a three-tier board (Today / This Week / Backlog) with agent-powered investigation.
+A local task board for leads. Captures everything coming at you — PR reviews, deployments, docs, design discussions, chases, approvals — and routes them into a three-tier board (Today / This Week / Backlog) with Claude-powered investigation.
 
-## Features
-
-- **Three-tier kanban board** — Today, This Week, Backlog. Drag cards between columns.
-- **Work types** — PR Review, Deployment, Coding, Design, Docs, Meeting, Approval, Chase, Other. Cards colour-coded by depth.
-- **Blocked on me vs them** — visually distinguish what's in your court vs waiting on someone.
-- **Auto-brief** — on task creation, an agent (Claude) automatically investigates the task and writes a brief. For PR review tasks it reads the PR, identifies risks and focus areas. Visible immediately on the task page.
-- **Interactive sessions** — start a chat session with an agent on any task. Full task context (title, description, PR URL, brief) is injected automatically. Message queue so you can type ahead while the agent works.
-- **Session search** — full-text search across all session messages via SQLite FTS5. Hit the search icon (top right) or go to `/search`.
-- **Global sessions view** — `/sessions` shows all sessions, flat or grouped by task.
-- **Single config file** — minimal config in `workflow.json`.
-- **SQLite storage** — one local file, no external services.
-
-## Setup
+## Quick start
 
 ```bash
 git clone https://github.com/shnupta/workflow
 cd workflow
 go build -o workflow ./cmd/workflow/
+./workflow setup
 ```
 
-Create `workflow.json`:
-```json
-{
-  "claude_bin": "/path/to/claude"
-}
-```
+`setup` will find Claude, write `~/.workflow/workflow.json`, and install a launchd service so workflow starts automatically on login.
 
-Then run:
-```bash
-./workflow
-```
-
-Open [http://localhost:7070](http://localhost:7070).
+Then open **http://localhost:7070**.
 
 ## Requirements
 
-- Go 1.22+
-- libsqlite3 (`brew install sqlite` on macOS, `apt install libsqlite3-dev` on Linux)
-- [Claude Code CLI](https://docs.anthropic.com/claude-code) — `npm install -g @anthropic-ai/claude-code`, then `claude` to authenticate
+- **Go 1.22+** — [golang.org/dl](https://golang.org/dl)
+- **libsqlite3** — `brew install sqlite` on macOS
+- **Claude Code CLI** — `npm install -g @anthropic-ai/claude-code`, then `claude` to authenticate
 
-## CLI flags
+## Commands
 
 ```
-./workflow [flags]
-
-  -addr       Listen address (default: :7070)
-  -db         SQLite database path (default: ./workflow.db)
-  -templates  Template glob (default: ./templates/*.html)
-  -config     Config file path (default: ./workflow.json)
+workflow setup     # first-time setup wizard
+workflow status    # is the service running?
+workflow start     # start background service
+workflow stop      # stop background service
+workflow restart   # restart background service
+workflow update    # git pull + rebuild + restart
+workflow serve     # run in foreground (dev)
 ```
 
-## Configuration (`workflow.json`)
+## Updating
 
-Created automatically on first run with defaults. Only `claude_bin` is required.
+```bash
+workflow update
+```
+
+Pulls latest, rebuilds the binary in place, restarts the service.
+
+## Features
+
+- **Three-tier kanban** — Today / This Week / Backlog. Drag cards between columns.
+- **Work types** — PR Review, Deployment, Coding, Design, Docs, Meeting, Approval, Chase, Other. Cards colour-coded by depth (deep / medium / shallow).
+- **Auto-brief** — on task creation, Claude investigates automatically. For PR review tasks it reads the PR, identifies risks and focus areas. Shows up on the task page within ~30 seconds, re-runnable.
+- **Interactive sessions** — start a chat with Claude on any task. Task context (title, description, PR URL, brief) is injected automatically so Claude is never starting cold. Type-ahead queue so you can keep writing while the agent works.
+- **Sessions index** — `/sessions` shows all sessions across all tasks, grouped or flat.
+- **Config hot-reload** — edit `~/.workflow/workflow.json` and it picks up changes in 2 seconds.
+- **SQLite storage** — one local file, no external services.
+
+## Configuration
+
+`~/.workflow/workflow.json` is created by `setup` with sensible defaults. The only required field is `claude_bin`:
 
 ```json
 {
-  "claude_bin": "/usr/local/bin/claude",
-  "tiers": [
-    { "key": "today",     "label": "Today",     "order": 1 },
-    { "key": "this_week", "label": "This Week",  "order": 2 },
-    { "key": "backlog",   "label": "Backlog",    "order": 3 }
-  ],
-  "work_types": [
-    { "key": "pr_review",  "label": "PR Review",  "depth": "medium" },
-    { "key": "coding",     "label": "Coding",     "depth": "deep"   },
-    ...
-  ]
+  "claude_bin": "/usr/local/bin/claude"
 }
 ```
 
-**`depth`** controls card border colour: `deep` = purple, `medium` = amber, `shallow` = grey.
+Work types and tiers are fully customisable. See [RUNNING.md](RUNNING.md) for the full schema.
 
-## How it works
+## Logs
 
-### Auto-brief
-When you create a task, an agent session runs immediately in the background. For PR review tasks, it's given a detailed prompt: read the PR, understand the changes, identify risks, focus areas, and anything that looks off. The brief appears on the task page within ~30 seconds and can be re-run with the ↺ button.
-
-### Sessions
-Click "+ New session" on any task page to start an interactive chat with the agent. The agent automatically receives the task's full context — title, description, PR URL, and the auto-brief — so it's never starting cold. You can queue up messages while the agent is working; they drain one at a time.
-
-The agent has full tool access (bash, file read/write, web fetch, etc.) so it can do real investigation work, not just answer questions.
+```bash
+tail -f ~/.workflow/workflow.log
+```

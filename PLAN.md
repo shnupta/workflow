@@ -16,20 +16,30 @@ Nox reads and updates this file when working on the project overnight or between
 ## Architecture
 
 ```
-cmd/workflow/main.go         — entrypoint, HTTP server, request logging
+cmd/workflow/main.go         — entrypoint; subcommands: setup, serve, start, stop, restart, status, update
 internal/config/config.go    — Config struct, hot-reload watcher (2s poll)
-internal/db/db.go            — SQLite, migrations, all DB methods
+internal/db/db.go            — SQLite, migrations, FTS5 index, all DB methods
 internal/models/             — Task, Session, Message structs with json+db tags
 internal/handlers/
-  handlers.go                — task CRUD, auto-brief agent, render helpers
+  handlers.go                — task CRUD, auto-brief agent, search, render helpers
   sessions.go                — session CRUD, chat endpoints, message queue
 internal/agent/
   agent.go                   — Runner interface, Event types (provider-agnostic)
   claude_local.go            — Claude CLI runner (stream-json, stderr capture)
   runner.go                  — RunSession: drives agent, writes normalised messages to DB
-templates/                   — Go html/template files
+internal/daemon/daemon.go    — launchd plist management (macOS service: start/stop/status)
+internal/setup/setup.go      — interactive setup wizard (claude_bin detection, data dir, service install)
+templates/                   — Go html/template files (nav.html, search.html, sessions_index.html, …)
 static/css/style.css         — All styles (dark theme, CSS variables)
-workflow.json                — User config (claude_bin only; created on first run)
+workflow.json                — User config (auto-created on first run by setup wizard)
+```
+
+### CLI commands
+```
+workflow setup      — interactive wizard: find claude, set data dir, optionally install as service
+workflow serve      — foreground server (for dev)
+workflow start/stop/restart/status — launchd service management
+workflow update     — git pull + rebuild + restart (if installed as service)
 ```
 
 ## Current state (as of 2026-03-05)
@@ -60,13 +70,11 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### High priority (do first)
 
-- [ ] **Session search**
-  - Search bar on `/sessions` page (and possibly task page session list)
-  - SQLite FTS5 on `messages.content` + `sessions.name`
-  - Results show: session name, task name, matching message excerpt, timestamp
-  - Implemented as `GET /search?q=...` returning rendered results (HTMX or plain page)
-  - Add FTS5 virtual table in migration: `CREATE VIRTUAL TABLE messages_fts USING fts5(content, content='messages', content_rowid='id')`
-  - Trigger to keep FTS index in sync on insert
+- [x] **Session search** ✅ 2026-03-05
+  - FTS5 virtual table on messages with insert/update/delete triggers
+  - `/search` page with highlighted snippets, linked back to session
+  - Search icon in nav (top right) on all pages
+  - Results grouped by session (not per-message), ranked by relevance
 
 - [ ] **Task quick-capture from board**
   - Inline "Add task" button at the bottom of each column — opens a minimal form (title + type only)
