@@ -405,20 +405,20 @@ func (d *DB) ListMessages(sessionID string) ([]*models.Message, error) {
 }
 
 func (d *DB) ListMessagesSince(sessionID, afterID string) ([]*models.Message, error) {
-	var cutoff string
+	var afterRowid int64
 	if afterID != "" {
-		d.conn.QueryRow(`SELECT created_at FROM messages WHERE id=?`, afterID).Scan(&cutoff)
+		d.conn.QueryRow(`SELECT rowid FROM messages WHERE id=?`, afterID).Scan(&afterRowid)
 	}
 	var rows *sql.Rows
 	var err error
-	if cutoff != "" {
+	if afterRowid > 0 {
 		rows, err = d.conn.Query(`
 			SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
-			FROM messages WHERE session_id=? AND created_at > ? ORDER BY created_at ASC`, sessionID, cutoff)
+			FROM messages WHERE session_id=? AND rowid > ? ORDER BY rowid ASC`, sessionID, afterRowid)
 	} else {
 		rows, err = d.conn.Query(`
 			SELECT id, session_id, role, kind, content, tool_name, metadata, created_at
-			FROM messages WHERE session_id=? ORDER BY created_at ASC`, sessionID)
+			FROM messages WHERE session_id=? ORDER BY rowid ASC`, sessionID)
 	}
 	if err != nil {
 		return nil, err

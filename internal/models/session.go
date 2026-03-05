@@ -23,17 +23,17 @@ const (
 
 // Session represents an agent session attached to a task.
 type Session struct {
-	ID             string        `db:"id"`
-	TaskID         string        `db:"task_id"`
-	ParentID       *string       `db:"parent_id"`       // nullable — for sub-agent nesting
-	Name           string        `db:"name"`
-	Mode           SessionMode   `db:"mode"`
-	Status         SessionStatus `db:"status"`
-	AgentProvider  string        `db:"agent_provider"`  // e.g. "claude_local", "claude_api"
-	AgentSessionID *string       `db:"agent_session_id"` // provider-native session ID for resuming
-	ErrorMessage   string        `db:"error_message"`
-	CreatedAt      time.Time     `db:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at"`
+	ID             string        `db:"id"              json:"id"`
+	TaskID         string        `db:"task_id"         json:"task_id"`
+	ParentID       *string       `db:"parent_id"       json:"parent_id"`
+	Name           string        `db:"name"            json:"name"`
+	Mode           SessionMode   `db:"mode"            json:"mode"`
+	Status         SessionStatus `db:"status"          json:"status"`
+	AgentProvider  string        `db:"agent_provider"  json:"agent_provider"`
+	AgentSessionID *string       `db:"agent_session_id" json:"agent_session_id"`
+	ErrorMessage   string        `db:"error_message"   json:"error_message"`
+	CreatedAt      time.Time     `db:"created_at"      json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at"      json:"updated_at"`
 }
 
 // MessageRole is the sender role for a message.
@@ -61,12 +61,12 @@ const (
 // Content is always plain text or markdown — provider-specific formats
 // are normalised before storage.
 type Message struct {
-	ID         string      `db:"id"`
-	SessionID  string      `db:"session_id"`
-	Role       MessageRole `db:"role"`
-	Kind       MessageKind `db:"kind"`
-	Content    string      `db:"content"`  // normalised text content
-	ToolName   string      `db:"tool_name"` // set for tool_use / tool_result kinds
-	Metadata   string      `db:"metadata"`  // JSON blob for provider-specific extras
-	CreatedAt  time.Time   `db:"created_at"`
+	ID         string      `db:"id"         json:"id"`
+	SessionID  string      `db:"session_id" json:"session_id"`
+	Role       MessageRole `db:"role"       json:"role"`
+	Kind       MessageKind `db:"kind"       json:"kind"`
+	Content    string      `db:"content"    json:"content"`
+	ToolName   string      `db:"tool_name"  json:"tool_name"`
+	Metadata   string      `db:"metadata"   json:"metadata"`
+	CreatedAt  time.Time   `db:"created_at" json:"created_at"`
 }

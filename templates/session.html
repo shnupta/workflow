@@ -63,7 +63,7 @@
   const taskID = "{{.Task.ID}}";
   const sessionID = "{{.Session.ID}}";
   const sessionMode = "{{.Session.Mode}}";
-  let lastMessageID = {{if .Messages}}{{printf "%q" (lastMessageID .Messages)}}{{else}}""{{end}};
+  let lastMessageID = "";
   let currentStatus = "{{.Session.Status}}";
   let pollTimer = null;
 
@@ -82,6 +82,7 @@
   }
 
   function appendMessage(msg) {
+    if (document.querySelector(`[data-id="${msg.id}"]`)) return; // dedupe
     const chat = document.getElementById('chat');
     const indicator = document.getElementById('typing-indicator');
 
@@ -181,6 +182,10 @@
 
   // Allow Ctrl+Enter or Cmd+Enter to send
   document.addEventListener('DOMContentLoaded', () => {
+    // Seed lastMessageID from the last server-rendered message in the DOM
+    const rendered = document.querySelectorAll('#chat [data-id]');
+    if (rendered.length) lastMessageID = rendered[rendered.length - 1].dataset.id;
+
     renderMarkdown();
     scrollToBottom();
 

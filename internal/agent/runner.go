@@ -125,12 +125,8 @@ func eventToMessage(sessionID string, evt Event) *models.Message {
 		}
 
 	case EventDone:
-		if evt.Content == "" {
-			return nil
-		}
-		m.Role = models.MessageRoleSystem
-		m.Kind = models.MessageKindText
-		m.Content = "[Session complete]"
+		// Don't store a "[Session complete]" message — status change is enough.
+		return nil
 
 	default:
 		return nil
