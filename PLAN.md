@@ -81,10 +81,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Inline form: title + work type selector, Enter to submit
   - `POST /tasks/quick` endpoint returns JSON, navigates to new task
 
-- [ ] **Pinned sessions**
-  - Pin a session to the top of the task's session list
-  - Useful when one session becomes the "main" investigation thread
-  - `pinned bool` column on sessions table
+- [x] **Pinned sessions** ✅ 2026-03-05
+  - Pin/unpin button on session page; pinned sessions sort to top of task's list
+  - Accent border on pinned session cards; 📌 icon in list
 
 ### Medium priority
 
@@ -98,11 +97,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Archived sessions hidden by default on /sessions and task session list
   - 'Show archived' toggle on /sessions page
 
-- [ ] **Task timer / time tracking**
-  - Start/stop timer on a task
-  - Shows elapsed time on card and task page
-  - Stored in DB; useful for knowing how long things actually take
-  - Could feed a weekly summary view later
+- [x] **Task timer / time tracking** ✅ 2026-03-05
+  - Start/stop timer on task page; elapsed shown live with 1s tick
+  - Timer resets to 0 on demand; elapsed shown on board card when > 0
+  - `timer_started` + `timer_total` columns; `ElapsedSeconds()`/`ElapsedLabel()` helpers
 
 - [x] **Keyboard shortcuts** ✅ 2026-03-05
   - `n` new task, `q` quick-add to first column, `s` search, `?` overlay, `Esc` close/clear filter
@@ -129,9 +127,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Deduplicates by PR URL; skips draft PRs
   - `webhook_secret` in workflow.json
 
-- [ ] **Brief versioning**
-  - Store multiple briefs (each re-run) rather than overwriting
-  - Show timestamp of when brief was generated
+- [x] **Brief versioning** ✅ 2026-03-05
+  - Each completed brief run stored in `brief_versions` table
+  - History panel on task page (shows N versions, collapsible per version)
 
 - [ ] **Multiple agent providers**
   - Currently only ClaudeLocal
@@ -142,11 +140,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Sessions can spawn sub-sessions (parent_id is already in schema)
   - UI for this is a future concern
 
-- [ ] **Notes page**
-  - Currently a stub
-  - Freeform markdown notes scoped to a task or global
-  - Auto-save with debounce (500ms)
-  - Could be a second tab on the task page rather than a separate nav item
+- [x] **Notes page** ✅ 2026-03-05
+  - Two-pane editor: sidebar list + full-height textarea
+  - Auto-save with 800ms debounce; Cmd/Ctrl+S to force save
+  - Preview mode toggle (rendered markdown via marked.js)
+  - REST API: GET/POST/PATCH/DELETE /api/notes; title auto-derived from first line
+  - Global notes (task_id='') accessible from nav
 
 - [ ] **Weekly digest view**
   - Summary of tasks completed this week, time spent (if timer added), sessions had
