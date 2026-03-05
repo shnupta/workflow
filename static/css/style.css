@@ -844,3 +844,16 @@ select option { background: var(--surface2); }
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* Brief header layout */
+.brief-header { justify-content: space-between; }
+.brief-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brief-toggle {
+  font-size: 14px;
+  color: var(--text-muted);
+  user-select: none;
+}

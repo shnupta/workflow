@@ -74,7 +74,47 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/rebrief", h.rebrief)
 	mux.HandleFunc("GET /tasks/{id}/brief-status", h.briefStatus)
+	mux.HandleFunc("GET /sessions", h.sessionsIndex)
+	mux.HandleFunc("GET /notes", h.notesPage)
 	h.registerSessionRoutes(mux)
+}
+
+func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
+	sessions, err := h.db.ListAllSessions()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	// Group by task_id for the grouped view
+	type group struct {
+		TaskID    string
+		TaskTitle string
+		Sessions  []*models.SessionWithTask
+	}
+	groupMap := make(map[string]*group)
+	var groupOrder []string
+	for _, s := range sessions {
+		if _, ok := groupMap[s.TaskID]; !ok {
+			groupMap[s.TaskID] = &group{TaskID: s.TaskID, TaskTitle: s.TaskTitle}
+			groupOrder = append(groupOrder, s.TaskID)
+		}
+		groupMap[s.TaskID].Sessions = append(groupMap[s.TaskID].Sessions, s)
+	}
+	groups := make([]*group, 0, len(groupOrder))
+	for _, id := range groupOrder {
+		groups = append(groups, groupMap[id])
+	}
+	h.render(w, "sessions_index.html", map[string]interface{}{
+		"Sessions": sessions,
+		"Groups":   groups,
+		"Nav":      "sessions",
+	})
+}
+
+func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "notes.html", map[string]interface{}{
+		"Nav": "notes",
+	})
 }
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {

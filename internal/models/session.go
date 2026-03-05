@@ -57,6 +57,12 @@ const (
 	MessageKindContext    MessageKind = "context" // injected task context, shown as collapsible info block
 )
 
+// SessionWithTask is a Session enriched with the parent task title for list views.
+type SessionWithTask struct {
+	Session
+	TaskTitle string `db:"title" json:"task_title"`
+}
+
 // Message is a single turn in a session's conversation.
 // Content is always plain text or markdown — provider-specific formats
 // are normalised before storage.

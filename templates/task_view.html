@@ -50,9 +50,12 @@
 
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">
-        <div class="brief-header">
+        <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
           <span class="brief-title">Agent brief</span>
-          <button class="brief-rerun" id="rebrief-btn" onclick="rebrief()" title="Re-run">↺</button>
+          <span class="brief-header-right">
+            <button class="brief-rerun" id="rebrief-btn" onclick="event.stopPropagation();rebrief()" title="Re-run">↺</button>
+            <span class="brief-toggle" id="brief-toggle">▾</span>
+          </span>
         </div>
         <div id="brief-body">
           {{if eq .Task.BriefStatus "done"}}
@@ -177,9 +180,75 @@
     window.location = `/tasks/${taskID}/sessions/${data.id}`;
   }
 
+  // ── Brief collapse ──
+  function toggleBrief() {
+    const body = document.getElementById('brief-body');
+    const toggle = document.getElementById('brief-toggle');
+    const collapsed = body.style.display === 'none';
+    body.style.display = collapsed ? '' : 'none';
+    toggle.textContent = collapsed ? '▾' : '▸';
+    try { localStorage.setItem('brief-collapsed-' + taskID, collapsed ? '0' : '1'); } catch(e) {}
+  }
+
+  function initBriefCollapse() {
+    try {
+      if (localStorage.getItem('brief-collapsed-' + taskID) === '1') {
+        document.getElementById('brief-body').style.display = 'none';
+        document.getElementById('brief-toggle').textContent = '▸';
+      }
+    } catch(e) {}
+  }
+
+  // ── Session list live refresh ──
+  let sessionPollTimer = null;
+
+  async function refreshSessions() {
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions`);
+      if (!r.ok) return;
+      const sessions = await r.json();
+      const list = document.getElementById('sessions-list');
+      if (!sessions || sessions.length === 0) return;
+      // Only re-render if count changed or any status changed
+      const current = list.querySelectorAll('.session-card');
+      const changed = sessions.length !== current.length ||
+        sessions.some((s, i) => !current[i] || current[i].querySelector('.session-status')?.textContent !== s.status);
+      if (!changed) return;
+      list.innerHTML = sessions.map(s => `
+        <a href="/tasks/${taskID}/sessions/${s.id}" class="session-card">
+          <div class="session-card-main">
+            <span class="session-card-name">${escHtml(s.name || 'Session')}</span>
+            <span class="session-status status-${s.status}">${s.status}</span>
+          </div>
+          <div class="session-card-meta">${s.agent_provider} · ${timeAgoJS(s.updated_at)}</div>
+        </a>
+      `).join('');
+    } catch(e) {}
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function timeAgoJS(isoStr) {
+    const d = (Date.now() - new Date(isoStr)) / 1000;
+    if (d < 60) return 'just now';
+    if (d < 3600) return Math.floor(d/60) + 'm ago';
+    if (d < 86400) return Math.floor(d/3600) + 'h ago';
+    return Math.floor(d/86400) + 'd ago';
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     renderMarkdown();
+    initBriefCollapse();
     if (briefStatus === 'pending' || briefStatus === '') startBriefPolling();
+    // Poll session list every 5s
+    sessionPollTimer = setInterval(refreshSessions, 5000);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    clearInterval(briefPollTimer);
+    clearInterval(sessionPollTimer);
   });
 </script>
 </body>

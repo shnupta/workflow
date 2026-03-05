@@ -1,0 +1,86 @@
+{{define "sessions_index.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Sessions</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">Sessions</h1>
+        <div class="view-toggle" id="view-toggle">
+          <button class="view-btn active" id="btn-flat" onclick="setView('flat')">All</button>
+          <button class="view-btn" id="btn-grouped" onclick="setView('grouped')">By task</button>
+        </div>
+      </div>
+
+      {{if not .Sessions}}
+      <p class="empty-state">No sessions yet. Start one from a task.</p>
+      {{else}}
+
+      <!-- Flat view -->
+      <div id="view-flat" class="sessions-list">
+        {{range .Sessions}}
+        <a href="/tasks/{{.TaskID}}/sessions/{{.ID}}" class="session-row">
+          <div class="session-row-main">
+            <span class="session-row-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
+            <span class="session-status status-{{.Status}}">{{.Status}}</span>
+          </div>
+          <div class="session-row-meta">
+            <span class="session-row-task">{{.TaskTitle}}</span>
+            <span class="session-row-time">{{timeAgo .UpdatedAt}}</span>
+          </div>
+        </a>
+        {{end}}
+      </div>
+
+      <!-- Grouped view -->
+      <div id="view-grouped" style="display:none">
+        {{range .Groups}}
+        <div class="session-group">
+          <div class="session-group-header">
+            <a href="/tasks/{{.TaskID}}" class="session-group-title">{{.TaskTitle}}</a>
+            <span class="session-group-count">{{len .Sessions}}</span>
+          </div>
+          <div class="sessions-list sessions-list-nested">
+            {{range .Sessions}}
+            <a href="/tasks/{{.TaskID}}/sessions/{{.ID}}" class="session-row">
+              <div class="session-row-main">
+                <span class="session-row-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
+                <span class="session-status status-{{.Status}}">{{.Status}}</span>
+              </div>
+              <div class="session-row-meta">
+                <span class="session-row-time">{{timeAgo .UpdatedAt}}</span>
+              </div>
+            </a>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+
+      {{end}}
+    </div>
+  </main>
+
+<script>
+  let currentView = localStorage.getItem('sessions-view') || 'flat';
+  setView(currentView);
+
+  function setView(v) {
+    currentView = v;
+    localStorage.setItem('sessions-view', v);
+    document.getElementById('view-flat').style.display    = v === 'flat'    ? '' : 'none';
+    document.getElementById('view-grouped').style.display = v === 'grouped' ? '' : 'none';
+    document.getElementById('btn-flat').classList.toggle('active',    v === 'flat');
+    document.getElementById('btn-grouped').classList.toggle('active', v === 'grouped');
+  }
+</script>
+</body>
+</html>
+{{end}}

@@ -427,3 +427,44 @@ func scanMessages(rows *sql.Rows) ([]*models.Message, error) {
 	}
 	return out, rows.Err()
 }
+
+// ListAllSessions returns all non-brief sessions across all tasks, joined with task title.
+func (d *DB) ListAllSessions() ([]*models.SessionWithTask, error) {
+	rows, err := d.conn.Query(`
+		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
+		       s.agent_provider, s.agent_session_id, s.error_message, s.created_at, s.updated_at,
+		       t.title
+		FROM sessions s
+		JOIN tasks t ON t.id = s.task_id
+		WHERE s.name != '[brief]'
+		ORDER BY s.updated_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.SessionWithTask
+	for rows.Next() {
+		var sw models.SessionWithTask
+		var parentID, agentSessionID sql.NullString
+		var createdAt, updatedAt string
+		err := rows.Scan(
+			&sw.ID, &sw.TaskID, &parentID, &sw.Name, &sw.Mode, &sw.Status,
+			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &createdAt, &updatedAt,
+			&sw.TaskTitle,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if parentID.Valid {
+			sw.ParentID = &parentID.String
+		}
+		if agentSessionID.Valid {
+			sw.AgentSessionID = &agentSessionID.String
+		}
+		sw.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		sw.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		out = append(out, &sw)
+	}
+	return out, rows.Err()
+}

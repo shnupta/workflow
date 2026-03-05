@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -56,8 +57,13 @@ func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, e
 	if opts.WorkDir != "" {
 		cmd.Dir = opts.WorkDir
 	}
-	// Always inherit environment; add CLAUDE_ALLOW_ROOT so it runs as root without --dangerously-skip-permissions
-	cmd.Env = append(cmd.Environ(), "CLAUDE_ALLOW_ROOT=1")
+	// Inherit environment
+	cmd.Env = cmd.Environ()
+	// WORKFLOW_DEV_ROOT=1 is set on the dev server (running as root) so Claude CLI
+	// doesn't need --dangerously-skip-permissions. Never set this in production.
+	if os.Getenv("WORKFLOW_DEV_ROOT") == "1" {
+		cmd.Env = append(cmd.Env, "CLAUDE_ALLOW_ROOT=1")
+	}
 	if len(opts.Env) > 0 {
 		cmd.Env = append(cmd.Env, opts.Env...)
 	}
