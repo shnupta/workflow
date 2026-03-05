@@ -156,6 +156,14 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ## Completed ✅
 
+### Completed 2026-03-05 (continued)
+
+- [x] Bootstrap setup command — interactive wizard, auto-detects claude, writes config, installs launchd service
+- [x] Daemon management — `workflow start/stop/restart/status` via launchctl
+- [x] `workflow update` — git pull + rebuild binary in place + restart service
+- [x] `workflow serve` subcommand with `-dir` flag (data dir consolidation)
+- [x] README and RUNNING.md rewritten for new setup flow
+
 ### Completed 2026-03-05
 
 - [x] Hide/style injected task context in chat — collapsible system block, not a user bubble
