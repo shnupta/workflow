@@ -64,7 +64,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
 	if err := runner.Validate(); err != nil {
 		_ = h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
-		http.Error(w, "claude CLI not available: "+err.Error(), 503)
+		http.Error(w, "Claude CLI not found. Set claude_bin in workflow.json to the path of your Claude Code binary.", 503)
 		return
 	}
 

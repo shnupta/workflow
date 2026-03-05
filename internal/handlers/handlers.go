@@ -320,6 +320,14 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 	prompt := buildBriefPrompt(t)
 	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
 
+	// Validate claude is reachable before even creating a session
+	if err := runner.Validate(); err != nil {
+		msg := "Claude CLI not found. Set `claude_bin` in workflow.json to the path of your Claude Code binary."
+		log.Printf("auto-brief: claude not available: %v", err)
+		h.db.UpdateBrief(t.ID, msg, "error")
+		return
+	}
+
 	// Use a hidden session (name "[brief]") to run the agent
 	sess := &models.Session{
 		TaskID: t.ID,
@@ -328,14 +336,14 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 	}
 	if err := h.db.CreateSession(sess); err != nil {
 		log.Printf("auto-brief: create session: %v", err)
-		h.db.UpdateBrief(t.ID, "Failed to create agent session", "error")
+		h.db.UpdateBrief(t.ID, "Failed to create agent session.", "error")
 		return
 	}
 
 	ch, err := runner.Run(context.Background(), agent.RunOptions{Prompt: prompt})
 	if err != nil {
 		log.Printf("auto-brief: start agent: %v", err)
-		h.db.UpdateBrief(t.ID, err.Error(), "error")
+		h.db.UpdateBrief(t.ID, "Agent failed to start: "+err.Error(), "error")
 		h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
 		return
 	}

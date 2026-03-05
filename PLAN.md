@@ -93,8 +93,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [ ] **Better error display when claude not configured**
   - Currently shows raw error message; should be friendlier
 
-- [ ] **Send button disabled while agent running**
-  - Queue works fine but button looks active even when nothing will send immediately
+- [x] **Send button shows "Queue" while agent running** ✅ 2026-03-05
+  - Button label changes to "Queue" at 60% opacity while agent is busy
 
 ### Lower priority / future
 
@@ -117,9 +117,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Sessions can spawn sub-sessions (parent_id is already in schema)
   - UI for this is a future concern
 
-- [ ] **Update README**
-  - Outdated — references github_token, anthropic_key, pr_prompt which are all removed
-  - New setup is just: install claude CLI, set claude_bin in workflow.json
+- [x] **Update README** ✅ 2026-03-05
+  - Fully rewritten to reflect current state
 
 ---
 

@@ -172,7 +172,14 @@
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({prompt, mode: 'interactive', name})
     });
-    if (!r.ok) { alert('Failed to start session'); return; }
+    if (!r.ok) {
+      const msg = await r.text();
+      const form = document.getElementById('new-session-form');
+      let errEl = form.querySelector('.session-err');
+      if (!errEl) { errEl = document.createElement('div'); errEl.className = 'session-err'; form.prepend(errEl); }
+      errEl.textContent = msg || 'Failed to start session';
+      return;
+    }
     const data = await r.json();
     window.location = `/tasks/${taskID}/sessions/${data.id}`;
   }

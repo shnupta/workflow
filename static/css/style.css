@@ -1020,3 +1020,14 @@ select option { background: var(--surface2); }
   text-decoration: none;
 }
 .breadcrumb-link:hover { color: var(--text); }
+
+/* Session creation error */
+.session-err {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
