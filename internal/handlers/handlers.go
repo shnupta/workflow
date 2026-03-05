@@ -85,6 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/timer", h.timerToggle)
 	mux.HandleFunc("POST /tasks/{id}/timer/reset", h.timerReset)
 	mux.HandleFunc("GET /tasks/{id}/timer", h.timerStatus)
+	mux.HandleFunc("GET /tasks/{id}/brief-history", h.briefHistory)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
@@ -270,13 +271,24 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sessions, _ := h.db.ListSessions(t.ID)
-	messages, _ := h.db.ListMessages(t.ID) // for task-level messages (unused for now)
-	_ = messages
+	briefVersions, _ := h.db.ListBriefVersions(t.ID)
 	h.render(w, "task_view.html", map[string]interface{}{
-		"Task":     t,
-		"Sessions": sessions,
-		"Nav":      "tasks",
+		"Task":          t,
+		"Sessions":      sessions,
+		"BriefVersions": briefVersions,
+		"Nav":           "tasks",
 	})
+}
+
+// briefHistory returns all brief versions for a task as JSON.
+func (h *Handler) briefHistory(w http.ResponseWriter, r *http.Request) {
+	versions, err := h.db.ListBriefVersions(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versions)
 }
 
 func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {

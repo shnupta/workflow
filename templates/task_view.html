@@ -81,6 +81,21 @@
           <div class="brief-pending"><span class="spinner"></span> Agent is investigating...</div>
           {{end}}
         </div>
+        {{if gt (len .BriefVersions) 1}}
+        <div class="brief-history">
+          <button class="brief-history-toggle" onclick="toggleBriefHistory(this)">
+            ▸ {{len .BriefVersions}} versions
+          </button>
+          <div class="brief-history-list" style="display:none">
+            {{range .BriefVersions}}
+            <details class="brief-version">
+              <summary>{{.CreatedAt.Format "Jan 2 15:04"}}</summary>
+              <div class="brief-version-content md-content">{{markdownHTML .Content}}</div>
+            </details>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
       </div>
 
       <!-- Sessions panel -->
@@ -341,6 +356,13 @@
     document.getElementById('timer-display').textContent = '';
     const resetBtn = document.getElementById('timer-reset-btn');
     if (resetBtn) resetBtn.remove();
+  }
+
+  function toggleBriefHistory(btn) {
+    const list = btn.nextElementSibling;
+    const collapsed = list.style.display === 'none';
+    list.style.display = collapsed ? '' : 'none';
+    btn.textContent = (collapsed ? '▾ ' : '▸ ') + btn.textContent.slice(2);
   }
 </script>
 </body>

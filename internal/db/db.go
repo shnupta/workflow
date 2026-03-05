@@ -66,6 +66,16 @@ func (d *DB) migrate() error {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
 
+	// Brief versions table — stores each completed brief run
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS brief_versions (
+			id         TEXT PRIMARY KEY,
+			task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			content    TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)
+	`)
+
 	// Notes table
 	_, _ = d.conn.Exec(`
 		CREATE TABLE IF NOT EXISTS notes (
@@ -329,7 +339,40 @@ func (d *DB) MarkDone(id string) error {
 func (d *DB) UpdateBrief(id, brief, status string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := d.conn.Exec(`UPDATE tasks SET brief=?, brief_status=?, updated_at=? WHERE id=?`, brief, status, now, id)
+	if err == nil && status == "done" && brief != "" {
+		// Store versioned copy
+		versionID := uuid.New().String()
+		_, _ = d.conn.Exec(`INSERT INTO brief_versions (id, task_id, content, created_at) VALUES (?, ?, ?, ?)`,
+			versionID, id, brief, now)
+	}
 	return err
+}
+
+// BriefVersion is one historical brief run.
+type BriefVersion struct {
+	ID        string
+	TaskID    string
+	Content   string
+	CreatedAt time.Time
+}
+
+func (d *DB) ListBriefVersions(taskID string) ([]*BriefVersion, error) {
+	rows, err := d.conn.Query(`SELECT id, task_id, content, created_at FROM brief_versions WHERE task_id=? ORDER BY created_at DESC`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*BriefVersion
+	for rows.Next() {
+		var v BriefVersion
+		var createdAt string
+		if err := rows.Scan(&v.ID, &v.TaskID, &v.Content, &createdAt); err != nil {
+			return nil, err
+		}
+		v.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		out = append(out, &v)
+	}
+	return out, rows.Err()
 }
 
 func (d *DB) MoveTask(id, tier, beforeID string) error {
