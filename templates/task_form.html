@@ -9,10 +9,7 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-  <header>
-    <a href="/" class="logo">workflow</a>
-    <a href="/tasks/new" class="btn btn-primary">+ New task</a>
-  </header>
+  {{template "nav" .}}
   <main>
     <div class="form-page">
       <h1>{{if .Edit}}Edit task{{else}}New task{{end}}</h1>

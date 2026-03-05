@@ -155,6 +155,7 @@ func (h *Handler) newTaskForm(w http.ResponseWriter, r *http.Request) {
 		"Tiers":     h.cfg().Tiers,
 		"Task":      &models.Task{Tier: defaultTier, Direction: "blocked_on_me"},
 		"IsNew":     true,
+		"Nav":       "tasks",
 	})
 }
 
@@ -210,6 +211,7 @@ func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
 		"Tiers":     h.cfg().Tiers,
 		"Task":      t,
 		"IsNew":     false,
+		"Nav":       "tasks",
 	})
 }
 

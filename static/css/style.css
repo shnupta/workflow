@@ -991,3 +991,32 @@ select option { background: var(--surface2); }
   padding: 1px 7px;
 }
 .sessions-list-nested { padding-left: 12px; }
+
+/* Nav */
+.main-nav {
+  display: flex;
+  gap: 4px;
+}
+.nav-link {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-link:hover { color: var(--text); background: var(--surface2); }
+.nav-link.active { color: var(--text); background: var(--surface2); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Session breadcrumb */
+.session-breadcrumb {
+  padding: 8px 0 4px;
+}
+.breadcrumb-link {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.breadcrumb-link:hover { color: var(--text); }
