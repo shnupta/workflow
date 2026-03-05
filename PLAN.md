@@ -122,11 +122,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority / future
 
-- [ ] **Webhook endpoint for GitHub PRs**
-  - `POST /webhooks/github` — validates signature, parses PR open/update events
-  - Auto-creates or updates a task with PR URL set
-  - Auto-brief fires immediately
-  - Requires `webhook_secret` in workflow.json
+- [x] **Webhook endpoint for GitHub PRs** ✅ 2026-03-05
+  - `POST /webhooks/github` — HMAC-SHA256 signature verification
+  - Handles: opened, reopened, synchronize, ready_for_review
+  - Creates PR Review task in Today on open; re-briefs on sync
+  - Deduplicates by PR URL; skips draft PRs
+  - `webhook_secret` in workflow.json
 
 - [ ] **Brief versioning**
   - Store multiple briefs (each re-run) rather than overwriting
