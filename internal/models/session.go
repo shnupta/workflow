@@ -13,11 +13,12 @@ const (
 type SessionStatus string
 
 const (
-	SessionStatusPending  SessionStatus = "pending"
-	SessionStatusRunning  SessionStatus = "running"
-	SessionStatusIdle     SessionStatus = "idle"     // interactive, waiting for input
-	SessionStatusComplete SessionStatus = "complete"
-	SessionStatusError    SessionStatus = "error"
+	SessionStatusPending     SessionStatus = "pending"
+	SessionStatusRunning     SessionStatus = "running"
+	SessionStatusIdle        SessionStatus = "idle"        // interactive, waiting for input
+	SessionStatusComplete    SessionStatus = "complete"
+	SessionStatusError       SessionStatus = "error"
+	SessionStatusInterrupted SessionStatus = "interrupted" // cancelled by user mid-run
 )
 
 // Session represents an agent session attached to a task.

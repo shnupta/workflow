@@ -69,6 +69,16 @@
           <input type="date" id="due_date" name="due_date" value="{{formatDate .Task.DueDate}}">
         </div>
 
+        {{if not .Edit}}
+        <div class="field field-checkbox" id="brief-opt-in-field">
+          <label class="checkbox-label">
+            <input type="checkbox" id="request_brief" name="request_brief" value="1">
+            <span>Run agent brief on creation</span>
+          </label>
+          <div class="field-hint">Automatically analyse this task when it's created. Always on for PR Reviews.</div>
+        </div>
+        {{end}}
+
         <div class="form-actions">
           <a href="{{if .Edit}}/tasks/{{.Task.ID}}{{else}}/{{end}}" class="btn btn-ghost">Cancel</a>
           <button type="submit" class="btn btn-primary">{{if .Edit}}Save changes{{else}}Add task{{end}}</button>
@@ -77,6 +87,31 @@
       </form>
     </div>
   </main>
+<script>
+  // For PR Review: auto-check the brief checkbox and lock it
+  const workTypeSelect = document.getElementById('work_type');
+  const briefCheckbox = document.getElementById('request_brief');
+  if (workTypeSelect && briefCheckbox) {
+    let userChecked = false; // tracks whether user explicitly checked it
+
+    function updateBriefCheckbox() {
+      if (workTypeSelect.value === 'pr_review') {
+        briefCheckbox.checked = true;
+        briefCheckbox.disabled = true;
+        briefCheckbox.parentElement.style.opacity = '0.6';
+      } else {
+        briefCheckbox.disabled = false;
+        briefCheckbox.parentElement.style.opacity = '';
+        briefCheckbox.checked = userChecked;
+      }
+    }
+    briefCheckbox.addEventListener('change', () => {
+      userChecked = briefCheckbox.checked;
+    });
+    workTypeSelect.addEventListener('change', updateBriefCheckbox);
+    updateBriefCheckbox();
+  }
+</script>
 </body>
 </html>
 {{end}}

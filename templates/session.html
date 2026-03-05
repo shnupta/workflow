@@ -81,6 +81,7 @@
       <div id="queue-preview"></div>
 
       <div class="chat-input-area" id="input-area">
+        <button class="btn btn-danger btn-interrupt" id="interrupt-btn" onclick="interruptSession()" style="display:none" title="Stop the agent">■ Interrupt</button>
         <textarea id="chat-input" placeholder="Send a message... (⇧↵ for new line)" rows="3" autofocus></textarea>
         <button class="btn btn-primary" id="send-btn" onclick="enqueue()">Send</button>
       </div>
@@ -180,6 +181,7 @@
 
     const indicator = document.getElementById('typing-indicator');
     const sendBtn = document.getElementById('send-btn');
+    const interruptBtn = document.getElementById('interrupt-btn');
     if (status === 'running' || status === 'pending') {
       if (!indicator) {
         const chat = document.getElementById('chat');
@@ -194,15 +196,28 @@
         sendBtn.textContent = 'Queue';
         sendBtn.style.opacity = '0.6';
       }
+      if (interruptBtn) interruptBtn.style.display = '';
     } else {
       if (indicator) indicator.remove();
       if (sendBtn) {
         sendBtn.textContent = 'Send';
         sendBtn.style.opacity = '';
       }
-      // Agent is free — drain the queue
-      drainQueue();
+      if (interruptBtn) interruptBtn.style.display = 'none';
+      if (status === 'complete' || status === 'interrupted') {
+        // Agent is free — drain the queue
+        drainQueue();
+      }
     }
+  }
+
+  async function interruptSession() {
+    const btn = document.getElementById('interrupt-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Stopping…'; }
+    try {
+      await fetch(`/tasks/${taskID}/sessions/${sessionID}/interrupt`, { method: 'POST' });
+    } catch(e) { /* ignore */ }
+    if (btn) { btn.disabled = false; btn.style.display = 'none'; }
   }
 
   // ── Polling ────────────────────────────────────────────────
@@ -218,7 +233,7 @@
 
       if (data.status !== currentStatus) setStatus(data.status);
 
-      if (data.status === 'complete' || data.status === 'error') {
+      if (data.status === 'complete' || data.status === 'error' || data.status === 'interrupted') {
         clearInterval(pollTimer);
         pollTimer = null;
       }
@@ -323,7 +338,11 @@
       });
     }
 
-    if (currentStatus === 'running' || currentStatus === 'pending') startPolling();
+    if (currentStatus === 'running' || currentStatus === 'pending') {
+      startPolling();
+      const interruptBtn = document.getElementById('interrupt-btn');
+      if (interruptBtn) interruptBtn.style.display = '';
+    }
   });
 
   // ── Session pin ────────────────────────────────────────────────────────────

@@ -60,6 +60,11 @@ func RunSession(ctx context.Context, db DB, sess *models.Session, runner Runner,
 	}
 
 	for evt := range ch {
+		// If context was cancelled, the interrupt handler already set status — just stop.
+		if ctx.Err() != nil {
+			return
+		}
+
 		// Update provider session ID on first event that carries one
 		if evt.ProviderSessionID != "" && (sess.AgentSessionID == nil || *sess.AgentSessionID == "") {
 			sid := evt.ProviderSessionID
@@ -79,6 +84,10 @@ func RunSession(ctx context.Context, db DB, sess *models.Session, runner Runner,
 			_ = db.UpdateSessionStatus(sess.ID, models.SessionStatusComplete, "")
 			return
 		case EventError:
+			if ctx.Err() != nil {
+				// context cancelled — interrupt handler already set status
+				return
+			}
 			errMsg := ""
 			if evt.Err != nil {
 				errMsg = evt.Err.Error()
@@ -88,7 +97,10 @@ func RunSession(ctx context.Context, db DB, sess *models.Session, runner Runner,
 		}
 	}
 
-	// Channel closed without explicit done/error — treat as complete
+	// Channel closed without explicit done/error
+	if ctx.Err() != nil {
+		return // interrupted — status already set by handler
+	}
 	_ = db.UpdateSessionStatus(sess.ID, models.SessionStatusComplete, "")
 }
 

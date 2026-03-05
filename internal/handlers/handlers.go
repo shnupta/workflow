@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yuin/goldmark"
@@ -18,17 +19,54 @@ import (
 	"github.com/shnupta/workflow/internal/models"
 )
 
+// runnerRegistry tracks cancel funcs for active agent sessions so they can be
+// interrupted on demand.
+type runnerRegistry struct {
+	mu      sync.Mutex
+	cancels map[string]context.CancelFunc // session ID → cancel
+}
+
+func newRunnerRegistry() *runnerRegistry {
+	return &runnerRegistry{cancels: make(map[string]context.CancelFunc)}
+}
+
+func (r *runnerRegistry) register(sessionID string, cancel context.CancelFunc) {
+	r.mu.Lock()
+	r.cancels[sessionID] = cancel
+	r.mu.Unlock()
+}
+
+func (r *runnerRegistry) cancel(sessionID string) bool {
+	r.mu.Lock()
+	cancel, ok := r.cancels[sessionID]
+	if ok {
+		delete(r.cancels, sessionID)
+	}
+	r.mu.Unlock()
+	if ok {
+		cancel()
+	}
+	return ok
+}
+
+func (r *runnerRegistry) deregister(sessionID string) {
+	r.mu.Lock()
+	delete(r.cancels, sessionID)
+	r.mu.Unlock()
+}
+
 type Handler struct {
 	db       *db.DB
 	watcher  *config.Watcher
 	tmplGlob string
 	templates *template.Template
+	registry  *runnerRegistry
 }
 
 func (h *Handler) cfg() *config.Config { return h.watcher.Get() }
 
 func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
-	h := &Handler{db: d, watcher: watcher, tmplGlob: tmplGlob}
+	h := &Handler{db: d, watcher: watcher, tmplGlob: tmplGlob, registry: newRunnerRegistry()}
 
 	funcMap := template.FuncMap{
 		"workTypeDepth": func(key string) string { return h.cfg().WorkTypeDepth(key) },
@@ -269,7 +307,9 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	go h.runAutoBrief(t)
+	if shouldAutoBrief(t, r.FormValue("request_brief") == "1") {
+		go h.runAutoBrief(t)
+	}
 	http.Redirect(w, r, "/tasks/"+t.ID, http.StatusSeeOther)
 }
 
@@ -309,7 +349,10 @@ func (h *Handler) quickCreateTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	go h.runAutoBrief(t)
+	// Quick-add doesn't have a brief checkbox — only auto-brief PR reviews
+	if shouldAutoBrief(t, false) {
+		go h.runAutoBrief(t)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"id":       t.ID,
@@ -491,6 +534,12 @@ func (h *Handler) briefStatus(w http.ResponseWriter, r *http.Request) {
 // ─────────────────────────────────────────────────────────
 // Auto-brief
 // ─────────────────────────────────────────────────────────
+
+// shouldAutoBrief returns true if a brief should run automatically.
+// PR Reviews always get a brief. Other types only if explicitly requested.
+func shouldAutoBrief(t *models.Task, requested bool) bool {
+	return t.WorkType == "pr_review" || requested
+}
 
 func (h *Handler) runAutoBrief(t *models.Task) {
 	if err := h.db.UpdateBrief(t.ID, "", "pending"); err != nil {

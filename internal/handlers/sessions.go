@@ -21,6 +21,7 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/pin", h.pinSession)
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/messages", h.getMessages)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/messages", h.sendMessage)
+	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/interrupt", h.interruptSession)
 }
 
 // createSession starts a new agent session on a task.
@@ -86,8 +87,13 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now(),
 	})
 
-	// Start runner — pass full prompt to agent, but only store user's actual words in chat
-	go agent.RunSession(context.Background(), h.db, sess, runner, fullPrompt, body.Prompt)
+	// Start runner with a cancellable context so the session can be interrupted
+	ctx, cancel := context.WithCancel(context.Background())
+	h.registry.register(sess.ID, cancel)
+	go func() {
+		defer h.registry.deregister(sess.ID)
+		agent.RunSession(ctx, h.db, sess, runner, fullPrompt, body.Prompt)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -251,9 +257,32 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
-	go agent.RunSession(context.Background(), h.db, sess, runner, body.Prompt)
+	ctx, cancel := context.WithCancel(context.Background())
+	h.registry.register(sess.ID, cancel)
+	go func() {
+		defer h.registry.deregister(sess.ID)
+		agent.RunSession(ctx, h.db, sess, runner, body.Prompt)
+	}()
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// interruptSession cancels a running agent session.
+func (h *Handler) interruptSession(w http.ResponseWriter, r *http.Request) {
+	sid := r.PathValue("sid")
+	sess, err := h.db.GetSession(sid)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	if sess.Status != models.SessionStatusRunning && sess.Status != models.SessionStatusPending {
+		http.Error(w, "session is not running", 409)
+		return
+	}
+	h.registry.cancel(sid)
+	_ = h.db.UpdateSessionStatus(sid, models.SessionStatusInterrupted, "interrupted by user")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "interrupted"})
 }
 
 // sessionNameFromPrompt generates a short session name from the first few words of the prompt.
