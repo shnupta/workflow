@@ -20,14 +20,27 @@ type ClaudeLocal struct {
 
 func (c *ClaudeLocal) Name() string { return "claude_local" }
 
+// Validate checks that the claude binary is reachable.
+func (c *ClaudeLocal) Validate() error {
+	_, err := c.resolveBin()
+	return err
+}
+
+func (c *ClaudeLocal) resolveBin() (string, error) {
+	if c.ClaudeBin != "" {
+		return c.ClaudeBin, nil
+	}
+	bin, err := exec.LookPath("claude")
+	if err != nil {
+		return "", fmt.Errorf("claude CLI not found in PATH (set claude_bin in workflow.json): %w", err)
+	}
+	return bin, nil
+}
+
 func (c *ClaudeLocal) Run(ctx context.Context, opts RunOptions) (<-chan Event, error) {
-	bin := c.ClaudeBin
-	if bin == "" {
-		var err error
-		bin, err = exec.LookPath("claude")
-		if err != nil {
-			return nil, fmt.Errorf("claude CLI not found in PATH: %w", err)
-		}
+	bin, err := c.resolveBin()
+	if err != nil {
+		return nil, err
 	}
 
 	args := []string{

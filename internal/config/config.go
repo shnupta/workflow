@@ -56,6 +56,10 @@ type Config struct {
 	//             Uses the local Claude Code CLI; no API key needed.
 	ClaudeMode string `json:"claude_mode"`
 
+	// ClaudeBin is the path to the claude CLI binary used for sessions.
+	// Defaults to searching PATH for "claude".
+	ClaudeBin string `json:"claude_bin"`
+
 	// PR analysis prompt — use {{.PRURL}} and {{.Diff}} as placeholders
 	PRPrompt string `json:"pr_prompt"`
 

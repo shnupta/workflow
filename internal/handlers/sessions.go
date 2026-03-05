@@ -63,8 +63,16 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate claude binary is reachable before creating the session
+	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
+	if err := runner.Validate(); err != nil {
+		// Clean up the session we just created
+		_ = h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
+		http.Error(w, "claude CLI not available: "+err.Error(), 503)
+		return
+	}
+
 	// Start runner in background
-	runner := &agent.ClaudeLocal{}
 	go agent.RunSession(context.Background(), h.db, sess, runner, body.Prompt)
 
 	w.Header().Set("Content-Type", "application/json")
