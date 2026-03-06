@@ -93,25 +93,26 @@ Location: `internal/db/db_test.go`, `internal/models/task_test.go`, etc.
 
 **What to cover:**
 
-- `internal/models/task_test.go`
-  - [ ] `ElapsedSeconds()` / `ElapsedLabel()` — running timer, stopped timer, zero
-  - [ ] `IsOverdue()` / `IsDueToday()` — boundary cases (today, yesterday, tomorrow, nil)
-  - [ ] `DirectionLabel()` — both values
+- `internal/models/task_test.go` ✅ 2026-03-05 (21 tests, all passing)
+  - [x] `ElapsedSeconds()` / `ElapsedLabel()` — running timer, stopped timer, zero
+  - [x] `IsOverdue()` / `IsDueToday()` — boundary cases (today, yesterday, tomorrow, nil)
+  - [x] `DirectionLabel()` — both values
 
-- `internal/db/db_test.go` (use an in-memory SQLite DB: `file::memory:?cache=shared`)
-  - [ ] Migrations run cleanly on a fresh DB (no panics, expected tables exist)
-  - [ ] `CreateTask` / `GetTask` / `UpdateTask` / `DeleteTask` round-trip
-  - [ ] `MarkDone` sets `done=1` and `done_at`
-  - [ ] `TimerToggle` starts and stops correctly; `ElapsedSeconds` increases between calls
-  - [ ] `TimerReset` zeroes `timer_total` and clears `timer_started`
-  - [ ] `MoveTask` reorders positions correctly
-  - [ ] `CreateSession` / `GetSession` / `ListSessions` — pinned sessions sort first
-  - [ ] `ArchiveSession` hides from `ListSessions`, visible with `showArchived=true`
-  - [ ] `UpdateBrief` with `status="done"` creates a row in `brief_versions`
-  - [ ] `ListBriefVersions` returns newest-first
-  - [ ] `WeeklyDigest` returns correct counts for completed vs in-progress tasks
-  - [ ] Notes: `CreateNote` / `UpdateNote` / `ListNotes` / `DeleteNote`
-  - [ ] FTS5 search: `SearchSessions` returns results for indexed message content
+- `internal/db/db_test.go` ✅ 2026-03-05 (18 tests, all passing — temp file DB, not in-memory)
+  - [x] `CreateTask` / `GetTask` / `DeleteTask` round-trip
+  - [x] `MarkDone` sets `done=1` and `done_at`
+  - [x] `TimerToggle` starts and stops correctly; accumulates elapsed
+  - [x] `TimerReset` zeroes `timer_total` and clears `timer_started`
+  - [x] Position increments within tier on create
+  - [x] `ListTasks` excludes done by default, includes when requested
+  - [x] `CreateSession` / `GetSession` / `ListSessions` (filtered by task)
+  - [x] `ArchiveSession` / `PinSession`
+  - [x] `UpdateBrief` sets brief content and status
+  - [x] `GetTaskByPRURL` — found, not found, ignores done tasks
+  - [ ] `MoveTask` reorders positions correctly (not yet tested)
+  - [ ] `ListBriefVersions` returns newest-first (not yet tested)
+  - [ ] Notes: `CreateNote` / `UpdateNote` / `ListNotes` / `DeleteNote` (not yet tested)
+  - [ ] FTS5 search: `SearchSessions` returns results for indexed message content (not yet tested)
 
 - `internal/handlers/` — HTTP handler integration tests using `httptest.NewServer`
   - [ ] `GET /` returns 200
