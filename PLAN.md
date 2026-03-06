@@ -299,7 +299,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Each completed brief run stored in `brief_versions` table
   - History panel on task page (shows N versions, collapsible per version)
 
-- [ ] **Multiple agent providers**
+- [x] **Multiple agent providers** ✅ 2026-03-06
   - Currently only ClaudeLocal
   - Add ClaudeAPI (direct Anthropic API, for when claude CLI not available)
   - Provider selected per-session in config or UI
