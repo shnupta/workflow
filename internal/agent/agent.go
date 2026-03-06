@@ -78,6 +78,10 @@ type Runner interface {
 	// Name returns a short identifier for this provider (e.g. "claude_local").
 	Name() string
 
+	// Validate checks that the runner is ready to use (binary reachable, API key set, etc).
+	// Should be called before creating a session to surface configuration errors early.
+	Validate() error
+
 	// Run starts the agent and returns a channel of Events.
 	// The channel is closed when the run completes or errors.
 	Run(ctx context.Context, opts RunOptions) (<-chan Event, error)

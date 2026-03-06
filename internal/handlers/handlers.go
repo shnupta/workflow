@@ -562,7 +562,7 @@ func (h *Handler) runAutoBrief(t *models.Task) {
 	}
 
 	prompt := buildBriefPrompt(t)
-	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
+	runner := agent.NewRunner(h.cfg())
 
 	// Validate claude is reachable before even creating a session
 	if err := runner.Validate(); err != nil {

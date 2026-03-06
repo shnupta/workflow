@@ -27,6 +27,22 @@ type Config struct {
 	// Defaults to searching PATH for "claude".
 	ClaudeBin string `json:"claude_bin"`
 
+	// AgentProvider selects the runner: "claude_local" (default) or "claude_api".
+	// If empty, claude_local is used with automatic fallback to claude_api
+	// if the CLI is not found and anthropic_api_key is set.
+	AgentProvider string `json:"agent_provider,omitempty"`
+
+	// AnthropicAPIKey is used by the claude_api provider.
+	// Never commit this to git — set it in workflow.json which is gitignored.
+	AnthropicAPIKey string `json:"anthropic_api_key,omitempty"`
+
+	// AgentModel overrides the default model for the claude_api provider.
+	// Defaults to claude-sonnet-4-5.
+	AgentModel string `json:"agent_model,omitempty"`
+
+	// AgentSystemPrompt is an optional system prompt injected for all claude_api sessions.
+	AgentSystemPrompt string `json:"agent_system_prompt,omitempty"`
+
 	// WebhookSecret is the GitHub webhook secret for verifying incoming PR events.
 	// Set this to the same value you enter in GitHub's webhook settings.
 	// If empty, webhook signature verification is skipped (not recommended for production).

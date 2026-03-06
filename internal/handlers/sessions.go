@@ -65,7 +65,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate claude binary is reachable before creating the session
-	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
+	runner := agent.NewRunner(h.cfg())
 	if err := runner.Validate(); err != nil {
 		_ = h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
 		http.Error(w, "Claude CLI not found. Set claude_bin in workflow.json to the path of your Claude Code binary.", 503)
@@ -256,7 +256,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runner := &agent.ClaudeLocal{ClaudeBin: h.cfg().ClaudeBin}
+	runner := agent.NewRunner(h.cfg())
 	ctx, cancel := context.WithCancel(context.Background())
 	h.registry.register(sess.ID, cancel)
 	go func() {
