@@ -12,7 +12,10 @@ import (
 	"sync"
 	"time"
 
+	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	"github.com/yuin/goldmark/extension"
 	"github.com/shnupta/workflow/internal/agent"
 	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
@@ -80,7 +83,19 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 		},
 		"markdownHTML": func(s string) template.HTML {
 			var buf bytes.Buffer
-			if err := goldmark.Convert([]byte(s), &buf); err != nil {
+			md := goldmark.New(
+				goldmark.WithExtensions(
+					extension.GFM, // tables, strikethrough, task lists, linkify
+					highlighting.NewHighlighting(
+						highlighting.WithStyle("github-dark"),
+						highlighting.WithFormatOptions(
+							chromahtml.WithLineNumbers(false),
+							chromahtml.WithClasses(false),
+						),
+					),
+				),
+			)
+			if err := md.Convert([]byte(s), &buf); err != nil {
 				return template.HTML(template.HTMLEscapeString(s))
 			}
 			return template.HTML(buf.String())

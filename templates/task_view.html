@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>workflow — {{.Task.Title}}</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
   <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="stylesheet" href="/static/css/style.css">
@@ -138,7 +140,18 @@
   </main>
 
 <script>
-  marked.setOptions({ breaks: true });
+  // Configure marked (v4+ API): use marked.use() for extensions, gfm is on by default
+  marked.use({
+    breaks: true,
+    gfm: true,
+    renderer: {
+      code({ text, lang }) {
+        const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+        const highlighted = hljs.highlight(text, { language }).value;
+        return `<pre><code class="hljs language-${lang || ''}">${highlighted}</code></pre>`;
+      }
+    }
+  });
 
   const taskID = "{{.Task.ID}}";
   let briefStatus = "{{.Task.BriefStatus}}";
