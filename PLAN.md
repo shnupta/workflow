@@ -308,6 +308,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Sessions can spawn sub-sessions (parent_id is already in schema)
   - UI for this is a future concern
 
+- [x] **Per-task scratchpad** ✅ 2026-03-06
+  - Lightweight textarea on task page (between timer and agent brief)
+  - Auto-saves on 800ms debounce; Cmd/Ctrl+S to force; "saving…"/"saved" status
+  - `scratchpad TEXT` column on tasks; GET/PATCH `/api/tasks/{id}/scratchpad`
+  - Resize: vertical; placeholder guides usage
+
 - [x] **Notes page** ✅ 2026-03-05
   - Two-pane editor: sidebar list + full-height textarea
   - Auto-save with 800ms debounce; Cmd/Ctrl+S to force save
