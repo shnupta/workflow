@@ -151,6 +151,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /tasks/{id}/timer", h.timerStatus)
 	mux.HandleFunc("GET /tasks/{id}/brief-history", h.briefHistory)
 	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
+	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
+	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
@@ -483,6 +485,43 @@ func (h *Handler) deleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiScratchpad handles GET and PATCH for a task's scratchpad field.
+func (h *Handler) apiScratchpad(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	switch r.Method {
+	case http.MethodGet:
+		t, err := h.db.GetTask(id)
+		if err != nil {
+			http.Error(w, "not found", 404)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"content":%s}`, jsonStr(t.Scratchpad))
+	case http.MethodPatch:
+		t, err := h.db.GetTask(id)
+		if err != nil {
+			http.Error(w, "not found", 404)
+			return
+		}
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		t.Scratchpad = body.Content
+		if err := h.db.UpdateTask(t); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"content":%s}`, jsonStr(t.Scratchpad))
+	default:
+		http.Error(w, "method not allowed", 405)
+	}
 }
 
 // rebrief re-runs the auto-brief agent for a task.

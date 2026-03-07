@@ -65,6 +65,15 @@
         {{end}}
       </div>
 
+      <!-- Scratchpad -->
+      <div class="scratchpad-panel">
+        <div class="scratchpad-header">
+          <span class="scratchpad-title">Notes</span>
+          <span class="scratchpad-status" id="scratchpad-status"></span>
+        </div>
+        <textarea id="scratchpad-body" class="scratchpad-textarea" placeholder="Jot anything down — context, blockers, decisions...">{{.Task.Scratchpad}}</textarea>
+      </div>
+
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
@@ -411,6 +420,45 @@
     list.style.display = collapsed ? '' : 'none';
     btn.textContent = (collapsed ? '▾ ' : '▸ ') + btn.textContent.slice(2);
   }
+
+  // ── Scratchpad ──────────────────────────────────────────────────
+  (function() {
+    const ta = document.getElementById('scratchpad-body');
+    const status = document.getElementById('scratchpad-status');
+    if (!ta) return;
+    let debounceTimer = null;
+
+    ta.addEventListener('input', () => {
+      status.textContent = '';
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(saveScratchpad, 800);
+    });
+
+    // Cmd/Ctrl+S to force save
+    ta.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        clearTimeout(debounceTimer);
+        saveScratchpad();
+      }
+    });
+
+    async function saveScratchpad() {
+      status.textContent = 'saving…';
+      try {
+        const res = await fetch('/api/tasks/{{.Task.ID}}/scratchpad', {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: ta.value}),
+        });
+        if (!res.ok) throw new Error('save failed');
+        status.textContent = 'saved';
+        setTimeout(() => { status.textContent = ''; }, 1500);
+      } catch {
+        status.textContent = 'error saving';
+      }
+    }
+  })();
 </script>
 </body>
 </html>

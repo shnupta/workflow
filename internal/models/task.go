@@ -24,6 +24,7 @@ type Task struct {
 	DueDate      *time.Time `db:"due_date"       json:"due_date"`      // optional due date (date only, no time)
 	TimerStarted *time.Time `db:"timer_started"  json:"timer_started"` // non-nil when timer is running
 	TimerTotal   int        `db:"timer_total"    json:"timer_total"`   // accumulated seconds (not counting current run)
+	Scratchpad   string     `db:"scratchpad"     json:"scratchpad"`    // free-form notes/context for this task
 }
 
 func (t *Task) DirectionLabel() string {

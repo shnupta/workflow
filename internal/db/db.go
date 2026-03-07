@@ -62,6 +62,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN due_date      TEXT`,
 		`ALTER TABLE tasks ADD COLUMN timer_started TEXT`,
 		`ALTER TABLE tasks ADD COLUMN timer_total   INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE tasks ADD COLUMN scratchpad    TEXT NOT NULL DEFAULT ''`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -203,11 +204,11 @@ func (d *DB) CreateTask(t *models.Task) error {
 		dueDate = t.DueDate.Format("2006-01-02")
 	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0,
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "",
 	)
 	return err
 }
@@ -229,12 +230,12 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
 		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?,
-		timer_started=?, timer_total=?
+		timer_started=?, timer_total=?, scratchpad=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate,
-		timerStarted, t.TimerTotal, t.ID,
+		timerStarted, t.TimerTotal, t.Scratchpad, t.ID,
 	)
 	return err
 }
@@ -273,7 +274,7 @@ func (d *DB) TimerReset(id string) error {
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -291,7 +292,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -320,7 +321,7 @@ func (d *DB) DeleteTask(id string) error {
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
 func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
 		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
 	t, err := scanTask(row)
 	if err != nil {
@@ -431,7 +432,7 @@ func scanTask(row *sql.Row) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted *string
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +445,7 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad)
 	if err != nil {
 		return nil, err
 	}
