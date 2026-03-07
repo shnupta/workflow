@@ -716,6 +716,12 @@ func buildBriefPrompt(t *models.Task) string {
 		b.WriteString("Link: " + t.Link + "\n")
 	}
 
+	if t.Scratchpad != "" {
+		b.WriteString("\n## Notes from the task owner\n")
+		b.WriteString(t.Scratchpad)
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n## Your job\n")
 	switch t.WorkType {
 	case "pr_review":

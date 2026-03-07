@@ -317,6 +317,11 @@ func buildTaskContext(t *models.Task) string {
 	if t.Link != "" {
 		b.WriteString("**Link:** " + t.Link + "\n")
 	}
+	if t.Scratchpad != "" {
+		b.WriteString("\n**Notes (from task scratchpad):**\n")
+		b.WriteString(t.Scratchpad)
+		b.WriteString("\n")
+	}
 	if t.Brief != "" && t.BriefStatus == "done" {
 		b.WriteString("\n**Preliminary investigation:**\n")
 		b.WriteString(t.Brief)
