@@ -63,6 +63,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN timer_started TEXT`,
 		`ALTER TABLE tasks ADD COLUMN timer_total   INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN scratchpad    TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE tasks ADD COLUMN blocked_by    TEXT`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -203,12 +204,16 @@ func (d *DB) CreateTask(t *models.Task) error {
 	if t.DueDate != nil {
 		dueDate = t.DueDate.Format("2006-01-02")
 	}
+	var blockedBy interface{}
+	if t.BlockedBy != "" {
+		blockedBy = t.BlockedBy
+	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "",
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "", blockedBy,
 	)
 	return err
 }
@@ -227,15 +232,19 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	if t.TimerStarted != nil {
 		timerStarted = t.TimerStarted.UTC().Format(time.RFC3339)
 	}
+	var blockedBy interface{}
+	if t.BlockedBy != "" {
+		blockedBy = t.BlockedBy
+	}
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
 		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?,
-		timer_started=?, timer_total=?, scratchpad=?
+		timer_started=?, timer_total=?, scratchpad=?, blocked_by=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate,
-		timerStarted, t.TimerTotal, t.Scratchpad, t.ID,
+		timerStarted, t.TimerTotal, t.Scratchpad, blockedBy, t.ID,
 	)
 	return err
 }
@@ -274,7 +283,7 @@ func (d *DB) TimerReset(id string) error {
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -292,7 +301,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -318,10 +327,35 @@ func (d *DB) DeleteTask(id string) error {
 	return err
 }
 
+// SearchTasks returns up to 20 non-done tasks whose title contains query (case-insensitive).
+func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
+		FROM tasks
+		WHERE done=0 AND title LIKE ?
+		ORDER BY updated_at DESC
+		LIMIT 20`,
+		"%"+query+"%",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
+}
+
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
 func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
 		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
 	t, err := scanTask(row)
 	if err != nil {
@@ -336,7 +370,44 @@ func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 func (d *DB) MarkDone(id string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, updated_at=? WHERE id=?`, now, now, id)
+	if err != nil {
+		return err
+	}
+	// Clear the blocker on any tasks that were blocked by this one.
+	_, err = d.conn.Exec(`UPDATE tasks SET blocked_by=NULL, updated_at=? WHERE blocked_by=?`, now, id)
 	return err
+}
+
+// SetBlockedBy records that taskID is blocked by blockerID.
+func (d *DB) SetBlockedBy(taskID, blockerID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.conn.Exec(`UPDATE tasks SET blocked_by=?, updated_at=? WHERE id=?`, blockerID, now, taskID)
+	return err
+}
+
+// ClearBlockedBy removes the blocker from taskID.
+func (d *DB) ClearBlockedBy(taskID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.conn.Exec(`UPDATE tasks SET blocked_by=NULL, updated_at=? WHERE id=?`, now, taskID)
+	return err
+}
+
+// GetBlockerTask returns the task that is blocking taskID, or nil if the task
+// has no blocker or the blocker no longer exists.
+func (d *DB) GetBlockerTask(taskID string) (*models.Task, error) {
+	t, err := d.GetTask(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("getting task: %w", err)
+	}
+	if t.BlockedBy == "" {
+		return nil, nil
+	}
+	blocker, err := d.GetTask(t.BlockedBy)
+	if err != nil {
+		// Blocker row is gone — treat as no blocker (stale reference).
+		return nil, nil //nolint:nilerr
+	}
+	return blocker, nil
 }
 
 func (d *DB) UpdateBrief(id, brief, status string) error {
@@ -430,26 +501,32 @@ func parseTaskScanned(t *models.Task, createdAt, updatedAt string, doneAt, dueDa
 func scanTask(row *sql.Row) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
-	var doneAt, dueDate, timerStarted *string
+	var doneAt, dueDate, timerStarted, blockedBy *string
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy)
 	if err != nil {
 		return nil, err
 	}
 	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
+	if blockedBy != nil {
+		t.BlockedBy = *blockedBy
+	}
 	return &t, nil
 }
 
 func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
-	var doneAt, dueDate, timerStarted *string
+	var doneAt, dueDate, timerStarted, blockedBy *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy)
 	if err != nil {
 		return nil, err
 	}
 	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
+	if blockedBy != nil {
+		t.BlockedBy = *blockedBy
+	}
 	return &t, nil
 }
 

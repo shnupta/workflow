@@ -175,3 +175,19 @@ func TestDirectionLabel_Default(t *testing.T) {
 		t.Errorf("expected default 'On me', got %q", task.DirectionLabel())
 	}
 }
+
+// ── IsBlocked ─────────────────────────────────────────────────────────────────
+
+func TestIsBlocked_Empty(t *testing.T) {
+	task := &Task{}
+	if task.IsBlocked() {
+		t.Error("task with no BlockedBy should not be blocked")
+	}
+}
+
+func TestIsBlocked_WithValue(t *testing.T) {
+	task := &Task{BlockedBy: "some-task-id"}
+	if !task.IsBlocked() {
+		t.Error("task with BlockedBy set should be blocked")
+	}
+}

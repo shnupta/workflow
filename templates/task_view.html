@@ -74,6 +74,26 @@
         <textarea id="scratchpad-body" class="scratchpad-textarea" placeholder="Jot anything down — context, blockers, decisions...">{{.Task.Scratchpad}}</textarea>
       </div>
 
+      <!-- Dependencies -->
+      <div class="dependencies-panel">
+        <div class="dependencies-header">
+          <span class="dependencies-title">Dependencies</span>
+        </div>
+        <div class="dependencies-body">
+          <div id="blocker-row" class="blocker-row" {{if not .Blocker}}style="display:none"{{end}}>
+            <span class="blocked-badge">⛔ Blocked by:</span>
+            <a id="blocker-link" href="{{if .Blocker}}/tasks/{{.Blocker.ID}}{{end}}" class="blocker-task-link">{{if .Blocker}}{{.Blocker.Title}}{{end}}</a>
+            <button class="btn btn-ghost btn-sm blocker-clear-btn" onclick="clearBlocker()" title="Remove blocker">✕</button>
+          </div>
+          <div class="set-blocker">
+            <div class="blocker-search-wrap">
+              <input type="text" id="blocker-search" class="blocker-search-input" placeholder="Type task title to block on…" autocomplete="off">
+              <ul id="blocker-dropdown" class="blocker-dropdown" style="display:none"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
@@ -458,6 +478,111 @@
         status.textContent = 'error saving';
       }
     }
+  })();
+
+  // ── Dependencies ──────────────────────────────────────────────────
+  (function() {
+    const taskID = "{{.Task.ID}}";
+    const searchInput = document.getElementById('blocker-search');
+    const dropdown = document.getElementById('blocker-dropdown');
+    const blockerRow = document.getElementById('blocker-row');
+    const blockerLink = document.getElementById('blocker-link');
+
+    let searchTimer = null;
+
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      const q = searchInput.value.trim();
+      if (q.length < 2) {
+        hideDropdown();
+        return;
+      }
+      searchTimer = setTimeout(() => doSearch(q), 250);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { hideDropdown(); searchInput.value = ''; }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.blocker-search-wrap')) hideDropdown();
+    });
+
+    async function doSearch(q) {
+      try {
+        const res = await fetch(`/api/tasks?q=${encodeURIComponent(q)}`);
+        const tasks = await res.json();
+        renderDropdown(tasks);
+      } catch {
+        hideDropdown();
+      }
+    }
+
+    function renderDropdown(tasks) {
+      dropdown.innerHTML = '';
+      // Exclude the current task (shouldn't come back from API, but be safe)
+      const filtered = tasks.filter(t => t.id !== taskID);
+      if (filtered.length === 0) {
+        dropdown.innerHTML = '<li class="blocker-dropdown-empty">No tasks found</li>';
+      } else {
+        filtered.forEach(t => {
+          const li = document.createElement('li');
+          li.className = 'blocker-dropdown-item';
+          li.textContent = t.title;
+          li.dataset.id = t.id;
+          li.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // don't blur before click fires
+            selectBlocker(t.id, t.title);
+          });
+          dropdown.appendChild(li);
+        });
+      }
+      dropdown.style.display = 'block';
+    }
+
+    function hideDropdown() {
+      dropdown.style.display = 'none';
+      dropdown.innerHTML = '';
+    }
+
+    async function selectBlocker(blockerID, blockerTitle) {
+      hideDropdown();
+      searchInput.value = '';
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/blocked-by`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({blocked_by: blockerID}),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Failed to set blocker');
+          return;
+        }
+        // Update the UI
+        blockerLink.href = `/tasks/${blockerID}`;
+        blockerLink.textContent = blockerTitle;
+        blockerRow.style.display = '';
+      } catch {
+        alert('Failed to set blocker');
+      }
+    }
+
+    window.clearBlocker = async function() {
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/blocked-by`, {method: 'DELETE'});
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Failed to clear blocker');
+          return;
+        }
+        blockerRow.style.display = 'none';
+        blockerLink.href = '';
+        blockerLink.textContent = '';
+      } catch {
+        alert('Failed to clear blocker');
+      }
+    };
   })();
 </script>
 </body>

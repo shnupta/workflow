@@ -153,6 +153,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
 	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
+	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
+	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
+	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /notes", h.notesPage)
@@ -386,10 +389,12 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	}
 	sessions, _ := h.db.ListSessions(t.ID)
 	briefVersions, _ := h.db.ListBriefVersions(t.ID)
+	blocker, _ := h.db.GetBlockerTask(t.ID)
 	h.render(w, "task_view.html", map[string]interface{}{
 		"Task":          t,
 		"Sessions":      sessions,
 		"BriefVersions": briefVersions,
+		"Blocker":       blocker,
 		"Nav":           "tasks",
 	})
 }
@@ -522,6 +527,89 @@ func (h *Handler) apiScratchpad(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", 405)
 	}
+}
+
+// apiSetBlockedBy sets the blocker for a task.
+// Body: {"blocked_by": "<task-id>"}
+// Validates: target exists, is not done, is not the task itself.
+func (h *Handler) apiSetBlockedBy(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	var body struct {
+		BlockedBy string `json:"blocked_by"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if body.BlockedBy == "" {
+		jsonError(w, "blocked_by is required", http.StatusBadRequest)
+		return
+	}
+	if body.BlockedBy == taskID {
+		jsonError(w, "a task cannot block itself", http.StatusBadRequest)
+		return
+	}
+	blocker, err := h.db.GetTask(body.BlockedBy)
+	if err != nil {
+		jsonError(w, "blocker task not found", http.StatusNotFound)
+		return
+	}
+	if blocker.Done {
+		jsonError(w, "cannot block on a completed task", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.SetBlockedBy(taskID, body.BlockedBy); err != nil {
+		jsonError(w, "failed to set blocker: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// apiClearBlockedBy removes the blocker from a task.
+func (h *Handler) apiClearBlockedBy(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if err := h.db.ClearBlockedBy(taskID); err != nil {
+		jsonError(w, "failed to clear blocker: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// apiSearchTasks handles GET /api/tasks?q=QUERY.
+// Returns up to 20 non-done tasks matching the query as JSON.
+func (h *Handler) apiSearchTasks(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+	tasks, err := h.db.SearchTasks(q)
+	if err != nil {
+		jsonError(w, "search failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type taskResult struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Tier  string `json:"tier"`
+		Done  bool   `json:"done"`
+	}
+	results := make([]taskResult, 0, len(tasks))
+	for _, t := range tasks {
+		results = append(results, taskResult{
+			ID:    t.ID,
+			Title: t.Title,
+			Tier:  t.Tier,
+			Done:  t.Done,
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 // rebrief re-runs the auto-brief agent for a task.
@@ -843,4 +931,10 @@ func jsonStr(s string) string {
 	return string(b)
 }
 
+// jsonError writes a JSON error response: {"error": "message"}.
+func jsonError(w http.ResponseWriter, message string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
 

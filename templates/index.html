@@ -306,7 +306,7 @@
 {{end}}
 
 {{define "task_card"}}
-<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}"
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}{{if .IsBlocked}} blocked{{end}}"
      draggable="true"
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
@@ -316,6 +316,7 @@
   <div class="task-card-header">
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
+    {{if .IsBlocked}}<span class="tag tag-blocked" title="Blocked by another task">⛔ blocked</span>{{end}}
   </div>
   <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
   {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}

@@ -25,7 +25,11 @@ type Task struct {
 	TimerStarted *time.Time `db:"timer_started"  json:"timer_started"` // non-nil when timer is running
 	TimerTotal   int        `db:"timer_total"    json:"timer_total"`   // accumulated seconds (not counting current run)
 	Scratchpad   string     `db:"scratchpad"     json:"scratchpad"`    // free-form notes/context for this task
+	BlockedBy    string     `db:"blocked_by"     json:"blocked_by"`    // ID of the task blocking this one (empty = not blocked)
 }
+
+// IsBlocked returns true when the task has an active blocker set.
+func (t *Task) IsBlocked() bool { return t.BlockedBy != "" }
 
 func (t *Task) DirectionLabel() string {
 	if t.Direction == "blocked_on_them" {

@@ -585,3 +585,127 @@ func TestFTS5Search_ReturnsResults(t *testing.T) {
 		t.Errorf("session %s not found in search results", sess.ID)
 	}
 }
+
+// ── BlockedBy ─────────────────────────────────────────────────────────────────
+
+func TestSetBlockedBy_AndGetBlockerTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	blocker := newTask("Blocker task", "today")
+	if err := db.CreateTask(blocker); err != nil {
+		t.Fatalf("CreateTask blocker: %v", err)
+	}
+	blocked := newTask("Blocked task", "today")
+	if err := db.CreateTask(blocked); err != nil {
+		t.Fatalf("CreateTask blocked: %v", err)
+	}
+
+	if err := db.SetBlockedBy(blocked.ID, blocker.ID); err != nil {
+		t.Fatalf("SetBlockedBy: %v", err)
+	}
+
+	got, err := db.GetTask(blocked.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.BlockedBy != blocker.ID {
+		t.Errorf("expected BlockedBy=%q, got %q", blocker.ID, got.BlockedBy)
+	}
+	if !got.IsBlocked() {
+		t.Error("expected IsBlocked()=true")
+	}
+
+	gotBlocker, err := db.GetBlockerTask(blocked.ID)
+	if err != nil {
+		t.Fatalf("GetBlockerTask: %v", err)
+	}
+	if gotBlocker == nil {
+		t.Fatal("expected blocker task, got nil")
+	}
+	if gotBlocker.ID != blocker.ID {
+		t.Errorf("expected blocker ID=%q, got %q", blocker.ID, gotBlocker.ID)
+	}
+}
+
+func TestClearBlockedBy(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	blocker := newTask("Blocker", "today")
+	db.CreateTask(blocker)
+	blocked := newTask("Blocked", "today")
+	db.CreateTask(blocked)
+	db.SetBlockedBy(blocked.ID, blocker.ID)
+
+	if err := db.ClearBlockedBy(blocked.ID); err != nil {
+		t.Fatalf("ClearBlockedBy: %v", err)
+	}
+
+	got, _ := db.GetTask(blocked.ID)
+	if got.IsBlocked() {
+		t.Errorf("expected IsBlocked()=false after ClearBlockedBy, BlockedBy=%q", got.BlockedBy)
+	}
+
+	gotBlocker, _ := db.GetBlockerTask(blocked.ID)
+	if gotBlocker != nil {
+		t.Error("expected nil blocker after clear")
+	}
+}
+
+func TestMarkDone_ClearsBlockerOnDependents(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	blocker := newTask("Blocker", "today")
+	db.CreateTask(blocker)
+	dep1 := newTask("Dep 1", "today")
+	db.CreateTask(dep1)
+	dep2 := newTask("Dep 2", "this_week")
+	db.CreateTask(dep2)
+
+	db.SetBlockedBy(dep1.ID, blocker.ID)
+	db.SetBlockedBy(dep2.ID, blocker.ID)
+
+	if err := db.MarkDone(blocker.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	for _, id := range []string{dep1.ID, dep2.ID} {
+		got, _ := db.GetTask(id)
+		if got.IsBlocked() {
+			t.Errorf("task %s should no longer be blocked after blocker is done", id)
+		}
+	}
+}
+
+func TestSearchTasks_ReturnsMatches(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	db.CreateTask(newTask("Fix the login bug", "today"))
+	db.CreateTask(newTask("Write login tests", "this_week"))
+	db.CreateTask(newTask("Deploy to staging", "backlog"))
+
+	results, err := db.SearchTasks("login")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("expected 2 results for 'login', got %d", len(results))
+	}
+}
+
+func TestSearchTasks_ExcludesDone(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Login refactor", "today")
+	db.CreateTask(task)
+	db.MarkDone(task.ID)
+
+	results, _ := db.SearchTasks("login")
+	if len(results) != 0 {
+		t.Errorf("expected 0 results (done task excluded), got %d", len(results))
+	}
+}

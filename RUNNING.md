@@ -119,7 +119,10 @@ Build and run locally:
 ```bash
 export PATH=$PATH:/usr/local/go/bin
 go build -tags fts5 -o workflow ./cmd/workflow/
-WORKFLOW_DEV_ROOT=1 ./workflow serve -dir ./testdata -templates './templates/*.html'
+WORKFLOW_DEV_ROOT=1 ./workflow serve -dir ./testdata -templates './templates/*.html' &
+# ⚠️  IMPORTANT: Always run the server with & in the background.
+# Running it in the foreground will block the terminal/tool indefinitely.
+# To stop it: kill %1  or  kill $(lsof -ti :8080)
 
 # The -tags fts5 flag enables session search. Without it, search shows a helpful error.
 # Always use it unless you're debugging a CGO issue.
