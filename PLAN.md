@@ -353,3 +353,38 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] Send button shows "Queue" while agent is running
 - [x] README rewritten to reflect current state
 - [x] RUNNING.md created — server setup, build, run, workarounds documented
+
+---
+
+## New features (proposed 2026-03-07)
+
+### Medium priority
+
+- [ ] **Task dependencies**
+  - "Blocked by" field on a task — link to another task that must be done first
+  - Visual indicator on blocked cards: greyed out with "⛔ blocked by: [task title]"
+  - Optional: warn when moving a blocked task to Today if blocker isn't done
+  - Schema: `dependencies` table (task_id, blocks_task_id); or simple `blocked_by_id INTEGER` on tasks for single-parent case
+  - Useful for Casey as tech lead: PRs blocked on review, deployments blocked on sign-off, etc.
+
+- [ ] **Recurring tasks**
+  - Task marked as recurring (daily / weekly / biweekly / monthly)
+  - When completed, auto-creates a clone in Backlog for the next occurrence
+  - `recurrence TEXT` column ('daily','weekly','biweekly','monthly') + `recurrence_next DATE`
+  - Useful for: weekly team syncs, regular reports, recurring deployments
+
+- [ ] **Task templates**
+  - Save a task configuration as a template (title, work type, notes template)
+  - "New from template" option on board
+  - Common templates: PR Review, Deployment, Design Review, Weekly Sync
+  - Stored as `task_templates` table; accessible from quick-add or new task form
+
+### Lower priority
+
+- [ ] **CSV export**
+  - `/export/tasks.csv` — all tasks with time tracked, status, work type, created/completed dates
+  - Useful for reporting, quarterly reviews
+
+- [ ] **Keyboard navigation on board**
+  - Arrow keys to move between cards, Enter to open, `m` to move to next column
+  - Power-user quality-of-life
