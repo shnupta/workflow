@@ -429,11 +429,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task search**
-  - Global search across task titles, notes, and scratchpad content
-  - Quick-access via `s` shortcut (already opens search page for sessions — repurpose or add task search tab)
-  - `/search/tasks?q=...` endpoint; FTS5 on task title + notes + scratchpad
-  - Results page: shows matching tasks with snippet, linked to task page
+- [x] **Task search** ✅ 2026-03-08
+  - FTS5 on title/description/scratchpad; `GET /search/tasks?q=...`; snippet with `<mark>` highlights
+  - Tabbed search page (Tasks | Sessions), tab carries `?q=` across; `s` shortcut → task search; 178 tests
 
 - [ ] **Recurring task calendar view**
   - Simple calendar on `/digest` or a new `/calendar` route showing tasks by due date
