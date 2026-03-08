@@ -367,11 +367,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Board cards: ⛔ badge + opacity:0.7 when blocked; cascade-clear on MarkDone
   - 33 tests passing
 
-- [ ] **Recurring tasks**
-  - Task marked as recurring (daily / weekly / biweekly / monthly)
-  - When completed, auto-creates a clone in Backlog for the next occurrence
-  - `recurrence TEXT` column ('daily','weekly','biweekly','monthly') + `recurrence_next DATE`
-  - Useful for: weekly team syncs, regular reports, recurring deployments
+- [x] **Recurring tasks** ✅ 2026-03-07
+  - `recurrence TEXT` column; CloneTaskForRecurrence on MarkDone
+  - Recurrence select on create/edit; ↻ badge on board cards and task page
+  - Flash banner on board when clone created; 41 tests passing
 
 - [ ] **Task templates**
   - Save a task configuration as a template (title, work type, notes template)
