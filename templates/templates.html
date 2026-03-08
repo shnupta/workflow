@@ -1,0 +1,126 @@
+{{define "templates.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Templates</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="tpl-page">
+
+      <div class="tpl-page-header">
+        <h1 class="tpl-page-title">Task Templates</h1>
+        <button class="btn btn-primary" onclick="showNewTemplateForm()">+ New template</button>
+      </div>
+
+      <!-- Inline create form (hidden by default) -->
+      <div class="tpl-create-form" id="tpl-create-form" style="display:none">
+        <form method="POST" action="/templates" class="tpl-form">
+          <div class="tpl-form-row">
+            <div class="field">
+              <label for="tpl-name">Name <span class="required-star">*</span></label>
+              <input type="text" id="tpl-name" name="name" placeholder="e.g. Weekly Sync" required autofocus>
+            </div>
+            <div class="field">
+              <label for="tpl-work-type">Type</label>
+              <select id="tpl-work-type" name="work_type">
+                <option value="">— any —</option>
+                {{range .WorkTypes}}
+                <option value="{{.Key}}">{{.Label}}</option>
+                {{end}}
+              </select>
+            </div>
+            <div class="field">
+              <label for="tpl-recurrence">Recurrence</label>
+              <select id="tpl-recurrence" name="recurrence">
+                <option value="">No recurrence</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Every 2 weeks</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="tpl-desc">Description <span class="optional">(optional)</span></label>
+            <textarea id="tpl-desc" name="description" rows="2" placeholder="Default task description…"></textarea>
+          </div>
+          <div class="tpl-form-actions">
+            <button type="button" class="btn btn-ghost" onclick="hideNewTemplateForm()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save template</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Template list -->
+      {{if .Templates}}
+      <div class="tpl-list">
+        {{range .Templates}}
+        <div class="tpl-card" id="tpl-{{.ID}}">
+          <div class="tpl-card-body">
+            <div class="tpl-card-header">
+              <span class="tpl-name">{{.Name}}</span>
+              <div class="tpl-badges">
+                {{if .WorkType}}<span class="tag tag-type">{{workTypeLabel .WorkType}}</span>{{end}}
+                {{if .Recurrence}}<span class="tag tag-recurring" title="Recurring">↻ {{recurrenceLabel .Recurrence}}</span>{{end}}
+              </div>
+            </div>
+            {{if .Description}}
+            <p class="tpl-desc">{{.Description}}</p>
+            {{end}}
+          </div>
+          <div class="tpl-card-actions">
+            <form method="POST" action="/templates/{{.ID}}/use" style="display:inline">
+              <button type="submit" class="btn btn-primary btn-sm">Use</button>
+            </form>
+            <button class="btn btn-ghost btn-sm" onclick="deleteTemplate('{{.ID}}', '{{.Name}}')">Delete</button>
+          </div>
+        </div>
+        {{end}}
+      </div>
+      {{else}}
+      <div class="tpl-empty">
+        <p>No templates yet. Create one above or use the defaults that appear automatically.</p>
+      </div>
+      {{end}}
+
+    </div>
+  </main>
+<script>
+  function showNewTemplateForm() {
+    document.getElementById('tpl-create-form').style.display = '';
+    document.getElementById('tpl-name').focus();
+  }
+  function hideNewTemplateForm() {
+    document.getElementById('tpl-create-form').style.display = 'none';
+  }
+
+  async function deleteTemplate(id, name) {
+    if (!confirm(`Delete template "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/templates/${id}`, {method: 'DELETE'});
+      if (res.ok) {
+        const el = document.getElementById('tpl-' + id);
+        if (el) el.remove();
+        // Show empty state if last card removed.
+        if (!document.querySelector('.tpl-card')) {
+          const list = document.querySelector('.tpl-list');
+          if (list) list.innerHTML = '<p class="tpl-empty-inline">No templates remaining.</p>';
+        }
+      } else {
+        alert('Failed to delete template');
+      }
+    } catch {
+      alert('Failed to delete template');
+    }
+  }
+</script>
+</body>
+</html>
+{{end}}

@@ -14,7 +14,30 @@
   {{template "nav" .}}
   <main>
     <div class="form-page">
-      <h1>{{if .Edit}}Edit task{{else}}New task{{end}}</h1>
+      <div class="form-page-header">
+        <h1>{{if .Edit}}Edit task{{else}}New task{{end}}</h1>
+        {{if and (not .Edit) .Templates}}
+        <div class="tpl-picker-wrap">
+          <label class="tpl-picker-label" for="tpl-picker">Start from template</label>
+          <select id="tpl-picker" class="tpl-picker-select" onchange="applyTemplate(this)">
+            <option value="">— choose template —</option>
+            {{range .Templates}}
+            <option value="{{.ID}}"
+              data-work-type="{{.WorkType}}"
+              data-description="{{.Description}}"
+              data-recurrence="{{.Recurrence}}"
+              data-name="{{.Name}}">{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        {{end}}
+      </div>
+
+      {{if .FromTemplate}}
+      <div class="flash flash-info tpl-prefill-notice">
+        ✦ Pre-filled from template <strong>{{.FromTemplate}}</strong> — adjust as needed.
+      </div>
+      {{end}}
 
       <form method="POST" action="{{if .Edit}}/tasks/{{.Task.ID}}{{else}}/tasks{{end}}" class="task-form">
 
@@ -102,7 +125,42 @@
     </div>
   </main>
 <script>
-  // For PR Review: auto-check the brief checkbox and lock it
+  // ── Template picker ──────────────────────────────────────────────────────────
+  function applyTemplate(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const workType    = opt.dataset.workType    || '';
+    const description = opt.dataset.description || '';
+    const recurrence  = opt.dataset.recurrence  || '';
+
+    // Fill work_type select
+    const wtSelect = document.getElementById('work_type');
+    if (wtSelect && workType) {
+      for (const o of wtSelect.options) {
+        if (o.value === workType) { o.selected = true; break; }
+      }
+      wtSelect.dispatchEvent(new Event('change'));
+    }
+
+    // Fill description textarea
+    const descTA = document.getElementById('description');
+    if (descTA && description) descTA.value = description;
+
+    // Fill recurrence select
+    const recSelect = document.getElementById('recurrence');
+    if (recSelect) {
+      for (const o of recSelect.options) {
+        if (o.value === recurrence) { o.selected = true; break; }
+      }
+    }
+
+    // Focus title so user can type it straight away
+    const titleInput = document.getElementById('title');
+    if (titleInput) titleInput.focus();
+  }
+
+  // ── PR Review brief auto-check ───────────────────────────────────────────────
   const workTypeSelect = document.getElementById('work_type');
   const briefCheckbox = document.getElementById('request_brief');
   if (workTypeSelect && briefCheckbox) {

@@ -124,6 +124,7 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			return fmt.Sprintf("%dm", m)
 		},
 		"recurrenceLabel": recurrenceLabel,
+		"jsonStr":         jsonStr,
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -164,6 +165,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerSessionRoutes(mux)
 	h.registerWebhookRoutes(mux)
 	h.registerNoteRoutes(mux)
+	h.registerTemplateRoutes(mux)
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {
@@ -302,12 +304,25 @@ func (h *Handler) newTaskForm(w http.ResponseWriter, r *http.Request) {
 	if len(h.cfg().Tiers) > 0 {
 		defaultTier = h.cfg().Tiers[0].Key
 	}
+	// Pre-fill from template if redirected from POST /tasks/from-template/{id}.
+	task := &models.Task{Tier: defaultTier, Direction: "blocked_on_me"}
+	if r.URL.Query().Get("from_template") == "1" {
+		task.WorkType = r.URL.Query().Get("work_type")
+		task.Description = r.URL.Query().Get("description")
+		task.Recurrence = sanitizeRecurrence(r.URL.Query().Get("recurrence"))
+	}
+	tmpls, _ := h.db.ListTemplates() // best-effort — page still works if this fails
+	if tmpls == nil {
+		tmpls = []*models.TaskTemplate{}
+	}
 	h.render(w, "task_form.html", map[string]interface{}{
-		"WorkTypes": h.cfg().WorkTypes,
-		"Tiers":     h.cfg().Tiers,
-		"Task":      &models.Task{Tier: defaultTier, Direction: "blocked_on_me"},
-		"IsNew":     true,
-		"Nav":       "tasks",
+		"WorkTypes":    h.cfg().WorkTypes,
+		"Tiers":        h.cfg().Tiers,
+		"Task":         task,
+		"IsNew":        true,
+		"Nav":          "tasks",
+		"Templates":    tmpls,
+		"FromTemplate": r.URL.Query().Get("tmpl_name"),
 	})
 }
 

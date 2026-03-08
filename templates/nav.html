@@ -2,10 +2,11 @@
 <header>
   <a href="/" class="logo">workflow</a>
   <nav class="main-nav">
-    <a href="/"         class="nav-link {{if eq .Nav "tasks"}}active{{end}}">Tasks</a>
-    <a href="/sessions" class="nav-link {{if eq .Nav "sessions"}}active{{end}}">Sessions</a>
-    <a href="/notes"    class="nav-link {{if eq .Nav "notes"}}active{{end}}">Notes</a>
-    <a href="/digest"   class="nav-link {{if eq .Nav "digest"}}active{{end}}">Digest</a>
+    <a href="/"           class="nav-link {{if eq .Nav "tasks"}}active{{end}}">Tasks</a>
+    <a href="/sessions"  class="nav-link {{if eq .Nav "sessions"}}active{{end}}">Sessions</a>
+    <a href="/notes"     class="nav-link {{if eq .Nav "notes"}}active{{end}}">Notes</a>
+    <a href="/templates" class="nav-link {{if eq .Nav "templates"}}active{{end}}">Templates</a>
+    <a href="/digest"    class="nav-link {{if eq .Nav "digest"}}active{{end}}">Digest</a>
   </nav>
   <div class="header-actions">
     <a href="/search" class="nav-search-btn" title="Search sessions">

@@ -849,3 +849,139 @@ func TestCloneTaskForRecurrence_CopiesFields(t *testing.T) {
 		t.Error("expected clone to not be done")
 	}
 }
+
+// ── Task Templates ────────────────────────────────────────────────────────────
+
+func TestCreateTemplate(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	tmpl, err := db.CreateTemplate("PR Review", "pr_review", "Check the diff carefully.", "")
+	if err != nil {
+		t.Fatalf("CreateTemplate: %v", err)
+	}
+	if tmpl.ID == "" {
+		t.Error("expected non-empty ID")
+	}
+	if tmpl.Name != "PR Review" {
+		t.Errorf("expected Name=%q, got %q", "PR Review", tmpl.Name)
+	}
+	if tmpl.WorkType != "pr_review" {
+		t.Errorf("expected WorkType=%q, got %q", "pr_review", tmpl.WorkType)
+	}
+	if tmpl.Description != "Check the diff carefully." {
+		t.Errorf("expected Description copied, got %q", tmpl.Description)
+	}
+	if tmpl.CreatedAt == "" {
+		t.Error("expected non-empty CreatedAt")
+	}
+}
+
+func TestCreateTemplate_RecurrenceStored(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	tmpl, err := db.CreateTemplate("Weekly Sync", "meeting", "Weekly priorities sync.", "weekly")
+	if err != nil {
+		t.Fatalf("CreateTemplate: %v", err)
+	}
+	if tmpl.Recurrence != "weekly" {
+		t.Errorf("expected Recurrence=%q, got %q", "weekly", tmpl.Recurrence)
+	}
+}
+
+func TestListTemplates(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Fresh DB has 4 seeded defaults.
+	all, err := db.ListTemplates()
+	if err != nil {
+		t.Fatalf("ListTemplates: %v", err)
+	}
+	if len(all) != 4 {
+		t.Errorf("expected 4 seeded templates, got %d", len(all))
+	}
+
+	// Add one more and confirm count increments.
+	if _, err := db.CreateTemplate("Custom", "coding", "", ""); err != nil {
+		t.Fatalf("CreateTemplate: %v", err)
+	}
+	all2, err := db.ListTemplates()
+	if err != nil {
+		t.Fatalf("ListTemplates after add: %v", err)
+	}
+	if len(all2) != 5 {
+		t.Errorf("expected 5 templates after add, got %d", len(all2))
+	}
+}
+
+func TestListTemplates_OrderedByName(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Clear seed data for a clean ordering test.
+	db.conn.Exec(`DELETE FROM task_templates`)
+
+	db.CreateTemplate("Zebra task", "coding", "", "")
+	db.CreateTemplate("Alpha task", "meeting", "", "")
+	db.CreateTemplate("Middle task", "design", "", "")
+
+	all, err := db.ListTemplates()
+	if err != nil {
+		t.Fatalf("ListTemplates: %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 templates, got %d", len(all))
+	}
+	if all[0].Name != "Alpha task" || all[1].Name != "Middle task" || all[2].Name != "Zebra task" {
+		t.Errorf("templates not sorted by name: got %v, %v, %v", all[0].Name, all[1].Name, all[2].Name)
+	}
+}
+
+func TestGetTemplate(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	created, _ := db.CreateTemplate("Deploy", "deployment", "Deploy and verify.", "")
+	got, err := db.GetTemplate(created.ID)
+	if err != nil {
+		t.Fatalf("GetTemplate: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("expected ID=%q, got %q", created.ID, got.ID)
+	}
+	if got.Name != "Deploy" {
+		t.Errorf("expected Name=%q, got %q", "Deploy", got.Name)
+	}
+}
+
+func TestDeleteTemplate(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	tmpl, _ := db.CreateTemplate("Temp", "coding", "", "")
+	if err := db.DeleteTemplate(tmpl.ID); err != nil {
+		t.Fatalf("DeleteTemplate: %v", err)
+	}
+	// Confirm it's gone.
+	_, err := db.GetTemplate(tmpl.ID)
+	if err == nil {
+		t.Error("expected error getting deleted template, got nil")
+	}
+}
+
+func TestSeedDefaultTemplates_OnlySeededOnce(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Opening a fresh DB should have seeded 4 defaults.
+	// Calling seed again should be a no-op.
+	if err := db.seedDefaultTemplates(); err != nil {
+		t.Fatalf("seedDefaultTemplates: %v", err)
+	}
+	all, _ := db.ListTemplates()
+	if len(all) != 4 {
+		t.Errorf("expected 4 templates (no duplicate seeds), got %d", len(all))
+	}
+}

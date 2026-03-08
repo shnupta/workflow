@@ -2069,3 +2069,150 @@ input[type="date"] {
   padding: 0 2px;
 }
 .flash-close:hover { opacity: 1; }
+
+/* ─── Task templates ─────────────────────────────────────────────────────── */
+
+/* Templates page */
+.tpl-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.tpl-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.tpl-page-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* Inline create form */
+.tpl-create-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.tpl-form { display: flex; flex-direction: column; gap: 16px; }
+
+.tpl-form-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.tpl-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Template card list */
+.tpl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tpl-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  transition: border-color .15s;
+}
+.tpl-card:hover { border-color: var(--accent-dim); }
+
+.tpl-card-body { flex: 1; min-width: 0; }
+
+.tpl-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.tpl-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tpl-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.tpl-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tpl-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tpl-empty, .tpl-empty-inline {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* Template picker on new-task form */
+.form-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.form-page-header h1 {
+  font-size: 20px;
+  margin-bottom: 0;
+}
+
+.tpl-picker-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.tpl-picker-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tpl-picker-select {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+/* Pre-fill notice banner */
+.tpl-prefill-notice {
+  margin-bottom: 20px;
+}
+
+/* Required field star */
+.required-star {
+  color: var(--red);
+}

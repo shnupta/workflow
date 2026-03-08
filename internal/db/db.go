@@ -91,6 +91,22 @@ func (d *DB) migrate() error {
 		)
 	`)
 
+	// Task templates table
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS task_templates (
+			id          TEXT PRIMARY KEY,
+			name        TEXT NOT NULL,
+			work_type   TEXT NOT NULL DEFAULT '',
+			description TEXT NOT NULL DEFAULT '',
+			recurrence  TEXT NOT NULL DEFAULT '',
+			created_at  TEXT NOT NULL
+		)
+	`)
+	// Seed default templates when the table is empty.
+	if err := d.seedDefaultTemplates(); err != nil {
+		log.Printf("db: seeding default templates: %v", err)
+	}
+
 	// Session migrations
 	for _, col := range []string{
 		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
@@ -934,6 +950,108 @@ func scanNote(row noteScanner) (*models.Note, error) {
 	n.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	n.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 	return &n, nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Task Templates
+// ─────────────────────────────────────────────────────────
+
+var defaultTemplates = []struct{ name, workType, description, recurrence string }{
+	{"PR Review", "pr_review", "Review PR, check diff, leave comments.", ""},
+	{"Deployment", "deployment", "Deploy to production. Verify health checks after.", ""},
+	{"Weekly Sync", "meeting", "Weekly team sync — review priorities, blockers, updates.", "weekly"},
+	{"Design Review", "design", "Review design proposal. Check consistency, feasibility, feedback.", ""},
+}
+
+// seedDefaultTemplates inserts the built-in templates when the table is empty.
+// Safe to call on every startup — no-ops if rows exist.
+func (d *DB) seedDefaultTemplates() error {
+	var count int
+	if err := d.conn.QueryRow(`SELECT COUNT(*) FROM task_templates`).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	for _, t := range defaultTemplates {
+		id := uuid.New().String()
+		now := time.Now().UTC().Format(time.RFC3339)
+		if _, err := d.conn.Exec(
+			`INSERT INTO task_templates (id, name, work_type, description, recurrence, created_at) VALUES (?,?,?,?,?,?)`,
+			id, t.name, t.workType, t.description, t.recurrence, now,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreateTemplate inserts a new task template and returns it with its generated ID.
+// recurrence must already be sanitized by the caller (empty string = no recurrence).
+func (d *DB) CreateTemplate(name, workType, description, recurrence string) (*models.TaskTemplate, error) {
+	tmpl := &models.TaskTemplate{
+		ID:          uuid.New().String(),
+		Name:        name,
+		WorkType:    workType,
+		Description: description,
+		Recurrence:  recurrence,
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+	_, err := d.conn.Exec(
+		`INSERT INTO task_templates (id, name, work_type, description, recurrence, created_at) VALUES (?,?,?,?,?,?)`,
+		tmpl.ID, tmpl.Name, tmpl.WorkType, tmpl.Description, tmpl.Recurrence, tmpl.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return tmpl, nil
+}
+
+// ListTemplates returns all templates ordered by name.
+func (d *DB) ListTemplates() ([]*models.TaskTemplate, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, name, work_type, description, recurrence, created_at FROM task_templates ORDER BY name ASC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.TaskTemplate
+	for rows.Next() {
+		t, err := scanTemplate(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// GetTemplate returns a single template by ID.
+func (d *DB) GetTemplate(id string) (*models.TaskTemplate, error) {
+	row := d.conn.QueryRow(
+		`SELECT id, name, work_type, description, recurrence, created_at FROM task_templates WHERE id=?`, id,
+	)
+	return scanTemplate(row)
+}
+
+// DeleteTemplate removes a template by ID.
+func (d *DB) DeleteTemplate(id string) error {
+	_, err := d.conn.Exec(`DELETE FROM task_templates WHERE id=?`, id)
+	return err
+}
+
+type templateScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTemplate(row templateScanner) (*models.TaskTemplate, error) {
+	var t models.TaskTemplate
+	err := row.Scan(&t.ID, &t.Name, &t.WorkType, &t.Description, &t.Recurrence, &t.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 // ─── Weekly Digest ────────────────────────────────────────────────────────────

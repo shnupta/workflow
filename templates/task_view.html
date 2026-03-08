@@ -24,6 +24,7 @@
         </div>
         <div class="task-page-actions">
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
+          <button class="btn btn-ghost" onclick="saveAsTemplate()" title="Save this task as a reusable template">Save as template</button>
           <form method="POST" action="/tasks/{{.Task.ID}}/done" style="display:contents">
             <button type="submit" class="btn btn-primary">Mark done</button>
           </form>
@@ -584,6 +585,41 @@
         blockerLink.textContent = '';
       } catch {
         alert('Failed to clear blocker');
+      }
+    };
+  })();
+
+  // ── Save as template ─────────────────────────────────────────────────────────
+  (function() {
+    const taskID    = "{{.Task.ID}}";
+    const taskTitle = {{jsonStr .Task.Title}};
+
+    window.saveAsTemplate = async function() {
+      const name = prompt('Template name:', taskTitle);
+      if (name === null) return; // user cancelled
+      const trimmed = name.trim();
+      if (!trimmed) { alert('Template name cannot be empty'); return; }
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/save-as-template`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: trimmed}),
+        });
+        if (res.ok) {
+          // Show a brief inline confirmation.
+          const btn = document.querySelector('button[onclick="saveAsTemplate()"]');
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✓ Saved!';
+            btn.disabled = true;
+            setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+          }
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'Failed to save template');
+        }
+      } catch {
+        alert('Failed to save template');
       }
     };
   })();
