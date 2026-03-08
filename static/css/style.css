@@ -1155,6 +1155,14 @@ input[type="date"] {
   color: var(--text-primary);
 }
 
+/* Always reserve space for the nav action button so the tab bar
+   doesn't shift position between pages. On non-task tabs the button
+   is invisible but still occupies its full layout width. */
+.nav-action-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .search-form {
   margin-bottom: 24px;
 }
