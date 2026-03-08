@@ -52,6 +52,9 @@
         {{if .Task.DueDate}}
           · <span class="due-label {{if .Task.IsOverdue}}due-overdue{{else if .Task.IsDueToday}}due-today{{end}}">Due {{dueDateLabel .Task.DueDate}}</span>
         {{end}}
+        {{if .Task.IsRecurring}}
+          · <span class="recurrence-badge" title="Recurs — a new copy is added to Backlog when done">↻ {{recurrenceLabel .Task.Recurrence}}</span>
+        {{end}}
       </p>
 
       <!-- Timer -->

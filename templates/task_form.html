@@ -71,6 +71,18 @@
           <input type="date" id="due_date" name="due_date" value="{{formatDate .Task.DueDate}}">
         </div>
 
+        <div class="field">
+          <label for="recurrence">Recurrence <span class="optional">(optional)</span></label>
+          <select id="recurrence" name="recurrence">
+            <option value=""         {{if eq .Task.Recurrence ""}}selected{{end}}>No recurrence</option>
+            <option value="daily"    {{if eq .Task.Recurrence "daily"}}selected{{end}}>Daily</option>
+            <option value="weekly"   {{if eq .Task.Recurrence "weekly"}}selected{{end}}>Weekly</option>
+            <option value="biweekly" {{if eq .Task.Recurrence "biweekly"}}selected{{end}}>Every 2 weeks</option>
+            <option value="monthly"  {{if eq .Task.Recurrence "monthly"}}selected{{end}}>Monthly</option>
+          </select>
+          <div class="field-hint">When marked done, a new copy is automatically added to Backlog.</div>
+        </div>
+
         {{if not .Edit}}
         <div class="field field-checkbox" id="brief-opt-in-field">
           <label class="checkbox-label">

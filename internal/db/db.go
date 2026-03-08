@@ -64,6 +64,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN timer_total   INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN scratchpad    TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN blocked_by    TEXT`,
+		`ALTER TABLE tasks ADD COLUMN recurrence   TEXT NOT NULL DEFAULT ''`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -209,11 +210,11 @@ func (d *DB) CreateTask(t *models.Task) error {
 		blockedBy = t.BlockedBy
 	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "", blockedBy,
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "", blockedBy, t.Recurrence,
 	)
 	return err
 }
@@ -239,12 +240,12 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
 		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?,
-		timer_started=?, timer_total=?, scratchpad=?, blocked_by=?
+		timer_started=?, timer_total=?, scratchpad=?, blocked_by=?, recurrence=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate,
-		timerStarted, t.TimerTotal, t.Scratchpad, blockedBy, t.ID,
+		timerStarted, t.TimerTotal, t.Scratchpad, blockedBy, t.Recurrence, t.ID,
 	)
 	return err
 }
@@ -283,7 +284,7 @@ func (d *DB) TimerReset(id string) error {
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks WHERE id=?`, id)
 	return scanTask(row)
 }
@@ -301,7 +302,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -330,7 +331,7 @@ func (d *DB) DeleteTask(id string) error {
 // SearchTasks returns up to 20 non-done tasks whose title contains query (case-insensitive).
 func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks
 		WHERE done=0 AND title LIKE ?
 		ORDER BY updated_at DESC
@@ -355,7 +356,7 @@ func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
 func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
 	t, err := scanTask(row)
 	if err != nil {
@@ -367,15 +368,50 @@ func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	return t, nil
 }
 
-func (d *DB) MarkDone(id string) error {
+func (d *DB) MarkDone(id string) (cloned bool, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, updated_at=? WHERE id=?`, now, now, id)
-	if err != nil {
-		return err
+	if _, err = d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, updated_at=? WHERE id=?`, now, now, id); err != nil {
+		return false, err
 	}
 	// Clear the blocker on any tasks that were blocked by this one.
-	_, err = d.conn.Exec(`UPDATE tasks SET blocked_by=NULL, updated_at=? WHERE blocked_by=?`, now, id)
-	return err
+	if _, err = d.conn.Exec(`UPDATE tasks SET blocked_by=NULL, updated_at=? WHERE blocked_by=?`, now, id); err != nil {
+		return false, err
+	}
+	// If the task is recurring, create the next occurrence in Backlog.
+	t, err := d.GetTask(id)
+	if err != nil {
+		return false, fmt.Errorf("getting task after mark done: %w", err)
+	}
+	if t.IsRecurring() {
+		if _, err = d.CloneTaskForRecurrence(id); err != nil {
+			return false, fmt.Errorf("cloning recurring task: %w", err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+// CloneTaskForRecurrence creates a new backlog task copying title, description,
+// work_type, direction, and recurrence from the source task. All other fields
+// (timers, brief, scratchpad, blocked_by, due_date) are reset to zero values.
+// Returns the newly created task.
+func (d *DB) CloneTaskForRecurrence(taskID string) (*models.Task, error) {
+	src, err := d.GetTask(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("getting source task: %w", err)
+	}
+	clone := &models.Task{
+		Title:       src.Title,
+		Description: src.Description,
+		WorkType:    src.WorkType,
+		Tier:        "backlog",
+		Direction:   src.Direction,
+		Recurrence:  src.Recurrence,
+	}
+	if err := d.CreateTask(clone); err != nil {
+		return nil, fmt.Errorf("creating clone: %w", err)
+	}
+	return clone, nil
 }
 
 // SetBlockedBy records that taskID is blocked by blockerID.
@@ -503,7 +539,7 @@ func scanTask(row *sql.Row) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted, blockedBy *string
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence)
 	if err != nil {
 		return nil, err
 	}
@@ -519,7 +555,7 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted, blockedBy *string
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence)
 	if err != nil {
 		return nil, err
 	}

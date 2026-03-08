@@ -191,3 +191,21 @@ func TestIsBlocked_WithValue(t *testing.T) {
 		t.Error("task with BlockedBy set should be blocked")
 	}
 }
+
+// ── IsRecurring ───────────────────────────────────────────────────────────────
+
+func TestIsRecurring_Empty(t *testing.T) {
+	task := &Task{}
+	if task.IsRecurring() {
+		t.Error("task with no Recurrence should not be recurring")
+	}
+}
+
+func TestIsRecurring_WithValue(t *testing.T) {
+	for _, r := range []string{"daily", "weekly", "biweekly", "monthly"} {
+		task := &Task{Recurrence: r}
+		if !task.IsRecurring() {
+			t.Errorf("task with Recurrence=%q should be recurring", r)
+		}
+	}
+}

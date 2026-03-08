@@ -26,10 +26,14 @@ type Task struct {
 	TimerTotal   int        `db:"timer_total"    json:"timer_total"`   // accumulated seconds (not counting current run)
 	Scratchpad   string     `db:"scratchpad"     json:"scratchpad"`    // free-form notes/context for this task
 	BlockedBy    string     `db:"blocked_by"     json:"blocked_by"`    // ID of the task blocking this one (empty = not blocked)
+	Recurrence   string     `db:"recurrence"     json:"recurrence"`    // "" | "daily" | "weekly" | "biweekly" | "monthly"
 }
 
 // IsBlocked returns true when the task has an active blocker set.
 func (t *Task) IsBlocked() bool { return t.BlockedBy != "" }
+
+// IsRecurring returns true when the task has a recurrence schedule set.
+func (t *Task) IsRecurring() bool { return t.Recurrence != "" }
 
 func (t *Task) DirectionLabel() string {
 	if t.Direction == "blocked_on_them" {

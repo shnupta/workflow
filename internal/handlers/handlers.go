@@ -123,6 +123,7 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return fmt.Sprintf("%dm", m)
 		},
+		"recurrenceLabel": recurrenceLabel,
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -289,9 +290,10 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "index.html", map[string]interface{}{
-		"Tiers":     tiers,
-		"WorkTypes": h.cfg().WorkTypes,
-		"Nav":       "tasks",
+		"Tiers":          tiers,
+		"WorkTypes":      h.cfg().WorkTypes,
+		"Nav":            "tasks",
+		"RecurringCloned": r.URL.Query().Get("recurring_cloned") == "1",
 	})
 }
 
@@ -323,6 +325,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		PRURL:       r.FormValue("pr_url"),
 		Link:        r.FormValue("link"),
 		DueDate:     parseDateForm(r.FormValue("due_date")),
+		Recurrence:  sanitizeRecurrence(r.FormValue("recurrence")),
 	}
 	if err := h.db.CreateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -453,6 +456,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	t.PRURL = r.FormValue("pr_url")
 	t.Link = r.FormValue("link")
 	t.DueDate = parseDateForm(r.FormValue("due_date"))
+	t.Recurrence = sanitizeRecurrence(r.FormValue("recurrence"))
 	if err := h.db.UpdateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -461,11 +465,16 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
-	if err := h.db.MarkDone(r.PathValue("id")); err != nil {
+	cloned, err := h.db.MarkDone(r.PathValue("id"))
+	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	target := "/"
+	if cloned {
+		target = "/?recurring_cloned=1"
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
@@ -853,6 +862,16 @@ func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {
 	}
 }
 
+// sanitizeRecurrence returns s if it's a known recurrence value, otherwise "".
+func sanitizeRecurrence(s string) string {
+	switch s {
+	case "daily", "weekly", "biweekly", "monthly":
+		return s
+	default:
+		return ""
+	}
+}
+
 // parseDateForm parses a "2006-01-02" form value, returning nil if blank/invalid.
 func parseDateForm(s string) *time.Time {
 	s = strings.TrimSpace(s)
@@ -867,6 +886,22 @@ func parseDateForm(s string) *time.Time {
 }
 
 // dueDateLabel returns a human-friendly due date string for display on cards.
+// recurrenceLabel returns a human-friendly label for a recurrence value.
+func recurrenceLabel(r string) string {
+	switch r {
+	case "daily":
+		return "Daily"
+	case "weekly":
+		return "Weekly"
+	case "biweekly":
+		return "Every 2 weeks"
+	case "monthly":
+		return "Monthly"
+	default:
+		return ""
+	}
+}
+
 func dueDateLabel(t *time.Time) string {
 	if t == nil {
 		return ""

@@ -2021,3 +2021,51 @@ input[type="date"] {
   font-style: italic;
   list-style: none;
 }
+
+/* ─── Recurring tasks ────────────────────────────────────────────────────── */
+
+/* Subtle ↻ tag on board cards */
+.tag-recurring {
+  background: rgba(99,102,241,0.12);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: #818cf8;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  font-weight: 600;
+}
+
+/* Recurrence badge on task detail page */
+.recurrence-badge {
+  color: #818cf8;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Flash banner (used for recurring clone confirmation and future notices) */
+.flash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 12px 24px 0;
+}
+.flash-info {
+  background: rgba(99,102,241,0.12);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: #a5b4fc;
+}
+.flash-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.7;
+  padding: 0 2px;
+}
+.flash-close:hover { opacity: 1; }

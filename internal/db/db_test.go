@@ -118,7 +118,7 @@ func TestMarkDone(t *testing.T) {
 	task := newTask("Done task", "today")
 	db.CreateTask(task)
 
-	if err := db.MarkDone(task.ID); err != nil {
+	if _, err := db.MarkDone(task.ID); err != nil {
 		t.Fatalf("MarkDone: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestListTasks_ExcludesDoneByDefault(t *testing.T) {
 	done := newTask("Done", "today")
 	db.CreateTask(active)
 	db.CreateTask(done)
-	db.MarkDone(done.ID)
+	db.MarkDone(done.ID) //nolint:errcheck
 
 	tasks, err := db.ListTasks(false, testCfg)
 	if err != nil {
@@ -179,7 +179,7 @@ func TestListTasks_IncludesDoneWhenRequested(t *testing.T) {
 
 	task := newTask("Done", "today")
 	db.CreateTask(task)
-	db.MarkDone(task.ID)
+	db.MarkDone(task.ID) //nolint:errcheck
 
 	tasks, err := db.ListTasks(true, testCfg)
 	if err != nil {
@@ -257,7 +257,7 @@ func TestGetTaskByPRURL_IgnoresDone(t *testing.T) {
 	task := newTask("Done PR", "today")
 	task.PRURL = "https://github.com/org/repo/pull/7"
 	db.CreateTask(task)
-	db.MarkDone(task.ID)
+	db.MarkDone(task.ID) //nolint:errcheck
 
 	got, err := db.GetTaskByPRURL("https://github.com/org/repo/pull/7")
 	if err != nil {
@@ -667,7 +667,7 @@ func TestMarkDone_ClearsBlockerOnDependents(t *testing.T) {
 	db.SetBlockedBy(dep1.ID, blocker.ID)
 	db.SetBlockedBy(dep2.ID, blocker.ID)
 
-	if err := db.MarkDone(blocker.ID); err != nil {
+	if _, err := db.MarkDone(blocker.ID); err != nil {
 		t.Fatalf("MarkDone: %v", err)
 	}
 
@@ -702,10 +702,150 @@ func TestSearchTasks_ExcludesDone(t *testing.T) {
 
 	task := newTask("Login refactor", "today")
 	db.CreateTask(task)
-	db.MarkDone(task.ID)
+	db.MarkDone(task.ID) //nolint:errcheck
 
 	results, _ := db.SearchTasks("login")
 	if len(results) != 0 {
 		t.Errorf("expected 0 results (done task excluded), got %d", len(results))
+	}
+}
+
+// ── Recurrence ────────────────────────────────────────────────────────────────
+
+func TestCreateTask_WithRecurrence(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Daily standup", "today")
+	task.Recurrence = "daily"
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	got, err := db.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.Recurrence != "daily" {
+		t.Errorf("expected Recurrence=%q, got %q", "daily", got.Recurrence)
+	}
+	if !got.IsRecurring() {
+		t.Error("expected IsRecurring()=true")
+	}
+}
+
+func TestMarkDone_ClonesRecurringTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Weekly review", "today")
+	task.Recurrence = "weekly"
+	task.Description = "Review the week"
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	cloned, err := db.MarkDone(task.ID)
+	if err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	if !cloned {
+		t.Error("expected cloned=true for recurring task")
+	}
+
+	// Original should be done.
+	orig, _ := db.GetTask(task.ID)
+	if !orig.Done {
+		t.Error("expected original task to be done")
+	}
+
+	// A new task should exist in backlog with the same title/recurrence.
+	all, err := db.ListTasks(false, testCfg)
+	if err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+	var found *models.Task
+	for _, t := range all {
+		if t.Title == task.Title && t.ID != task.ID {
+			found = t
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected a cloned task in backlog, found none")
+	}
+	if found.Tier != "backlog" {
+		t.Errorf("expected clone tier=backlog, got %q", found.Tier)
+	}
+	if found.Recurrence != "weekly" {
+		t.Errorf("expected clone Recurrence=%q, got %q", "weekly", found.Recurrence)
+	}
+	if found.Done {
+		t.Error("expected clone to not be done")
+	}
+	if found.Description != "Review the week" {
+		t.Errorf("expected clone description copied, got %q", found.Description)
+	}
+	// Timers should be reset.
+	if found.TimerTotal != 0 || found.TimerStarted != nil {
+		t.Error("expected clone timers to be reset")
+	}
+}
+
+func TestMarkDone_NonRecurringTask_NotCloned(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("One-off task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	cloned, err := db.MarkDone(task.ID)
+	if err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	if cloned {
+		t.Error("expected cloned=false for non-recurring task")
+	}
+}
+
+func TestCloneTaskForRecurrence_CopiesFields(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	src := &models.Task{
+		Title:       "Monthly report",
+		Description: "Run the numbers",
+		WorkType:    "coding",
+		Tier:        "today",
+		Direction:   "blocked_on_me",
+		Recurrence:  "monthly",
+	}
+	if err := db.CreateTask(src); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	clone, err := db.CloneTaskForRecurrence(src.ID)
+	if err != nil {
+		t.Fatalf("CloneTaskForRecurrence: %v", err)
+	}
+	if clone.ID == src.ID {
+		t.Error("clone should have a new ID")
+	}
+	if clone.Title != src.Title {
+		t.Errorf("expected title %q, got %q", src.Title, clone.Title)
+	}
+	if clone.Description != src.Description {
+		t.Errorf("expected description copied, got %q", clone.Description)
+	}
+	if clone.Tier != "backlog" {
+		t.Errorf("expected tier=backlog, got %q", clone.Tier)
+	}
+	if clone.Recurrence != "monthly" {
+		t.Errorf("expected Recurrence=%q, got %q", "monthly", clone.Recurrence)
+	}
+	if clone.Done {
+		t.Error("expected clone to not be done")
 	}
 }
