@@ -386,6 +386,6 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `GET /export/tasks.csv` — all tasks, 12 columns including time_tracked, status, recurrence, blocked_by
   - Subtle export link at bottom of Digest tab; 68 tests passing
 
-- [ ] **Keyboard navigation on board**
-  - Arrow keys to move between cards, Enter to open, `m` to move to next column
-  - Power-user quality-of-life
+- [x] **Keyboard navigation on board** ✅ 2026-03-08
+  - Arrow keys navigate cards, Enter opens, `m` moves to next column (DOM surgery, no reload)
+  - Indigo focus ring; respects filter bar, overlay guard, existing shortcuts; 3 new handler tests
