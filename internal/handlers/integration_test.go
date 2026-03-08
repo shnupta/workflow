@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/shnupta/workflow/internal/config"
 	"github.com/shnupta/workflow/internal/db"
@@ -1421,5 +1422,240 @@ func TestHandler_TaskSearch_TabLinksPresentOnSessionsSearch(t *testing.T) {
 	}
 	if !strings.Contains(body, `href="/search/tasks"`) {
 		t.Error("expected link to /search/tasks from /search")
+	}
+}
+
+// ── GET /api/reminders/due ────────────────────────────────────────────────────
+
+func TestHandler_GetDueReminders_EmptyWhenNone(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/api/reminders/due")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", resp.StatusCode, body)
+	}
+	var out []interface{}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("not JSON array: %v; body: %s", err, body)
+	}
+	if len(out) != 0 {
+		t.Errorf("expected empty array, got %d items", len(out))
+	}
+}
+
+func TestHandler_GetDueReminders_ReturnsDueReminder(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "due reminder task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Past reminder — should appear in due list.
+	past := time.Now().UTC().Add(-5 * time.Minute)
+	if _, err := h.db.CreateReminder(task.ID, past, "check this"); err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+
+	resp := get(t, srv, "/api/reminders/due")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d; body: %s", resp.StatusCode, body)
+	}
+	var out []map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("not JSON: %v; body: %s", err, body)
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected 1 due reminder, got %d", len(out))
+	}
+	if out[0]["task_title"] != "due reminder task" {
+		t.Errorf("task_title: got %v", out[0]["task_title"])
+	}
+	if out[0]["note"] != "check this" {
+		t.Errorf("note: got %v", out[0]["note"])
+	}
+	if out[0]["remind_at_formatted"] == nil || out[0]["remind_at_formatted"] == "" {
+		t.Error("expected non-empty remind_at_formatted")
+	}
+	if out[0]["task_id"] != task.ID {
+		t.Errorf("task_id: got %v, want %s", out[0]["task_id"], task.ID)
+	}
+}
+
+func TestHandler_GetDueReminders_ExcludesFutureReminder(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "future task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	future := time.Now().UTC().Add(time.Hour)
+	if _, err := h.db.CreateReminder(task.ID, future, "not yet"); err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+
+	resp := get(t, srv, "/api/reminders/due")
+	body := readBody(t, resp)
+	var out []interface{}
+	json.Unmarshal([]byte(body), &out)
+	if len(out) != 0 {
+		t.Errorf("expected 0 due reminders for future reminder, got %d", len(out))
+	}
+}
+
+func TestHandler_GetDueReminders_ExcludesAlreadySent(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "sent task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	past := time.Now().UTC().Add(-time.Minute)
+	rem, err := h.db.CreateReminder(task.ID, past, "")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+	if err := h.db.MarkReminderSent(rem.ID); err != nil {
+		t.Fatalf("MarkReminderSent: %v", err)
+	}
+
+	resp := get(t, srv, "/api/reminders/due")
+	body := readBody(t, resp)
+	var out []interface{}
+	json.Unmarshal([]byte(body), &out)
+	if len(out) != 0 {
+		t.Errorf("expected 0 due reminders (already sent), got %d", len(out))
+	}
+}
+
+// ── POST /api/reminders/{id}/dismiss ─────────────────────────────────────────
+
+func TestHandler_DismissReminder_Returns204(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "dismiss task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	past := time.Now().UTC().Add(-time.Minute)
+	rem, err := h.db.CreateReminder(task.ID, past, "dismiss me")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/reminders/"+strconv.FormatInt(rem.ID, 10)+"/dismiss", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_DismissReminder_RemovedFromDueList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "dismiss check task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	past := time.Now().UTC().Add(-time.Minute)
+	rem, err := h.db.CreateReminder(task.ID, past, "")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+
+	// Verify it appears before dismiss.
+	resp := get(t, srv, "/api/reminders/due")
+	var before []interface{}
+	json.Unmarshal([]byte(readBody(t, resp)), &before)
+	if len(before) != 1 {
+		t.Fatalf("expected 1 due reminder before dismiss, got %d", len(before))
+	}
+
+	// Dismiss it.
+	postJSON(t, srv, "/api/reminders/"+strconv.FormatInt(rem.ID, 10)+"/dismiss", nil)
+
+	// Verify it's gone from due list.
+	resp2 := get(t, srv, "/api/reminders/due")
+	var after []interface{}
+	json.Unmarshal([]byte(readBody(t, resp2)), &after)
+	if len(after) != 0 {
+		t.Errorf("expected 0 due reminders after dismiss, got %d", len(after))
+	}
+}
+
+func TestHandler_DismissReminder_InvalidID_Returns400(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := postJSON(t, srv, "/api/reminders/not-a-number/dismiss", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric ID, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_DismissReminder_Idempotent(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "idempotent dismiss",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	past := time.Now().UTC().Add(-time.Minute)
+	rem, err := h.db.CreateReminder(task.ID, past, "")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+	idStr := strconv.FormatInt(rem.ID, 10)
+
+	postJSON(t, srv, "/api/reminders/"+idStr+"/dismiss", nil)
+	resp := postJSON(t, srv, "/api/reminders/"+idStr+"/dismiss", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("second dismiss: expected 204, got %d", resp.StatusCode)
 	}
 }

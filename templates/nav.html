@@ -15,4 +15,112 @@
     <a href="/tasks/new" class="btn btn-primary {{if ne .Nav "tasks"}}nav-action-hidden{{end}}">+ New task</a>
   </div>
 </header>
+
+<!-- Toast container (shared across all pages) -->
+<div id="toast-container" aria-live="polite" aria-label="Reminder notifications"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // IDs of reminders already shown this browser session — prevents
+  // re-toasting the same reminder on the next poll before dismiss.
+  const _shown = new Set(
+    JSON.parse(sessionStorage.getItem('wf_shown_reminders') || '[]')
+  );
+
+  function _saveShown() {
+    sessionStorage.setItem('wf_shown_reminders', JSON.stringify([..._shown]));
+  }
+
+  function _escHTML(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _removeToast(el) {
+    el.classList.add('toast-dismissing');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+  }
+
+  async function _dismiss(id, el) {
+    _shown.add(id);
+    _saveShown();
+    _removeToast(el);
+    try {
+      await fetch('/api/reminders/' + id + '/dismiss', { method: 'POST' });
+    } catch (_) {
+      // Best-effort — the toast is already gone visually.
+    }
+  }
+
+  function _showToast(rem) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'reminder-toast';
+    toast.setAttribute('role', 'alert');
+    toast.dataset.reminderId = rem.id;
+
+    const noteHTML = rem.note
+      ? `<div class="toast-note">${_escHTML(rem.note)}</div>`
+      : '';
+
+    toast.innerHTML =
+      `<div class="toast-header">` +
+        `<a class="toast-title" href="/tasks/${_escHTML(rem.task_id)}">` +
+          `⏰ ${_escHTML(rem.task_title)}` +
+        `</a>` +
+        `<button class="toast-dismiss" aria-label="Dismiss reminder">×</button>` +
+      `</div>` +
+      noteHTML +
+      `<div class="toast-time">${_escHTML(rem.remind_at_formatted)}</div>` +
+      `<div class="toast-progress"></div>`;
+
+    toast.querySelector('.toast-dismiss').addEventListener('click', () => {
+      _dismiss(rem.id, toast);
+    });
+
+    container.appendChild(toast);
+
+    // Auto-dismiss after 10 s.
+    const timer = setTimeout(() => _dismiss(rem.id, toast), 10000);
+
+    // Cancel auto-dismiss while the user hovers (gives time to click the link).
+    toast.addEventListener('mouseenter', () => clearTimeout(timer));
+    toast.addEventListener('mouseleave', () => {
+      setTimeout(() => _dismiss(rem.id, toast), 3000);
+    });
+  }
+
+  async function _poll() {
+    let due;
+    try {
+      const resp = await fetch('/api/reminders/due');
+      if (!resp.ok) return;
+      due = await resp.json();
+    } catch (_) {
+      return; // network error — try again next tick
+    }
+
+    if (!Array.isArray(due)) return;
+
+    for (const rem of due) {
+      if (!_shown.has(rem.id)) {
+        _shown.add(rem.id);
+        _saveShown();
+        _showToast(rem);
+      }
+    }
+  }
+
+  // Poll immediately, then every 60 s.
+  _poll();
+  setInterval(_poll, 60_000);
+})();
+</script>
 {{end}}

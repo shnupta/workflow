@@ -15,6 +15,8 @@ func (h *Handler) registerReminderRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/reminders", h.apiListReminders)
 	mux.HandleFunc("POST /api/tasks/{id}/reminders", h.apiCreateReminder)
 	mux.HandleFunc("DELETE /api/reminders/{id}", h.apiDeleteReminder)
+	mux.HandleFunc("GET /api/reminders/due", h.apiDueReminders)
+	mux.HandleFunc("POST /api/reminders/{id}/dismiss", h.apiDismissReminder)
 }
 
 // apiListReminders returns all reminders for a task as a JSON array.
@@ -76,6 +78,56 @@ func (h *Handler) apiDeleteReminder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.DeleteReminder(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiDueReminders returns all unsent due reminders joined with task titles.
+// Called by the client-side polling loop every 60 s.
+func (h *Handler) apiDueReminders(w http.ResponseWriter, r *http.Request) {
+	due, err := h.db.ListDueRemindersWithTask()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type dueReminderJSON struct {
+		ID                int64  `json:"id"`
+		TaskID            string `json:"task_id"`
+		TaskTitle         string `json:"task_title"`
+		Note              string `json:"note"`
+		RemindAt          string `json:"remind_at"`
+		RemindAtFormatted string `json:"remind_at_formatted"`
+	}
+
+	out := make([]dueReminderJSON, 0, len(due))
+	for _, dr := range due {
+		out = append(out, dueReminderJSON{
+			ID:                dr.ID,
+			TaskID:            dr.TaskID,
+			TaskTitle:         dr.TaskTitle,
+			Note:              dr.Note,
+			RemindAt:          dr.RemindAt.UTC().Format(time.RFC3339),
+			RemindAtFormatted: dr.RemindAtFormatted,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+// apiDismissReminder marks a reminder as sent (suppressing future polls) and
+// returns 204. This is what the toast dismiss button calls.
+func (h *Handler) apiDismissReminder(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid reminder id", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.MarkReminderSent(id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

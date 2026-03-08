@@ -1660,6 +1660,46 @@ func (d *DB) ListDueReminders() ([]*models.Reminder, error) {
 	return scanReminderRows(rows)
 }
 
+// DueReminderRow is a due reminder joined with its task title, used by the
+// in-app notification API.
+type DueReminderRow struct {
+	ID                int64
+	TaskID            string
+	TaskTitle         string
+	Note              string
+	RemindAt          time.Time
+	RemindAtFormatted string
+}
+
+// ListDueRemindersWithTask returns unsent due reminders joined with their task
+// title, ordered oldest-first. This is the backend for GET /api/reminders/due.
+func (d *DB) ListDueRemindersWithTask() ([]*DueReminderRow, error) {
+	rows, err := d.conn.Query(
+		`SELECT r.id, r.task_id, t.title, r.note, r.remind_at
+		 FROM task_reminders r
+		 JOIN tasks t ON t.id = r.task_id
+		 WHERE r.sent = 0 AND r.remind_at <= datetime('now')
+		 ORDER BY r.remind_at ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list due reminders with task: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*DueReminderRow
+	for rows.Next() {
+		var dr DueReminderRow
+		var remindAtStr string
+		if err := rows.Scan(&dr.ID, &dr.TaskID, &dr.TaskTitle, &dr.Note, &remindAtStr); err != nil {
+			return nil, fmt.Errorf("scan due reminder: %w", err)
+		}
+		dr.RemindAt = parseReminderTime(remindAtStr)
+		dr.RemindAtFormatted = (&models.Reminder{RemindAt: dr.RemindAt}).RemindAtFormatted()
+		out = append(out, &dr)
+	}
+	return out, rows.Err()
+}
+
 // ListRemindersForTask returns all reminders for taskID ordered by
 // remind_at ASC (both sent and unsent).
 func (d *DB) ListRemindersForTask(taskID string) ([]*models.Reminder, error) {
