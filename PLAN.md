@@ -416,8 +416,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 - [x] **Notification / reminder system** ✅ 2026-03-08
   - `task_reminders` table; CreateReminder/ListDueReminders/MarkReminderSent/Delete
-  - Reminders panel on task page (datetime-local input + note); served/past state styling
-  - `scripts/check_reminders.py` — stdlib only, HTML Telegram messages, --db flag; 162 tests
+  - Reminders panel on task page (datetime-local input + note); past state styling
+  - In-app toast delivery: `GET /api/reminders/due` + `POST /api/reminders/{id}/dismiss`; client polls every 60s; hover-to-pause, CSS progress bar, sessionStorage dedup; 186 tests
 
 - [ ] **Sub-sessions / thread view**
   - Sessions can spawn sub-sessions (parent_id is already in schema)
