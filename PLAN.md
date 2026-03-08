@@ -109,21 +109,21 @@ Location: `internal/db/db_test.go`, `internal/models/task_test.go`, etc.
   - [x] `ArchiveSession` / `PinSession`
   - [x] `UpdateBrief` sets brief content and status
   - [x] `GetTaskByPRURL` — found, not found, ignores done tasks
-  - [ ] `MoveTask` reorders positions correctly (not yet tested)
-  - [ ] `ListBriefVersions` returns newest-first (not yet tested)
-  - [ ] Notes: `CreateNote` / `UpdateNote` / `ListNotes` / `DeleteNote` (not yet tested)
-  - [ ] FTS5 search: `SearchSessions` returns results for indexed message content (not yet tested)
+  - [x] `MoveTask` reorders positions correctly ✅ 2026-03-08
+  - [x] `ListBriefVersions` returns newest-first ✅ 2026-03-08
+  - [x] Notes: `CreateNote` / `UpdateNote` / `ListNotes` / `DeleteNote` ✅ 2026-03-08
+  - [x] FTS5 search: `SearchSessions` returns results for indexed message content ✅ 2026-03-08
 
-- `internal/handlers/` — HTTP handler integration tests using `httptest.NewServer`
-  - [ ] `GET /` returns 200
-  - [ ] `POST /tasks` creates task and redirects
-  - [ ] `POST /tasks/quick` returns JSON with new task ID
-  - [ ] `POST /tasks/{id}/done` marks done, redirects to board
-  - [ ] `POST /tasks/{id}/timer` toggles timer, returns updated elapsed
-  - [ ] `GET /digest` returns 200 with correct week stats
-  - [ ] `GET /api/notes` returns empty list on fresh DB
-  - [ ] `POST /api/notes` creates note, returns JSON
-  - [ ] `PATCH /api/notes/{id}` updates content, derives title from first line
+- `internal/handlers/` — HTTP handler integration tests using `httptest.NewServer` ✅ 2026-03-08 (102 total)
+  - [x] `GET /` returns 200
+  - [x] `POST /tasks` creates task and redirects (empty title → 400, also fixed bug)
+  - [x] `POST /tasks/quick` returns JSON with new task ID
+  - [x] `POST /tasks/{id}/done` marks done, redirects to board
+  - [x] `POST /tasks/{id}/timer` toggles timer, returns updated elapsed
+  - [x] `GET /digest` returns 200 with correct week stats
+  - [x] `GET /api/notes` returns empty list on fresh DB
+  - [x] `POST /api/notes` creates note, returns JSON
+  - [x] `PATCH /api/notes/{id}` updates content, derives title from first line
 
 ---
 
