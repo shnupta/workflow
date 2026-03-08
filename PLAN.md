@@ -414,10 +414,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Notification / reminder system**
-  - Set a reminder on any task: "remind me tomorrow at 9am"
-  - Nox (or a cron) checks due reminders and sends Telegram message
-  - `task_reminders` table (task_id, remind_at, sent bool)
+- [x] **Notification / reminder system** ✅ 2026-03-08
+  - `task_reminders` table; CreateReminder/ListDueReminders/MarkReminderSent/Delete
+  - Reminders panel on task page (datetime-local input + note); served/past state styling
+  - `scripts/check_reminders.py` — stdlib only, HTML Telegram messages, --db flag; 162 tests
 
 - [ ] **Sub-sessions / thread view**
   - Sessions can spawn sub-sessions (parent_id is already in schema)
