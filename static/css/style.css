@@ -829,6 +829,139 @@ input[type="date"] {
 .scratchpad-textarea::placeholder { color: var(--text-muted); }
 .scratchpad-textarea:focus { background: var(--surface2); }
 
+/* ── User-defined task labels / tags ── */
+
+/* Chips on board cards */
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.card-tag {
+  background: rgba(124,106,247,0.13);
+  border: 1px solid rgba(124,106,247,0.3);
+  border-radius: 20px;
+  color: #a89cf7;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .03em;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.card-tags-overflow {
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 1px 4px;
+  align-self: center;
+}
+
+/* Tag chips — task detail page */
+.tags-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+.task-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(124,106,247,0.13);
+  border: 1px solid rgba(124,106,247,0.3);
+  border-radius: 20px;
+  color: #a89cf7;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px 3px 10px;
+}
+.task-tag-chip button {
+  background: none;
+  border: none;
+  color: #a89cf7;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  margin-left: 2px;
+  opacity: 0.6;
+  padding: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.task-tag-chip button:hover {
+  opacity: 1;
+  color: var(--red);
+}
+
+/* Tag input wrapper on detail page */
+.tag-input-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.tag-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 10px;
+  width: 120px;
+  transition: border-color 0.15s, width 0.2s;
+}
+.tag-input::placeholder { color: var(--text-muted); }
+.tag-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  width: 160px;
+}
+
+/* Tag autocomplete dropdown */
+.tag-autocomplete {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  display: none;
+  left: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  position: absolute;
+  top: calc(100% + 4px);
+  width: max-content;
+  min-width: 120px;
+  z-index: 100;
+}
+.tag-autocomplete.open { display: block; }
+.tag-ac-item {
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 6px 12px;
+  transition: background 0.1s;
+}
+.tag-ac-item:hover,
+.tag-ac-item.selected { background: var(--accent-dim); }
+
+/* Tag filter chips in the filter bar (board page) */
+.filter-tag-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+  align-self: center;
+}
+.filter-chip.tag-chip {
+  background: rgba(124,106,247,0.12);
+  border-color: rgba(124,106,247,0.35);
+  color: #a89cf7;
+}
+.filter-chip.tag-chip.active,
+.filter-chip.tag-chip:hover {
+  background: rgba(124,106,247,0.3);
+  border-color: #a89cf7;
+  color: #fff;
+}
+
 /* ── Comments / activity log ── */
 .comments-panel {
   margin-top: 32px;

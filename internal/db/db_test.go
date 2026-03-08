@@ -1254,3 +1254,312 @@ func TestDeleteComment_CascadesWithTask(t *testing.T) {
 		t.Errorf("expected comments to be cascade-deleted, got %d", len(comments))
 	}
 }
+
+// ── Task tags ─────────────────────────────────────────────────────────────────
+
+func TestAddTag_BasicRoundTrip(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("tag target", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	if err := db.AddTag(task.ID, "backend"); err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	tags, err := db.ListTags(task.ID)
+	if err != nil {
+		t.Fatalf("ListTags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "backend" {
+		t.Errorf("expected [backend], got %v", tags)
+	}
+}
+
+func TestAddTag_NormalisesToLowercase(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("lower task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	if err := db.AddTag(task.ID, "  BackEnd  "); err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+	tags, _ := db.ListTags(task.ID)
+	if len(tags) != 1 || tags[0] != "backend" {
+		t.Errorf("expected [backend] (normalised), got %v", tags)
+	}
+}
+
+func TestAddTag_Duplicate_IsNoop(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("dup tag task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	if err := db.AddTag(task.ID, "alpha"); err != nil {
+		t.Fatalf("first AddTag: %v", err)
+	}
+	// Second add of same tag must not error.
+	if err := db.AddTag(task.ID, "alpha"); err != nil {
+		t.Fatalf("duplicate AddTag returned error: %v", err)
+	}
+	tags, _ := db.ListTags(task.ID)
+	if len(tags) != 1 {
+		t.Errorf("expected 1 tag after duplicate add, got %d: %v", len(tags), tags)
+	}
+}
+
+func TestAddTag_BlankTag_ReturnsError(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("blank tag task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := db.AddTag(task.ID, "   "); err == nil {
+		t.Error("expected error for blank tag, got nil")
+	}
+}
+
+func TestListTags_OrderedAlphabetically(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("sorted tags task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	for _, tag := range []string{"zebra", "alpha", "mango"} {
+		if err := db.AddTag(task.ID, tag); err != nil {
+			t.Fatalf("AddTag %q: %v", tag, err)
+		}
+	}
+
+	tags, err := db.ListTags(task.ID)
+	if err != nil {
+		t.Fatalf("ListTags: %v", err)
+	}
+	want := []string{"alpha", "mango", "zebra"}
+	if len(tags) != len(want) {
+		t.Fatalf("expected %v, got %v", want, tags)
+	}
+	for i, w := range want {
+		if tags[i] != w {
+			t.Errorf("tags[%d]: got %q, want %q", i, tags[i], w)
+		}
+	}
+}
+
+func TestListTags_OnlyForTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := newTask("task one", "today")
+	t2 := newTask("task two", "today")
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("CreateTask t1: %v", err)
+	}
+	if err := db.CreateTask(t2); err != nil {
+		t.Fatalf("CreateTask t2: %v", err)
+	}
+
+	db.AddTag(t1.ID, "exclusive")
+	db.AddTag(t2.ID, "other")
+
+	tags, err := db.ListTags(t1.ID)
+	if err != nil {
+		t.Fatalf("ListTags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "exclusive" {
+		t.Errorf("expected [exclusive], got %v", tags)
+	}
+}
+
+func TestListTags_EmptyForNewTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("no tags", "backlog")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	tags, err := db.ListTags(task.ID)
+	if err != nil {
+		t.Fatalf("ListTags: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("expected 0 tags, got %v", tags)
+	}
+}
+
+func TestRemoveTag(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("remove tag task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	db.AddTag(task.ID, "keep")
+	db.AddTag(task.ID, "remove")
+
+	if err := db.RemoveTag(task.ID, "remove"); err != nil {
+		t.Fatalf("RemoveTag: %v", err)
+	}
+
+	tags, _ := db.ListTags(task.ID)
+	if len(tags) != 1 || tags[0] != "keep" {
+		t.Errorf("expected [keep], got %v", tags)
+	}
+}
+
+func TestRemoveTag_NonExistent_IsNoop(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("noop remove", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := db.RemoveTag(task.ID, "ghost"); err != nil {
+		t.Errorf("RemoveTag non-existent: expected nil, got %v", err)
+	}
+}
+
+func TestListAllTags_DistinctAndSorted(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := newTask("task A", "today")
+	t2 := newTask("task B", "backlog")
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("CreateTask t1: %v", err)
+	}
+	if err := db.CreateTask(t2); err != nil {
+		t.Fatalf("CreateTask t2: %v", err)
+	}
+
+	db.AddTag(t1.ID, "shared")
+	db.AddTag(t1.ID, "alpha")
+	db.AddTag(t2.ID, "shared") // duplicate across tasks
+	db.AddTag(t2.ID, "zeta")
+
+	all, err := db.ListAllTags()
+	if err != nil {
+		t.Fatalf("ListAllTags: %v", err)
+	}
+	want := []string{"alpha", "shared", "zeta"}
+	if len(all) != len(want) {
+		t.Fatalf("expected %v, got %v", want, all)
+	}
+	for i, w := range want {
+		if all[i] != w {
+			t.Errorf("all[%d]: got %q, want %q", i, all[i], w)
+		}
+	}
+}
+
+func TestListAllTags_EmptyWhenNoTags(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	all, err := db.ListAllTags()
+	if err != nil {
+		t.Fatalf("ListAllTags: %v", err)
+	}
+	if len(all) != 0 {
+		t.Errorf("expected empty on fresh DB, got %v", all)
+	}
+}
+
+func TestAddTag_CascadeDeleteWithTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("cascade tag task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	db.AddTag(task.ID, "willcascade")
+
+	if err := db.DeleteTask(task.ID); err != nil {
+		t.Fatalf("DeleteTask: %v", err)
+	}
+
+	// Tags should have been cascade-deleted.
+	all, err := db.ListAllTags()
+	if err != nil {
+		t.Fatalf("ListAllTags after task delete: %v", err)
+	}
+	if len(all) != 0 {
+		t.Errorf("expected tags to be cascade-deleted, got %v", all)
+	}
+}
+
+func TestGetTask_PopulatesTags(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("get with tags", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	db.AddTag(task.ID, "ui")
+	db.AddTag(task.ID, "api")
+
+	got, err := db.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if len(got.Tags) != 2 {
+		t.Fatalf("expected 2 tags on retrieved task, got %v", got.Tags)
+	}
+	// ListTags orders alphabetically: api < ui
+	if got.Tags[0] != "api" || got.Tags[1] != "ui" {
+		t.Errorf("unexpected tag order: %v", got.Tags)
+	}
+}
+
+func TestListTasks_PopulatesTags(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := newTask("list task with tags", "today")
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	db.AddTag(t1.ID, "frontend")
+
+	tasks, err := db.ListTasks(false, testCfg)
+	if err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+	if len(tasks) == 0 {
+		t.Fatal("expected at least one task")
+	}
+	var found *models.Task
+	for _, tsk := range tasks {
+		if tsk.ID == t1.ID {
+			found = tsk
+		}
+	}
+	if found == nil {
+		t.Fatal("task not found in ListTasks result")
+	}
+	if len(found.Tags) != 1 || found.Tags[0] != "frontend" {
+		t.Errorf("expected [frontend], got %v", found.Tags)
+	}
+}

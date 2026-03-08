@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,6 +115,15 @@ func (d *DB) migrate() error {
 			task_id    TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
 			body       TEXT    NOT NULL,
 			created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+		)
+	`)
+
+	// Task tags table
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS task_tags (
+			task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			tag     TEXT NOT NULL,
+			PRIMARY KEY (task_id, tag)
 		)
 	`)
 
@@ -312,7 +322,12 @@ func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
 		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks WHERE id=?`, id)
-	return scanTask(row)
+	t, err := scanTask(row)
+	if err != nil {
+		return nil, err
+	}
+	t.Tags, err = d.ListTags(t.ID)
+	return t, err
 }
 
 func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, error) {
@@ -346,6 +361,9 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 		}
 		tasks = append(tasks, t)
 	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
+	}
 	return tasks, nil
 }
 
@@ -373,7 +391,13 @@ func (d *DB) ListAllTasks() ([]*models.Task, error) {
 		}
 		tasks = append(tasks, t)
 	}
-	return tasks, rows.Err()
+	if rerr := rows.Err(); rerr != nil {
+		return nil, rerr
+	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }
 
 // SearchTasks returns up to 20 non-done tasks whose title contains query (case-insensitive).
@@ -397,6 +421,9 @@ func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
 			return nil, err
 		}
 		tasks = append(tasks, t)
+	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
 	}
 	return tasks, nil
 }
@@ -1304,4 +1331,129 @@ func scanCommentRow(rows *sql.Rows) (*models.Comment, error) {
 		c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	}
 	return &c, nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Task tags
+// ─────────────────────────────────────────────────────────
+
+// AddTag associates tag with the given task. If the tag already exists the
+// call is a no-op (INSERT OR IGNORE).
+// tag is normalised to lowercase and trimmed before storage.
+func (d *DB) AddTag(taskID, tag string) error {
+	tag = normaliseTag(tag)
+	if tag == "" {
+		return fmt.Errorf("add tag: tag must not be blank")
+	}
+	_, err := d.conn.Exec(
+		`INSERT OR IGNORE INTO task_tags (task_id, tag) VALUES (?, ?)`,
+		taskID, tag,
+	)
+	if err != nil {
+		return fmt.Errorf("add tag %q to task %s: %w", tag, taskID, err)
+	}
+	return nil
+}
+
+// RemoveTag removes a tag from a task. Removing a tag that does not exist is
+// not an error.
+func (d *DB) RemoveTag(taskID, tag string) error {
+	tag = normaliseTag(tag)
+	_, err := d.conn.Exec(
+		`DELETE FROM task_tags WHERE task_id=? AND tag=?`,
+		taskID, tag,
+	)
+	if err != nil {
+		return fmt.Errorf("remove tag %q from task %s: %w", tag, taskID, err)
+	}
+	return nil
+}
+
+// ListTags returns all tags for a task, sorted alphabetically.
+func (d *DB) ListTags(taskID string) ([]string, error) {
+	rows, err := d.conn.Query(
+		`SELECT tag FROM task_tags WHERE task_id=? ORDER BY tag ASC`,
+		taskID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list tags for task %s: %w", taskID, err)
+	}
+	defer rows.Close()
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("list tags scan: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
+}
+
+// ListAllTags returns every distinct tag in use across all tasks, sorted
+// alphabetically. Intended for autocomplete.
+func (d *DB) ListAllTags() ([]string, error) {
+	rows, err := d.conn.Query(
+		`SELECT DISTINCT tag FROM task_tags ORDER BY tag ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all tags: %w", err)
+	}
+	defer rows.Close()
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("list all tags scan: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
+}
+
+// populateTagsForTasks bulk-fetches tags for a slice of tasks in a single
+// query and populates t.Tags on each one. This avoids N individual queries
+// while keeping the approach simple.
+func (d *DB) populateTagsForTasks(tasks []*models.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	// Build id→index map.
+	idx := make(map[string]int, len(tasks))
+	for i, t := range tasks {
+		idx[t.ID] = i
+		tasks[i].Tags = []string{} // ensure non-nil slice
+	}
+
+	// Build a parameterised IN clause.
+	placeholders := make([]string, len(tasks))
+	args := make([]interface{}, len(tasks))
+	for i, t := range tasks {
+		placeholders[i] = "?"
+		args[i] = t.ID
+	}
+	q := fmt.Sprintf(
+		`SELECT task_id, tag FROM task_tags WHERE task_id IN (%s) ORDER BY task_id, tag ASC`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := d.conn.Query(q, args...)
+	if err != nil {
+		return fmt.Errorf("populate tags: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var taskID, tag string
+		if err := rows.Scan(&taskID, &tag); err != nil {
+			return fmt.Errorf("populate tags scan: %w", err)
+		}
+		if i, ok := idx[taskID]; ok {
+			tasks[i].Tags = append(tasks[i].Tags, tag)
+		}
+	}
+	return rows.Err()
+}
+
+// normaliseTag lowercases and trims a tag value.
+func normaliseTag(tag string) string {
+	return strings.ToLower(strings.TrimSpace(tag))
 }

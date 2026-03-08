@@ -27,6 +27,12 @@
       <div class="filter-sep"></div>
       <button class="filter-chip" data-filter="blocked_on_me" onclick="setFilter('blocked_on_me', this)">On me</button>
       <button class="filter-chip" data-filter="blocked_on_them" onclick="setFilter('blocked_on_them', this)">Waiting</button>
+      {{if .AllTags}}
+      <div class="filter-sep"></div>
+      {{range .AllTags}}
+      <button class="filter-chip tag-chip" data-filter="tag:{{.}}" onclick="setFilter('tag:{{.}}', this)">{{.}}</button>
+      {{end}}
+      {{end}}
     </div>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
@@ -501,6 +507,15 @@
     applyFilter();
   }
 
+  // Called when a tag chip on a board card is clicked.
+  function boardFilterTag(e, tag) {
+    e.preventDefault();
+    e.stopPropagation(); // don't navigate to task page
+    const filterVal = 'tag:' + tag;
+    const chip = document.querySelector(`[data-filter="${filterVal}"]`);
+    setFilter(filterVal, chip || document.querySelector('[data-filter="all"]'));
+  }
+
   function applyFilter() {
     const cards = document.querySelectorAll('.task-card');
     cards.forEach(card => {
@@ -509,6 +524,12 @@
         show = true;
       } else if (currentFilter === 'blocked_on_me' || currentFilter === 'blocked_on_them') {
         show = card.dataset.direction === currentFilter;
+      } else if (currentFilter.startsWith('tag:')) {
+        const tag = currentFilter.slice(4);
+        try {
+          const tags = JSON.parse(card.dataset.tags || '[]');
+          show = tags.includes(tag);
+        } catch (_) { show = false; }
       } else {
         show = card.dataset.type === currentFilter;
       }
@@ -554,6 +575,7 @@
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
      data-direction="{{.Direction}}"
+     data-tags="{{jsonStr .Tags}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <div class="task-card-header">
@@ -564,6 +586,12 @@
   </div>
   <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
   {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
+  {{if .Tags}}
+  <div class="card-tags">
+    {{range $i, $tag := .Tags}}{{if lt $i 3}}<span class="card-tag" onclick="boardFilterTag(event, '{{$tag}}')">{{$tag}}</span>{{end}}{{end}}
+    {{if gt (len .Tags) 3}}<span class="card-tags-overflow">+{{tagOverflow .Tags 3}} more</span>{{end}}
+  </div>
+  {{end}}
   <div class="task-footer">
     {{if .DueDate}}
     <span class="due-label {{if .IsOverdue}}due-overdue{{else if .IsDueToday}}due-today{{end}}">{{dueDateLabel .DueDate}}</span>

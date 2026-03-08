@@ -37,6 +37,25 @@
 
       <h1 class="task-page-title">{{.Task.Title}}</h1>
 
+      <!-- Tags -->
+      <div class="tags-panel" id="tags-panel">
+        {{range .Task.Tags}}
+        <span class="task-tag-chip" data-tag="{{.}}">
+          {{.}}<button onclick="removeTag('{{$.Task.ID}}', '{{.}}')" title="Remove tag">×</button>
+        </span>
+        {{end}}
+        <div class="tag-input-wrap">
+          <input class="tag-input" id="tag-input" type="text"
+            placeholder="+ add tag"
+            autocomplete="off"
+            onkeydown="tagKeydown(event)"
+            oninput="tagInput(this.value)"
+            onfocus="tagInputFocus()"
+            onblur="tagInputBlur()">
+          <div class="tag-autocomplete" id="tag-ac"></div>
+        </div>
+      </div>
+
       {{if .Task.Description}}
       <p class="task-page-desc">{{.Task.Description}}</p>
       {{end}}
@@ -716,6 +735,129 @@
           `onclick="deleteComment(${c.id}, this)">×</button>` +
       `</div>`;
     return div;
+  }
+
+  // ── Tags ────────────────────────────────────────────────────────────────────
+
+  const _taskID = "{{.Task.ID}}";
+  let _allTags = [];    // populated from GET /api/tags on first focus
+  let _acIdx   = -1;   // keyboard-selected autocomplete index
+
+  async function _fetchAllTags() {
+    try {
+      const r = await fetch('/api/tags');
+      if (r.ok) _allTags = await r.json();
+    } catch (_) {}
+  }
+
+  async function tagInputFocus() {
+    if (_allTags.length === 0) await _fetchAllTags();
+    renderAC(document.getElementById('tag-input').value);
+  }
+
+  // Delay hiding to allow click on autocomplete items.
+  function tagInputBlur() {
+    setTimeout(() => closeAC(), 150);
+  }
+
+  function tagInput(val) {
+    renderAC(val);
+  }
+
+  function tagKeydown(e) {
+    const ac = document.getElementById('tag-ac');
+    const items = [...ac.querySelectorAll('.tag-ac-item')];
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _acIdx = Math.min(_acIdx + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle('selected', i === _acIdx));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _acIdx = Math.max(_acIdx - 1, -1);
+      items.forEach((el, i) => el.classList.toggle('selected', i === _acIdx));
+    } else if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      if (_acIdx >= 0 && items[_acIdx]) {
+        commitTag(items[_acIdx].dataset.tag);
+      } else {
+        const val = e.target.value.replace(/,/g, '').trim();
+        if (val) commitTag(val);
+      }
+    } else if (e.key === 'Escape') {
+      closeAC();
+      e.target.blur();
+    }
+  }
+
+  function renderAC(val) {
+    const ac = document.getElementById('tag-ac');
+    const existing = [...document.querySelectorAll('.task-tag-chip')].map(el => el.dataset.tag);
+    const q = val.toLowerCase().trim();
+    const matches = _allTags.filter(t => !existing.includes(t) && (!q || t.includes(q)));
+    if (matches.length === 0) { closeAC(); return; }
+    _acIdx = -1;
+    ac.innerHTML = matches.map(t =>
+      `<div class="tag-ac-item" data-tag="${escapeHTML(t)}"
+            onmousedown="commitTag('${escapeHTML(t)}')">${escapeHTML(t)}</div>`
+    ).join('');
+    ac.classList.add('open');
+  }
+
+  function closeAC() {
+    const ac = document.getElementById('tag-ac');
+    ac.classList.remove('open');
+    ac.innerHTML = '';
+    _acIdx = -1;
+  }
+
+  async function commitTag(tag) {
+    tag = tag.toLowerCase().trim().replace(/,/g, '');
+    if (!tag) return;
+    const input = document.getElementById('tag-input');
+    input.value = '';
+    closeAC();
+
+    // Check for duplicate on the page already.
+    if (document.querySelector(`.task-tag-chip[data-tag="${tag}"]`)) return;
+
+    try {
+      const r = await fetch(`/api/tasks/${_taskID}/tags`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tag}),
+      });
+      if (!r.ok) { alert('Failed to add tag: ' + await r.text()); return; }
+      // Insert new chip before the input wrapper.
+      const wrap = document.querySelector('.tag-input-wrap');
+      const chip = buildTagChip(tag);
+      wrap.parentElement.insertBefore(chip, wrap);
+      // Update local allTags cache.
+      if (!_allTags.includes(tag)) _allTags.push(tag);
+    } catch (err) {
+      alert('Failed to add tag: ' + err.message);
+    }
+  }
+
+  async function removeTag(taskID, tag) {
+    try {
+      const r = await fetch(`/api/tasks/${taskID}/tags/${encodeURIComponent(tag)}`, {
+        method: 'DELETE',
+      });
+      if (!r.ok) { alert('Failed to remove tag'); return; }
+      const chip = document.querySelector(`.task-tag-chip[data-tag="${tag}"]`);
+      if (chip) chip.remove();
+    } catch (err) {
+      alert('Failed to remove tag: ' + err.message);
+    }
+  }
+
+  function buildTagChip(tag) {
+    const span = document.createElement('span');
+    span.className = 'task-tag-chip';
+    span.dataset.tag = tag;
+    span.innerHTML =
+      `${escapeHTML(tag)}<button onclick="removeTag('${_taskID}', '${escapeHTML(tag)}')" title="Remove tag">×</button>`;
+    return span;
   }
 
   function escapeHTML(s) {

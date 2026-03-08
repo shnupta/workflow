@@ -27,6 +27,7 @@ type Task struct {
 	Scratchpad   string     `db:"scratchpad"     json:"scratchpad"`    // free-form notes/context for this task
 	BlockedBy    string     `db:"blocked_by"     json:"blocked_by"`    // ID of the task blocking this one (empty = not blocked)
 	Recurrence   string     `db:"recurrence"     json:"recurrence"`    // "" | "daily" | "weekly" | "biweekly" | "monthly"
+	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 }
 
 // IsBlocked returns true when the task has an active blocker set.

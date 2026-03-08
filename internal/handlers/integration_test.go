@@ -895,3 +895,230 @@ func TestHandler_DeleteComment_InvalidID_Returns400(t *testing.T) {
 		t.Errorf("expected 400 for non-numeric ID, got %d", resp.StatusCode)
 	}
 }
+
+// ── GET /api/tags ─────────────────────────────────────────────────────────────
+
+func TestHandler_ListAllTags_EmptyOnFreshDB(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/api/tags")
+	body := readBody(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /api/tags expected 200, got %d", resp.StatusCode)
+	}
+	var tags []string
+	if err := json.Unmarshal([]byte(body), &tags); err != nil {
+		t.Fatalf("response not JSON array: %v; body: %s", err, body)
+	}
+	if len(tags) != 0 {
+		t.Errorf("expected empty array on fresh DB, got %v", tags)
+	}
+}
+
+func TestHandler_ListAllTags_AfterAdding(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "tags task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	h.db.AddTag(task.ID, "backend")
+	h.db.AddTag(task.ID, "api")
+
+	resp := get(t, srv, "/api/tags")
+	body := readBody(t, resp)
+
+	var tags []string
+	if err := json.Unmarshal([]byte(body), &tags); err != nil {
+		t.Fatalf("not JSON: %v; body: %s", err, body)
+	}
+	// Should be sorted: api < backend
+	if len(tags) != 2 || tags[0] != "api" || tags[1] != "backend" {
+		t.Errorf("expected [api backend], got %v", tags)
+	}
+}
+
+// ── POST /api/tasks/{id}/tags ─────────────────────────────────────────────────
+
+func TestHandler_AddTag_Returns200WithTagList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "add tag task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "infra"})
+	body := readBody(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("POST /api/tasks/{id}/tags expected 200, got %d; body: %s", resp.StatusCode, body)
+	}
+	var tags []string
+	if err := json.Unmarshal([]byte(body), &tags); err != nil {
+		t.Fatalf("response not JSON: %v; body: %s", err, body)
+	}
+	if len(tags) != 1 || tags[0] != "infra" {
+		t.Errorf("expected [infra], got %v", tags)
+	}
+}
+
+func TestHandler_AddTag_NormalisesToLowercase(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "norm task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "BackEnd"})
+	body := readBody(t, resp)
+	var tags []string
+	json.Unmarshal([]byte(body), &tags)
+	if len(tags) != 1 || tags[0] != "backend" {
+		t.Errorf("expected [backend] (normalised), got %v", tags)
+	}
+}
+
+func TestHandler_AddTag_EmptyTag_Returns400(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "empty tag", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": ""})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for blank tag, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_AddTag_Duplicate_IsIdempotent(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "dup tag handler", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "dup"})
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "dup"})
+	body := readBody(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 on duplicate add, got %d", resp.StatusCode)
+	}
+	var tags []string
+	json.Unmarshal([]byte(body), &tags)
+	if len(tags) != 1 {
+		t.Errorf("expected 1 tag after duplicate add, got %v", tags)
+	}
+}
+
+func TestHandler_AddTag_MultipleTagsAccumulate(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "multi tag task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "beta"})
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/tags", map[string]string{"tag": "alpha"})
+	body := readBody(t, resp)
+
+	var tags []string
+	json.Unmarshal([]byte(body), &tags)
+	// sorted: alpha < beta
+	if len(tags) != 2 || tags[0] != "alpha" || tags[1] != "beta" {
+		t.Errorf("expected [alpha beta], got %v", tags)
+	}
+}
+
+// ── DELETE /api/tasks/{id}/tags/{tag} ────────────────────────────────────────
+
+func TestHandler_RemoveTag_Returns204(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "del tag task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	h.db.AddTag(task.ID, "todelete")
+
+	req, _ := http.NewRequest(http.MethodDelete,
+		srv.URL+"/api/tasks/"+task.ID+"/tags/todelete", nil)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_RemoveTag_TagGoneFromList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "gone tag task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	h.db.AddTag(task.ID, "gone")
+	h.db.AddTag(task.ID, "stays")
+
+	req, _ := http.NewRequest(http.MethodDelete,
+		srv.URL+"/api/tasks/"+task.ID+"/tags/gone", nil)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	client.Do(req)
+
+	tags, err := h.db.ListTags(task.ID)
+	if err != nil {
+		t.Fatalf("ListTags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "stays" {
+		t.Errorf("expected [stays] after removing 'gone', got %v", tags)
+	}
+}
+
+func TestHandler_RemoveTag_NonExistent_Returns204(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "ghost tag task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	req, _ := http.NewRequest(http.MethodDelete,
+		srv.URL+"/api/tasks/"+task.ID+"/tags/doesnotexist", nil)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("expected 204 for non-existent tag removal, got %d", resp.StatusCode)
+	}
+}

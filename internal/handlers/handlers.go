@@ -125,6 +125,17 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 		},
 		"recurrenceLabel": recurrenceLabel,
 		"jsonStr":         jsonStr,
+		"jsonEscape": func(s string) template.JS {
+			b, _ := json.Marshal(s)
+			return template.JS(b)
+		},
+		// tagOverflow returns len(tags)-n for use in "+N more" displays.
+		"tagOverflow": func(tags []string, n int) int {
+			if len(tags) <= n {
+				return 0
+			}
+			return len(tags) - n
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -167,6 +178,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerNoteRoutes(mux)
 	h.registerTemplateRoutes(mux)
 	h.registerCommentRoutes(mux)
+	h.registerTagRoutes(mux)
 	h.registerExportRoutes(mux)
 }
 
@@ -293,11 +305,14 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	allTags, _ := h.db.ListAllTags() // nil on error → empty in template
+
 	h.render(w, "index.html", map[string]interface{}{
-		"Tiers":          tiers,
-		"WorkTypes":      h.cfg().WorkTypes,
-		"Nav":            "tasks",
+		"Tiers":           tiers,
+		"WorkTypes":       h.cfg().WorkTypes,
+		"Nav":             "tasks",
 		"RecurringCloned": r.URL.Query().Get("recurring_cloned") == "1",
+		"AllTags":         allTags,
 	})
 }
 
