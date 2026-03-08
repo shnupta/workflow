@@ -166,6 +166,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerWebhookRoutes(mux)
 	h.registerNoteRoutes(mux)
 	h.registerTemplateRoutes(mux)
+	h.registerExportRoutes(mux)
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {

@@ -985,3 +985,101 @@ func TestSeedDefaultTemplates_OnlySeededOnce(t *testing.T) {
 		t.Errorf("expected 4 templates (no duplicate seeds), got %d", len(all))
 	}
 }
+
+// ── ListAllTasks ──────────────────────────────────────────────────────────────
+
+func TestListAllTasks(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create tasks in different tiers.
+	t1 := newTask("Today task", "today")
+	t2 := newTask("Week task", "this_week")
+	t3 := newTask("Backlog task", "backlog")
+	for _, task := range []*models.Task{t1, t2, t3} {
+		if err := db.CreateTask(task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+	// Mark one done.
+	if _, err := db.MarkDone(t1.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	all, err := db.ListAllTasks()
+	if err != nil {
+		t.Fatalf("ListAllTasks: %v", err)
+	}
+	if len(all) != 3 {
+		t.Errorf("expected 3 tasks, got %d", len(all))
+	}
+
+	// Verify the done task is included.
+	var foundDone bool
+	for _, task := range all {
+		if task.ID == t1.ID {
+			foundDone = true
+			if !task.Done {
+				t.Error("expected done=true for marked-done task")
+			}
+		}
+	}
+	if !foundDone {
+		t.Error("done task missing from ListAllTasks result")
+	}
+}
+
+func TestListAllTasks_OrderedByCreatedAtDesc(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := newTask("First", "today")
+	t2 := newTask("Second", "today")
+	t3 := newTask("Third", "backlog")
+	for _, task := range []*models.Task{t1, t2, t3} {
+		if err := db.CreateTask(task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+
+	all, err := db.ListAllTasks()
+	if err != nil {
+		t.Fatalf("ListAllTasks: %v", err)
+	}
+	// All three tasks must be present; ordering is created_at DESC but since
+	// all are created within the same test run (likely same second), we verify
+	// the count and that all IDs are present rather than a strict order.
+	if len(all) != 3 {
+		t.Fatalf("expected 3, got %d", len(all))
+	}
+	ids := make(map[string]bool, 3)
+	for _, task := range all {
+		ids[task.ID] = true
+	}
+	for _, task := range []*models.Task{t1, t2, t3} {
+		if !ids[task.ID] {
+			t.Errorf("task %q (%s) missing from ListAllTasks result", task.Title, task.ID)
+		}
+	}
+	// Verify that created_at ordering is DESC: no row's created_at should be
+	// later than the row before it (works whether timestamps are equal or not).
+	for i := 1; i < len(all); i++ {
+		if all[i].CreatedAt.After(all[i-1].CreatedAt) {
+			t.Errorf("row %d created_at (%v) is after row %d (%v) — not DESC order",
+				i, all[i].CreatedAt, i-1, all[i-1].CreatedAt)
+		}
+	}
+}
+
+func TestListAllTasks_Empty(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	all, err := db.ListAllTasks()
+	if err != nil {
+		t.Fatalf("ListAllTasks on empty DB: %v", err)
+	}
+	if all != nil && len(all) != 0 {
+		t.Errorf("expected empty result, got %d tasks", len(all))
+	}
+}

@@ -344,6 +344,28 @@ func (d *DB) DeleteTask(id string) error {
 	return err
 }
 
+// ListAllTasks returns every task (all tiers, done and not done) ordered by
+// created_at DESC. Intended for export — no pagination, no filtering.
+func (d *DB) ListAllTasks() ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
+		FROM tasks
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
 // SearchTasks returns up to 20 non-done tasks whose title contains query (case-insensitive).
 func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
 	rows, err := d.conn.Query(`
