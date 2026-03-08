@@ -127,6 +127,18 @@ func (d *DB) migrate() error {
 		)
 	`)
 
+	// Task reminders table
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS task_reminders (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			task_id    TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			remind_at  TEXT    NOT NULL,
+			note       TEXT    NOT NULL DEFAULT '',
+			sent       INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+		)
+	`)
+
 	// Session migrations
 	for _, col := range []string{
 		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
@@ -1456,4 +1468,133 @@ func (d *DB) populateTagsForTasks(tasks []*models.Task) error {
 // normaliseTag lowercases and trims a tag value.
 func normaliseTag(tag string) string {
 	return strings.ToLower(strings.TrimSpace(tag))
+}
+
+// ─────────────────────────────────────────────────────────
+// Task reminders
+// ─────────────────────────────────────────────────────────
+
+// CreateReminder inserts a new reminder for taskID scheduled for remindAt.
+// note is optional free text shown in the Telegram notification.
+// sqliteDateTime is the format used by SQLite's datetime() function.
+// We store remind_at in this format so that SQLite string comparisons with
+// datetime('now') work correctly in ListDueReminders.
+const sqliteDateTime = "2006-01-02 15:04:05"
+
+func (d *DB) CreateReminder(taskID string, remindAt time.Time, note string) (*models.Reminder, error) {
+	res, err := d.conn.Exec(
+		`INSERT INTO task_reminders (task_id, remind_at, note)
+		 VALUES (?, ?, ?)`,
+		taskID,
+		remindAt.UTC().Format(sqliteDateTime),
+		note,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create reminder: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("create reminder last insert id: %w", err)
+	}
+	return d.getReminder(id)
+}
+
+func (d *DB) getReminder(id int64) (*models.Reminder, error) {
+	row := d.conn.QueryRow(
+		`SELECT id, task_id, remind_at, note, sent, created_at
+		 FROM task_reminders WHERE id = ?`, id,
+	)
+	return scanReminderRow(row)
+}
+
+// ListDueReminders returns all unsent reminders whose remind_at is in the
+// past, ordered oldest-first. Intended for the check_reminders script.
+func (d *DB) ListDueReminders() ([]*models.Reminder, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, task_id, remind_at, note, sent, created_at
+		 FROM task_reminders
+		 WHERE sent = 0 AND remind_at <= datetime('now')
+		 ORDER BY remind_at ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list due reminders: %w", err)
+	}
+	defer rows.Close()
+	return scanReminderRows(rows)
+}
+
+// ListRemindersForTask returns all reminders for taskID ordered by
+// remind_at ASC (both sent and unsent).
+func (d *DB) ListRemindersForTask(taskID string) ([]*models.Reminder, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, task_id, remind_at, note, sent, created_at
+		 FROM task_reminders
+		 WHERE task_id = ?
+		 ORDER BY remind_at ASC`,
+		taskID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list reminders for task %s: %w", taskID, err)
+	}
+	defer rows.Close()
+	return scanReminderRows(rows)
+}
+
+// MarkReminderSent marks a reminder as sent. Calling it on an already-sent
+// reminder is idempotent.
+func (d *DB) MarkReminderSent(id int64) error {
+	_, err := d.conn.Exec(`UPDATE task_reminders SET sent = 1 WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("mark reminder sent %d: %w", id, err)
+	}
+	return nil
+}
+
+// DeleteReminder removes a reminder by ID. Deleting a non-existent reminder
+// is not an error.
+func (d *DB) DeleteReminder(id int64) error {
+	_, err := d.conn.Exec(`DELETE FROM task_reminders WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete reminder %d: %w", id, err)
+	}
+	return nil
+}
+
+// parseReminderTime attempts RFC3339 then SQLite's datetime() format.
+func parseReminderTime(s string) time.Time {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t
+	}
+	t, _ := time.Parse("2006-01-02 15:04:05", s)
+	return t
+}
+
+func scanReminderRow(row *sql.Row) (*models.Reminder, error) {
+	var r models.Reminder
+	var remindAt, createdAt string
+	var sent int
+	if err := row.Scan(&r.ID, &r.TaskID, &remindAt, &r.Note, &sent, &createdAt); err != nil {
+		return nil, err
+	}
+	r.RemindAt = parseReminderTime(remindAt)
+	r.CreatedAt = parseReminderTime(createdAt)
+	r.Sent = sent != 0
+	return &r, nil
+}
+
+func scanReminderRows(rows *sql.Rows) ([]*models.Reminder, error) {
+	var out []*models.Reminder
+	for rows.Next() {
+		var r models.Reminder
+		var remindAt, createdAt string
+		var sent int
+		if err := rows.Scan(&r.ID, &r.TaskID, &remindAt, &r.Note, &sent, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan reminder row: %w", err)
+		}
+		r.RemindAt = parseReminderTime(remindAt)
+		r.CreatedAt = parseReminderTime(createdAt)
+		r.Sent = sent != 0
+		out = append(out, &r)
+	}
+	return out, rows.Err()
 }

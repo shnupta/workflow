@@ -185,6 +185,41 @@
         </form>
       </div>
 
+      <!-- Reminders -->
+      <div class="reminders-panel" id="reminders-panel">
+        <h2 class="reminders-title">Reminders</h2>
+
+        <div class="reminders-list" id="reminders-list">
+          {{if .Reminders}}
+            {{range .Reminders}}
+            <div class="reminder-item{{if .Sent}} reminder-sent{{end}}" data-reminder-id="{{.ID}}">
+              <div class="reminder-main">
+                <span class="reminder-time{{if .IsPast}} reminder-past{{end}}">{{.RemindAtFormatted}}</span>
+                {{if .Note}}<span class="reminder-note">{{.Note}}</span>{{end}}
+                {{if .Sent}}<span class="reminder-badge">sent</span>{{end}}
+              </div>
+              {{if not .Sent}}
+              <button class="reminder-delete" title="Delete reminder"
+                onclick="deleteReminder({{.ID}}, this)">×</button>
+              {{end}}
+            </div>
+            {{end}}
+          {{else}}
+            <p class="reminders-empty" id="reminders-empty">No reminders set.</p>
+          {{end}}
+        </div>
+
+        <form class="reminder-form" id="reminder-form" onsubmit="submitReminder(event)">
+          <div class="reminder-form-row">
+            <input class="reminder-input" id="reminder-at" type="datetime-local"
+              required title="Reminder date and time">
+            <input class="reminder-note-input" id="reminder-note" type="text"
+              placeholder="Note (optional)" maxlength="200">
+            <button type="submit" class="btn btn-ghost btn-sm">Set reminder</button>
+          </div>
+        </form>
+      </div>
+
       <!-- Sessions panel -->
       <div class="sessions-panel" id="sessions-panel">
         <div class="sessions-header">
@@ -858,6 +893,73 @@
     span.innerHTML =
       `${escapeHTML(tag)}<button onclick="removeTag('${_taskID}', '${escapeHTML(tag)}')" title="Remove tag">×</button>`;
     return span;
+  }
+
+  // ── Reminders ───────────────────────────────────────────────────────────────
+
+  async function submitReminder(e) {
+    e.preventDefault();
+    const atInput   = document.getElementById('reminder-at');
+    const noteInput = document.getElementById('reminder-note');
+    const remindAt  = atInput.value.trim();
+    if (!remindAt) return;
+
+    try {
+      const resp = await fetch('/api/tasks/{{.Task.ID}}/reminders', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({remind_at: remindAt, note: noteInput.value.trim()}),
+      });
+      if (!resp.ok) { alert('Failed to set reminder: ' + await resp.text()); return; }
+      const rem = await resp.json();
+
+      const empty = document.getElementById('reminders-empty');
+      if (empty) empty.remove();
+
+      const list = document.getElementById('reminders-list');
+      list.appendChild(buildReminderEl(rem));
+      atInput.value   = '';
+      noteInput.value = '';
+    } catch (err) {
+      alert('Failed to set reminder: ' + err.message);
+    }
+  }
+
+  async function deleteReminder(id, btn) {
+    if (!confirm('Delete this reminder?')) return;
+    try {
+      const resp = await fetch('/api/reminders/' + id, {method: 'DELETE'});
+      if (!resp.ok) { alert('Failed to delete reminder'); return; }
+      const item = btn.closest('.reminder-item');
+      item.remove();
+      const list = document.getElementById('reminders-list');
+      if (list.querySelectorAll('.reminder-item').length === 0) {
+        const p = document.createElement('p');
+        p.className = 'reminders-empty';
+        p.id = 'reminders-empty';
+        p.textContent = 'No reminders set.';
+        list.appendChild(p);
+      }
+    } catch (err) {
+      alert('Failed to delete reminder: ' + err.message);
+    }
+  }
+
+  function buildReminderEl(rem) {
+    const div = document.createElement('div');
+    div.className = 'reminder-item';
+    div.dataset.reminderId = rem.id;
+    const noteHTML = rem.note
+      ? `<span class="reminder-note">${escapeHTML(rem.note)}</span>`
+      : '';
+    div.innerHTML =
+      `<div class="reminder-main">` +
+        `<span class="reminder-time">${escapeHTML(rem.remind_at_formatted)}</span>` +
+        noteHTML +
+      `</div>` +
+      `<button class="reminder-delete" title="Delete reminder" ` +
+        `onclick="deleteReminder(${rem.id}, this)">×</button>`;
+    return div;
   }
 
   function escapeHTML(s) {

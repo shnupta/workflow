@@ -1179,6 +1179,132 @@ input[type="date"] {
   justify-content: flex-end;
 }
 
+/* ── Reminders panel ── */
+.reminders-panel {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.reminders-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.reminders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.reminders-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 0 12px;
+}
+.reminder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+}
+.reminder-item.reminder-sent {
+  opacity: 0.55;
+}
+.reminder-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.reminder-time {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+.reminder-time.reminder-past {
+  color: var(--amber);
+}
+.reminder-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reminder-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 3px;
+  padding: 1px 5px;
+  opacity: 0.8;
+}
+.reminder-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.5;
+  padding: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.reminder-delete:hover {
+  opacity: 1;
+  color: var(--red);
+}
+/* Reminder form */
+.reminder-form { margin-top: 4px; }
+.reminder-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.reminder-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 6px 10px;
+  transition: border-color 0.15s;
+}
+.reminder-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.reminder-note-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 6px 10px;
+  flex: 1;
+  min-width: 120px;
+  transition: border-color 0.15s;
+}
+.reminder-note-input::placeholder { color: var(--text-muted); }
+.reminder-note-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 /* ─────────────────────────────────────────────────────────────────── */
 
 .brief-panel {

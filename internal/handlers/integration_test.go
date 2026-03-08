@@ -1122,3 +1122,229 @@ func TestHandler_RemoveTag_NonExistent_Returns204(t *testing.T) {
 		t.Errorf("expected 204 for non-existent tag removal, got %d", resp.StatusCode)
 	}
 }
+
+// ── GET /api/tasks/{id}/reminders ────────────────────────────────────────────
+
+func TestHandler_ListReminders_EmptyOnFreshTask(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := get(t, srv, "/api/tasks/"+task.ID+"/reminders")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /api/tasks/{id}/reminders expected 200, got %d", resp.StatusCode)
+	}
+	var out []interface{}
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("response not JSON array: %v; body: %s", err, body)
+	}
+	if len(out) != 0 {
+		t.Errorf("expected empty array, got %d items", len(out))
+	}
+}
+
+// ── POST /api/tasks/{id}/reminders ───────────────────────────────────────────
+
+func TestHandler_CreateReminder_Returns201(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "create reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "2099-12-31T09:00",
+		"note":      "year-end reminder",
+	})
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected 201, got %d; body: %s", resp.StatusCode, body)
+	}
+}
+
+func TestHandler_CreateReminder_ReturnsJSON(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "json reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "2099-06-01T10:00",
+		"note":      "check this",
+	})
+	body := readBody(t, resp)
+
+	var rem map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &rem); err != nil {
+		t.Fatalf("not JSON: %v; body: %s", err, body)
+	}
+	if rem["id"] == nil || rem["id"] == float64(0) {
+		t.Error("expected non-zero id")
+	}
+	if rem["task_id"] != task.ID {
+		t.Errorf("task_id: got %v, want %q", rem["task_id"], task.ID)
+	}
+	if rem["note"] != "check this" {
+		t.Errorf("note: got %v", rem["note"])
+	}
+	if rem["remind_at_formatted"] == "" || rem["remind_at_formatted"] == nil {
+		t.Error("expected non-empty remind_at_formatted")
+	}
+	sent, _ := rem["sent"].(bool)
+	if sent {
+		t.Error("new reminder should have sent=false")
+	}
+}
+
+func TestHandler_CreateReminder_MissingRemindAt_Returns400(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "bad reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "",
+		"note":      "no time",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing remind_at, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_CreateReminder_InvalidDate_Returns400(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "invalid date task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "not-a-date",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid date, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_CreateReminder_AppearsInList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "list reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{"remind_at": "2099-01-01T08:00"})
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{"remind_at": "2099-06-01T08:00"})
+
+	resp := get(t, srv, "/api/tasks/"+task.ID+"/reminders")
+	body := readBody(t, resp)
+
+	var rems []map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &rems); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	if len(rems) != 2 {
+		t.Fatalf("expected 2 reminders, got %d", len(rems))
+	}
+}
+
+// ── DELETE /api/reminders/{id} ────────────────────────────────────────────────
+
+func TestHandler_DeleteReminder_Returns204(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "del reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	createResp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "2099-03-01T10:00",
+	})
+	var rem map[string]interface{}
+	json.Unmarshal([]byte(readBody(t, createResp)), &rem)
+	id := int64(rem["id"].(float64))
+
+	req, _ := http.NewRequest(http.MethodDelete,
+		srv.URL+"/api/reminders/"+strconv.FormatInt(id, 10), nil)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	delResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer delResp.Body.Close()
+	if delResp.StatusCode != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", delResp.StatusCode)
+	}
+}
+
+func TestHandler_DeleteReminder_GoneFromList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "gone reminder task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	createResp := postJSON(t, srv, "/api/tasks/"+task.ID+"/reminders", map[string]string{
+		"remind_at": "2099-03-01T10:00",
+	})
+	var rem map[string]interface{}
+	json.Unmarshal([]byte(readBody(t, createResp)), &rem)
+	id := int64(rem["id"].(float64))
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest(http.MethodDelete,
+		srv.URL+"/api/reminders/"+strconv.FormatInt(id, 10), nil)
+	client.Do(req)
+
+	listResp := get(t, srv, "/api/tasks/"+task.ID+"/reminders")
+	var rems []interface{}
+	json.Unmarshal([]byte(readBody(t, listResp)), &rems)
+	if len(rems) != 0 {
+		t.Errorf("expected 0 reminders after delete, got %d", len(rems))
+	}
+}
+
+func TestHandler_DeleteReminder_InvalidID_Returns400(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/reminders/not-a-number", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric ID, got %d", resp.StatusCode)
+	}
+}

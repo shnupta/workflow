@@ -188,6 +188,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerTemplateRoutes(mux)
 	h.registerCommentRoutes(mux)
 	h.registerTagRoutes(mux)
+	h.registerReminderRoutes(mux)
 	h.registerExportRoutes(mux)
 }
 
@@ -439,12 +440,14 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	briefVersions, _ := h.db.ListBriefVersions(t.ID)
 	blocker, _ := h.db.GetBlockerTask(t.ID)
 	comments, _ := h.db.ListComments(t.ID)
+	reminders, _ := h.db.ListRemindersForTask(t.ID)
 	h.render(w, "task_view.html", map[string]interface{}{
 		"Task":          t,
 		"Sessions":      sessions,
 		"BriefVersions": briefVersions,
 		"Blocker":       blocker,
 		"Comments":      comments,
+		"Reminders":     reminders,
 		"Nav":           "tasks",
 	})
 }

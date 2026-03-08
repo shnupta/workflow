@@ -1563,3 +1563,283 @@ func TestListTasks_PopulatesTags(t *testing.T) {
 		t.Errorf("expected [frontend], got %v", found.Tags)
 	}
 }
+
+// ── Task reminders ────────────────────────────────────────────────────────────
+
+func TestCreateReminder_BasicRoundTrip(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("reminder target", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	at := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
+	rem, err := db.CreateReminder(task.ID, at, "don't forget")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+	if rem.ID == 0 {
+		t.Error("expected non-zero ID")
+	}
+	if rem.TaskID != task.ID {
+		t.Errorf("task_id: got %q, want %q", rem.TaskID, task.ID)
+	}
+	if rem.Note != "don't forget" {
+		t.Errorf("note: got %q", rem.Note)
+	}
+	if rem.Sent {
+		t.Error("new reminder should not be sent")
+	}
+	if rem.RemindAt.IsZero() {
+		t.Error("RemindAt should not be zero")
+	}
+	if rem.RemindAtFormatted() == "" {
+		t.Error("RemindAtFormatted() should not be empty")
+	}
+}
+
+func TestCreateReminder_EmptyNote(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("no-note task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	at := time.Now().UTC().Add(time.Hour)
+	rem, err := db.CreateReminder(task.ID, at, "")
+	if err != nil {
+		t.Fatalf("CreateReminder: %v", err)
+	}
+	if rem.Note != "" {
+		t.Errorf("expected empty note, got %q", rem.Note)
+	}
+}
+
+func TestListDueReminders_ReturnsPastUnsent(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("due reminder task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Past (due) reminder.
+	past := time.Now().UTC().Add(-time.Minute)
+	rem, err := db.CreateReminder(task.ID, past, "past")
+	if err != nil {
+		t.Fatalf("CreateReminder past: %v", err)
+	}
+
+	// Future (not due) reminder.
+	if _, err := db.CreateReminder(task.ID, time.Now().UTC().Add(time.Hour), "future"); err != nil {
+		t.Fatalf("CreateReminder future: %v", err)
+	}
+
+	due, err := db.ListDueReminders()
+	if err != nil {
+		t.Fatalf("ListDueReminders: %v", err)
+	}
+	if len(due) != 1 {
+		t.Fatalf("expected 1 due reminder, got %d", len(due))
+	}
+	if due[0].ID != rem.ID {
+		t.Errorf("unexpected due reminder id: %d", due[0].ID)
+	}
+}
+
+func TestListDueReminders_ExcludesSent(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("sent skip task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Past + sent.
+	rem, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(-time.Minute), "already sent")
+	if err := db.MarkReminderSent(rem.ID); err != nil {
+		t.Fatalf("MarkReminderSent: %v", err)
+	}
+
+	due, err := db.ListDueReminders()
+	if err != nil {
+		t.Fatalf("ListDueReminders: %v", err)
+	}
+	if len(due) != 0 {
+		t.Errorf("expected 0 due reminders after marking sent, got %d", len(due))
+	}
+}
+
+func TestListDueReminders_OrderedASC(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("ordered due task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Insert in reverse order so we confirm ordering.
+	newer, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(-time.Minute), "newer")
+	older, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(-2*time.Minute), "older")
+
+	due, err := db.ListDueReminders()
+	if err != nil {
+		t.Fatalf("ListDueReminders: %v", err)
+	}
+	if len(due) != 2 {
+		t.Fatalf("expected 2 due reminders, got %d", len(due))
+	}
+	if due[0].ID != older.ID {
+		t.Errorf("expected older (%d) first, got %d", older.ID, due[0].ID)
+	}
+	if due[1].ID != newer.ID {
+		t.Errorf("expected newer (%d) second, got %d", newer.ID, due[1].ID)
+	}
+}
+
+func TestMarkReminderSent(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("mark sent task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	rem, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(-time.Minute), "")
+	if rem.Sent {
+		t.Fatal("reminder should not be sent initially")
+	}
+
+	if err := db.MarkReminderSent(rem.ID); err != nil {
+		t.Fatalf("MarkReminderSent: %v", err)
+	}
+
+	// Verify via ListDueReminders — it should no longer appear.
+	due, _ := db.ListDueReminders()
+	for _, d := range due {
+		if d.ID == rem.ID {
+			t.Error("reminder still appears in due list after MarkReminderSent")
+		}
+	}
+}
+
+func TestMarkReminderSent_Idempotent(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("idempotent sent", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	rem, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(-time.Minute), "")
+	db.MarkReminderSent(rem.ID)
+	if err := db.MarkReminderSent(rem.ID); err != nil {
+		t.Errorf("second MarkReminderSent should not error: %v", err)
+	}
+}
+
+func TestDeleteReminder(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("delete reminder task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	rem, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(time.Hour), "delete me")
+	if err := db.DeleteReminder(rem.ID); err != nil {
+		t.Fatalf("DeleteReminder: %v", err)
+	}
+
+	rems, err := db.ListRemindersForTask(task.ID)
+	if err != nil {
+		t.Fatalf("ListRemindersForTask: %v", err)
+	}
+	if len(rems) != 0 {
+		t.Errorf("expected 0 reminders after delete, got %d", len(rems))
+	}
+}
+
+func TestDeleteReminder_NonExistentIsNoop(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	if err := db.DeleteReminder(99999); err != nil {
+		t.Errorf("DeleteReminder non-existent: expected nil, got %v", err)
+	}
+}
+
+func TestDeleteReminder_CascadesWithTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("cascade reminder", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	db.CreateReminder(task.ID, time.Now().UTC().Add(time.Hour), "will cascade")
+
+	if err := db.DeleteTask(task.ID); err != nil {
+		t.Fatalf("DeleteTask: %v", err)
+	}
+
+	rems, err := db.ListRemindersForTask(task.ID)
+	if err != nil {
+		t.Fatalf("ListRemindersForTask after task delete: %v", err)
+	}
+	if len(rems) != 0 {
+		t.Errorf("expected cascade delete of reminders, got %d", len(rems))
+	}
+}
+
+func TestListRemindersForTask_OrderedASC(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("ordered reminders", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	later, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(2*time.Hour), "later")
+	sooner, _ := db.CreateReminder(task.ID, time.Now().UTC().Add(time.Hour), "sooner")
+
+	rems, err := db.ListRemindersForTask(task.ID)
+	if err != nil {
+		t.Fatalf("ListRemindersForTask: %v", err)
+	}
+	if len(rems) != 2 {
+		t.Fatalf("expected 2, got %d", len(rems))
+	}
+	if rems[0].ID != sooner.ID || rems[1].ID != later.ID {
+		t.Errorf("unexpected order: got IDs %d %d, want %d %d",
+			rems[0].ID, rems[1].ID, sooner.ID, later.ID)
+	}
+}
+
+func TestListRemindersForTask_Empty(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("no reminders", "backlog")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	rems, err := db.ListRemindersForTask(task.ID)
+	if err != nil {
+		t.Fatalf("ListRemindersForTask: %v", err)
+	}
+	if len(rems) != 0 {
+		t.Errorf("expected 0 reminders, got %d", len(rems))
+	}
+}
