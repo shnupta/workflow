@@ -33,6 +33,44 @@ type Task struct {
 // IsBlocked returns true when the task has an active blocker set.
 func (t *Task) IsBlocked() bool { return t.BlockedBy != "" }
 
+// DaysInColumn returns the number of complete calendar days the task has been
+// in its current column, measured from created_at to now (UTC, day-truncated).
+// A task created earlier today returns 0.
+func (t *Task) DaysInColumn() int {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	created := t.CreatedAt.UTC()
+	start := time.Date(created.Year(), created.Month(), created.Day(), 0, 0, 0, 0, time.UTC)
+	days := int(today.Sub(start).Hours() / 24)
+	if days < 0 {
+		return 0
+	}
+	return days
+}
+
+// AgeLabel returns a compact age string: "0d"–"6d" for the first week, then
+// whole weeks ("1w", "2w", …).
+func (t *Task) AgeLabel() string {
+	d := t.DaysInColumn()
+	if d < 7 {
+		return fmt.Sprintf("%dd", d)
+	}
+	return fmt.Sprintf("%dw", d/7)
+}
+
+// AgeClass returns a CSS class name reflecting how long the task has been in
+// its column: "age-fresh" (< 2 days), "age-warn" (2–5 days), "age-stale" (≥ 6 days).
+func (t *Task) AgeClass() string {
+	switch d := t.DaysInColumn(); {
+	case d < 2:
+		return "age-fresh"
+	case d <= 5:
+		return "age-warn"
+	default:
+		return "age-stale"
+	}
+}
+
 // IsRecurring returns true when the task has a recurrence schedule set.
 func (t *Task) IsRecurring() bool { return t.Recurrence != "" }
 

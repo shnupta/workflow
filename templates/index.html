@@ -842,6 +842,7 @@
     {{else}}
     <span class="time-ago">{{timeAgo .CreatedAt}}</span>
     {{end}}
+    <span class="task-age {{.AgeClass}}">{{.AgeLabel}}</span>
     <div class="task-actions">
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">
         <button type="submit" class="btn-done" title="Mark done">✓</button>

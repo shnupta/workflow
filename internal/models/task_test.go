@@ -209,3 +209,131 @@ func TestIsRecurring_WithValue(t *testing.T) {
 		}
 	}
 }
+
+// ── DaysInColumn ──────────────────────────────────────────────────────────────
+
+func TestDaysInColumn(t *testing.T) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		createdAt time.Time
+		want      int
+	}{
+		{
+			name:      "created today (midnight)",
+			createdAt: today,
+			want:      0,
+		},
+		{
+			name:      "created today (now)",
+			createdAt: now,
+			want:      0,
+		},
+		{
+			name:      "created 1 day ago",
+			createdAt: today.AddDate(0, 0, -1),
+			want:      1,
+		},
+		{
+			name:      "created 3 days ago",
+			createdAt: today.AddDate(0, 0, -3),
+			want:      3,
+		},
+		{
+			name:      "created 10 days ago",
+			createdAt: today.AddDate(0, 0, -10),
+			want:      10,
+		},
+		{
+			name:      "created 6 days ago (just before a week)",
+			createdAt: today.AddDate(0, 0, -6),
+			want:      6,
+		},
+		{
+			name:      "created 7 days ago",
+			createdAt: today.AddDate(0, 0, -7),
+			want:      7,
+		},
+		{
+			// Guard: future CreatedAt (clock skew) should not go negative.
+			name:      "created in the future",
+			createdAt: today.AddDate(0, 0, 1),
+			want:      0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			task := &Task{CreatedAt: tc.createdAt}
+			if got := task.DaysInColumn(); got != tc.want {
+				t.Errorf("DaysInColumn() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// ── AgeClass ──────────────────────────────────────────────────────────────────
+
+func TestAgeClass(t *testing.T) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		createdAt time.Time
+		want      string
+	}{
+		{"0 days → fresh",  today,                    "age-fresh"},
+		{"1 day → fresh",   today.AddDate(0, 0, -1),  "age-fresh"},
+		{"2 days → warn",   today.AddDate(0, 0, -2),  "age-warn"},
+		{"3 days → warn",   today.AddDate(0, 0, -3),  "age-warn"},
+		{"5 days → warn",   today.AddDate(0, 0, -5),  "age-warn"},
+		{"6 days → stale",  today.AddDate(0, 0, -6),  "age-stale"},
+		{"10 days → stale", today.AddDate(0, 0, -10), "age-stale"},
+		{"30 days → stale", today.AddDate(0, 0, -30), "age-stale"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			task := &Task{CreatedAt: tc.createdAt}
+			if got := task.AgeClass(); got != tc.want {
+				t.Errorf("AgeClass() = %q, want %q (days=%d)",
+					got, tc.want, task.DaysInColumn())
+			}
+		})
+	}
+}
+
+// ── AgeLabel ──────────────────────────────────────────────────────────────────
+
+func TestAgeLabel(t *testing.T) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		createdAt time.Time
+		want      string
+	}{
+		{"0 days",  today,                    "0d"},
+		{"1 day",   today.AddDate(0, 0, -1),  "1d"},
+		{"6 days",  today.AddDate(0, 0, -6),  "6d"},
+		{"7 days",  today.AddDate(0, 0, -7),  "1w"},
+		{"8 days",  today.AddDate(0, 0, -8),  "1w"},
+		{"13 days", today.AddDate(0, 0, -13), "1w"},
+		{"14 days", today.AddDate(0, 0, -14), "2w"},
+		{"21 days", today.AddDate(0, 0, -21), "3w"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			task := &Task{CreatedAt: tc.createdAt}
+			if got := task.AgeLabel(); got != tc.want {
+				t.Errorf("AgeLabel() = %q, want %q (days=%d)",
+					got, tc.want, task.DaysInColumn())
+			}
+		})
+	}
+}
