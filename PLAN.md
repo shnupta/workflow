@@ -382,9 +382,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Nav layout fix — consistent top bar across all tabs** ✅ 2026-03-08
   - Button now always rendered with `visibility: hidden` on non-board tabs — tab bar no longer shifts
 
-- [ ] **CSV export**
-  - `/export/tasks.csv` — all tasks with time tracked, status, work type, created/completed dates
-  - Useful for reporting, quarterly reviews
+- [x] **CSV export** ✅ 2026-03-08
+  - `GET /export/tasks.csv` — all tasks, 12 columns including time_tracked, status, recurrence, blocked_by
+  - Subtle export link at bottom of Digest tab; 68 tests passing
 
 - [ ] **Keyboard navigation on board**
   - Arrow keys to move between cards, Enter to open, `m` to move to next column
