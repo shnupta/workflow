@@ -1,0 +1,75 @@
+{{define "calendar.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Calendar</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="cal-page">
+
+      <!-- Header row: nav + month label -->
+      <div class="cal-header">
+        <a href="/calendar?week={{.PrevWeek}}" class="cal-nav-btn" title="Previous week">&#8592; Prev</a>
+        <div class="cal-month-label">
+          {{.MonthLabel}}
+          {{if ne .WeekOffset 0}}
+            <a href="/calendar" class="cal-today-link">Today</a>
+          {{end}}
+        </div>
+        <a href="/calendar?week={{.NextWeek}}" class="cal-nav-btn" title="Next week">Next &#8594;</a>
+      </div>
+
+      {{/* Overdue banner — tasks due before this week */}}
+      {{if .OverdueBefore}}
+      <div class="cal-overdue-banner">
+        <span class="cal-overdue-icon">⚠</span>
+        <span class="cal-overdue-label">{{len .OverdueBefore}} overdue task{{if gt (len .OverdueBefore) 1}}s{{end}} before this week</span>
+        <div class="cal-overdue-list">
+          {{range .OverdueBefore}}
+          <a href="/tasks/{{.ID}}" class="cal-overdue-item">
+            <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
+            {{.Title}}
+            <span class="cal-overdue-date">{{.DueDate.Format "Jan 2"}}</span>
+          </a>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      <!-- Week grid -->
+      <div class="cal-grid">
+        {{range .WeekDays}}
+        <div class="cal-day{{if .IsToday}} cal-day-today{{end}}">
+          <div class="cal-day-header">
+            <span class="cal-day-label">{{.Label}}</span>
+            {{if .IsToday}}<span class="cal-today-badge">today</span>{{end}}
+          </div>
+          <div class="cal-day-tasks">
+            {{$tasks := index $.TasksByDay .DateKey}}
+            {{if $tasks}}
+              {{range $tasks}}
+              <a href="/tasks/{{.ID}}" class="cal-task{{if .IsOverdue}} cal-task-overdue{{end}}">
+                <span class="tag tag-type cal-task-type">{{workTypeLabel .WorkType}}</span>
+                <span class="cal-task-title">{{.Title}}</span>
+              </a>
+              {{end}}
+            {{else}}
+              <span class="cal-day-empty">—</span>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

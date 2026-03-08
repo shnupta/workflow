@@ -2056,3 +2056,137 @@ func TestSearchTasks_DeleteRemovedFromIndex(t *testing.T) {
 		t.Errorf("expected 0 results after delete, got %d", len(results))
 	}
 }
+
+// ── ListTasksWithDueDates ─────────────────────────────────────────────────────
+
+func TestListTasksWithDueDates_ReturnsOnlyWithDueDate(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Task with a due date.
+	withDue := newTask("has due date", "today")
+	dd := time.Date(2099, 6, 15, 0, 0, 0, 0, time.UTC)
+	withDue.DueDate = &dd
+	if err := db.CreateTask(withDue); err != nil {
+		t.Fatalf("CreateTask withDue: %v", err)
+	}
+
+	// Task without a due date.
+	noDue := newTask("no due date", "today")
+	if err := db.CreateTask(noDue); err != nil {
+		t.Fatalf("CreateTask noDue: %v", err)
+	}
+
+	tasks, err := db.ListTasksWithDueDates()
+	if err != nil {
+		t.Fatalf("ListTasksWithDueDates: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].ID != withDue.ID {
+		t.Errorf("unexpected task id: %s", tasks[0].ID)
+	}
+}
+
+func TestListTasksWithDueDates_ExcludesDone(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("done with due date", "today")
+	dd := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	task.DueDate = &dd
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if _, err := db.MarkDone(task.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	tasks, err := db.ListTasksWithDueDates()
+	if err != nil {
+		t.Fatalf("ListTasksWithDueDates: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Errorf("expected 0 tasks (done excluded), got %d", len(tasks))
+	}
+}
+
+func TestListTasksWithDueDates_OrderedByDueDateASC(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	later := newTask("later task", "today")
+	dd1 := time.Date(2099, 12, 31, 0, 0, 0, 0, time.UTC)
+	later.DueDate = &dd1
+	if err := db.CreateTask(later); err != nil {
+		t.Fatalf("CreateTask later: %v", err)
+	}
+
+	sooner := newTask("sooner task", "today")
+	dd2 := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	sooner.DueDate = &dd2
+	if err := db.CreateTask(sooner); err != nil {
+		t.Fatalf("CreateTask sooner: %v", err)
+	}
+
+	tasks, err := db.ListTasksWithDueDates()
+	if err != nil {
+		t.Fatalf("ListTasksWithDueDates: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(tasks))
+	}
+	if tasks[0].ID != sooner.ID {
+		t.Errorf("expected sooner task first, got %s", tasks[0].Title)
+	}
+	if tasks[1].ID != later.ID {
+		t.Errorf("expected later task second, got %s", tasks[1].Title)
+	}
+}
+
+func TestListTasksWithDueDates_EmptyWhenNone(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	if err := db.CreateTask(newTask("no date task", "today")); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	tasks, err := db.ListTasksWithDueDates()
+	if err != nil {
+		t.Fatalf("ListTasksWithDueDates: %v", err)
+	}
+	if len(tasks) != 0 {
+		t.Errorf("expected 0, got %d", len(tasks))
+	}
+}
+
+func TestListTasksWithDueDates_TagsPopulated(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("tagged with due date", "today")
+	dd := time.Date(2099, 3, 15, 0, 0, 0, 0, time.UTC)
+	task.DueDate = &dd
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := db.AddTag(task.ID, "infra"); err != nil {
+		t.Fatalf("AddTag infra: %v", err)
+	}
+	if err := db.AddTag(task.ID, "urgent"); err != nil {
+		t.Fatalf("AddTag urgent: %v", err)
+	}
+
+	tasks, err := db.ListTasksWithDueDates()
+	if err != nil {
+		t.Fatalf("ListTasksWithDueDates: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if len(tasks[0].Tags) != 2 {
+		t.Errorf("expected 2 tags populated, got %d: %v", len(tasks[0].Tags), tasks[0].Tags)
+	}
+}

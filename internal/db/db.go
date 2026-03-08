@@ -429,6 +429,38 @@ func (d *DB) DeleteTask(id string) error {
 	return err
 }
 
+// ListTasksWithDueDates returns all non-done tasks that have a due_date set,
+// ordered by due_date ASC. Tags are populated on each returned task.
+func (d *DB) ListTasksWithDueDates() ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
+		       link, done, position, created_at, updated_at, done_at, due_date,
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence
+		FROM tasks
+		WHERE done = 0 AND due_date IS NOT NULL AND due_date != ''
+		ORDER BY due_date ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list tasks with due dates: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan task with due date: %w", err)
+		}
+		tasks = append(tasks, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 // ListAllTasks returns every task (all tiers, done and not done) ordered by
 // created_at DESC. Intended for export — no pagination, no filtering.
 func (d *DB) ListAllTasks() ([]*models.Task, error) {

@@ -1659,3 +1659,139 @@ func TestHandler_DismissReminder_Idempotent(t *testing.T) {
 		t.Errorf("second dismiss: expected 204, got %d", resp.StatusCode)
 	}
 }
+
+// ── GET /calendar ─────────────────────────────────────────────────────────────
+
+func TestHandler_Calendar_Returns200(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/calendar")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /calendar expected 200, got %d; body: %.300s", resp.StatusCode, body)
+	}
+	// Basic structural checks.
+	if !strings.Contains(body, "cal-grid") {
+		t.Error("expected cal-grid in calendar page")
+	}
+	if !strings.Contains(body, "cal-day") {
+		t.Error("expected cal-day columns in calendar page")
+	}
+}
+
+func TestHandler_Calendar_ShowsWeekNavigation(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/calendar")
+	body := readBody(t, resp)
+	if !strings.Contains(body, "Prev") {
+		t.Error("expected Prev navigation link")
+	}
+	if !strings.Contains(body, "Next") {
+		t.Error("expected Next navigation link")
+	}
+}
+
+func TestHandler_Calendar_WeekOffsetParam(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/calendar?week=1")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /calendar?week=1 expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+	// When week != 0, a "Today" link should appear.
+	if !strings.Contains(body, "cal-today-link") {
+		t.Error("expected today link when week offset is non-zero")
+	}
+}
+
+func TestHandler_Calendar_TaskWithDueDateAppearsInGrid(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "calendar smoke task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Set due date to today so it always appears in the default week view.
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	task.DueDate = &today
+	if err := h.db.UpdateTask(task); err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	resp := get(t, srv, "/calendar")
+	body := readBody(t, resp)
+	if !strings.Contains(body, "calendar smoke task") {
+		t.Errorf("expected task title in calendar; body snippet: %.500s", body)
+	}
+}
+
+func TestHandler_Calendar_InvalidWeekParamDefaults(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// Non-integer ?week= should silently default to 0 and return 200.
+	resp := get(t, srv, "/calendar?week=notanumber")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for invalid week param, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_Calendar_NegativeWeekOffset(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/calendar?week=-2")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 for negative week offset, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_Calendar_TaskOnlyInItsOwnWeek(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "future week task",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Due 14 days from now — guaranteed to be in a different week than today.
+	future := time.Now().AddDate(0, 0, 14)
+	futureDay := time.Date(future.Year(), future.Month(), future.Day(), 0, 0, 0, 0, future.Location())
+	task.DueDate = &futureDay
+	if err := h.db.UpdateTask(task); err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	// Should NOT appear in current week.
+	resp := get(t, srv, "/calendar")
+	body := readBody(t, resp)
+	if strings.Contains(body, "future week task") {
+		t.Error("task due in 2 weeks should not appear in current week view")
+	}
+
+	// Should appear in week=2.
+	resp2 := get(t, srv, "/calendar?week=2")
+	body2 := readBody(t, resp2)
+	if !strings.Contains(body2, "future week task") {
+		t.Errorf("task due in 2 weeks should appear in week=2 view; snippet: %.400s", body2)
+	}
+}

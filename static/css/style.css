@@ -2889,3 +2889,220 @@ input[type="date"] {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
 }
+
+/* ── Calendar page ────────────────────────────────────────────────────────── */
+
+.cal-page {
+  padding: 28px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header: prev / month label / next */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 12px;
+}
+
+.cal-nav-btn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.cal-nav-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.cal-month-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cal-today-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--accent-dim);
+  border-radius: 4px;
+  padding: 2px 8px;
+  transition: background 0.15s;
+}
+.cal-today-link:hover { background: var(--accent-dim); }
+
+/* Overdue banner */
+.cal-overdue-banner {
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cal-overdue-icon { font-size: 14px; }
+
+.cal-overdue-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--red);
+}
+
+.cal-overdue-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cal-overdue-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.cal-overdue-item:hover { border-color: var(--red); }
+
+.cal-overdue-date {
+  font-size: 11px;
+  color: var(--red);
+  opacity: 0.8;
+}
+
+/* Week grid — 7 equal columns */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+/* Day column */
+.cal-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cal-day-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+
+.cal-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-day-today .cal-day-header {
+  background: var(--accent-dim);
+  border-bottom-color: var(--accent);
+}
+
+.cal-day-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cal-day-today .cal-day-label { color: var(--accent); }
+
+.cal-today-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--accent);
+  background: rgba(124, 106, 247, 0.15);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+/* Tasks inside a day */
+.cal-day-tasks {
+  flex: 1;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cal-day-empty {
+  font-size: 14px;
+  color: var(--border);
+  padding: 12px 0;
+  text-align: center;
+}
+
+.cal-task {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface2, #1e2130);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.cal-task:hover { border-color: var(--accent); }
+
+.cal-task-overdue {
+  border-left: 3px solid var(--red);
+}
+.cal-task-overdue:hover { border-color: var(--red); }
+
+.cal-task-type {
+  font-size: 10px;
+  padding: 1px 5px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.cal-task-title {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.cal-task-overdue .cal-task-title { color: var(--red); opacity: 0.9; }
+
+/* Responsive: stack into 3+4 columns below 800px, single column below 480px */
+@media (max-width: 800px) {
+  .cal-grid { grid-template-columns: repeat(4, 1fr); }
+  .cal-day:nth-child(n+5) { /* already wraps naturally */ }
+}
+@media (max-width: 480px) {
+  .cal-grid { grid-template-columns: 1fr; }
+  .cal-page { padding: 16px; }
+}
