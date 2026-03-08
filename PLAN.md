@@ -389,3 +389,36 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Keyboard navigation on board** ✅ 2026-03-08
   - Arrow keys navigate cards, Enter opens, `m` moves to next column (DOM surgery, no reload)
   - Indigo focus ring; respects filter bar, overlay guard, existing shortcuts; 3 new handler tests
+
+---
+
+## New features (proposed 2026-03-08)
+
+### Medium priority
+
+- [ ] **Task comments / activity log**
+  - Lightweight per-task comments: text entry, timestamp, author ("You")
+  - Displayed below the agent brief on the task page, newest-first or chronological toggle
+  - Useful for jotting manual notes, decisions, follow-ups alongside the agent session
+  - `task_comments` table (task_id, body, created_at); `GET/POST /api/tasks/{id}/comments`
+
+- [ ] **Bulk board actions**
+  - Select multiple cards (checkbox on hover, or shift-click range)
+  - Bulk move to column, bulk mark done, bulk assign due date
+  - Toolbar appears above board when ≥1 card selected
+
+- [ ] **Task labels / tags**
+  - Free-form tags on tasks (e.g. "urgent", "blocked", "needs-review")
+  - Tag chips on board cards; filter bar includes tag filters
+  - `task_tags` join table; tag autocomplete from existing tags on create/edit
+
+### Lower priority
+
+- [ ] **Notification / reminder system**
+  - Set a reminder on any task: "remind me tomorrow at 9am"
+  - Nox (or a cron) checks due reminders and sends Telegram message
+  - `task_reminders` table (task_id, remind_at, sent bool)
+
+- [ ] **Sub-sessions / thread view**
+  - Sessions can spawn sub-sessions (parent_id is already in schema)
+  - UI for this is a future concern — defer until a concrete use case emerges
