@@ -12,6 +12,27 @@
 </head>
 <body>
   {{template "nav" .}}
+  <!-- Bulk-action toolbar — hidden until ≥1 card selected -->
+  <div class="bulk-toolbar" id="bulk-toolbar" aria-hidden="true">
+    <span class="bulk-count" id="bulk-count">0 selected</span>
+    <div class="bulk-actions">
+      <div class="bulk-move-wrap">
+        <button class="btn btn-ghost btn-sm bulk-btn" id="bulk-move-btn"
+                onclick="bulkMoveDropdownToggle(event)">Move to ▾</button>
+        <div class="bulk-move-dropdown" id="bulk-move-dropdown">
+          {{range .Tiers}}
+          <button class="bulk-move-item" data-tier="{{.Key}}"
+                  onclick="bulkMove('{{.Key}}', '{{.Label}}')">{{.Label}}</button>
+          {{end}}
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm bulk-btn" id="bulk-done-btn"
+              onclick="bulkMarkDone()">Mark done</button>
+      <button class="btn btn-ghost btn-sm bulk-clear-btn"
+              onclick="bulkClearSelection()" title="Clear selection">✕ Clear</button>
+    </div>
+  </div>
+
   <main>
     {{if .RecurringCloned}}
     <div class="flash flash-info" id="recurring-flash">
@@ -564,6 +585,224 @@
       applyFilter();
     }
   })();
+
+  // ── Bulk selection ────────────────────────────────────────────────────────
+  //
+  // Selected state is tracked as a Set of task IDs. The toolbar is shown/
+  // hidden reactively whenever the set changes. Shift-click selects a range
+  // of cards within the same column.
+
+  const _selected   = new Set();  // task IDs currently selected
+  let   _lastCheck  = null;       // last checkbox element that was toggled (for shift-range)
+
+  // Sync the toolbar UI to the current _selected state.
+  function _bulkSyncUI() {
+    const n       = _selected.size;
+    const toolbar = document.getElementById('bulk-toolbar');
+    const countEl = document.getElementById('bulk-count');
+
+    countEl.textContent = n === 1 ? '1 selected' : `${n} selected`;
+    toolbar.classList.toggle('bulk-toolbar--visible', n > 0);
+    toolbar.setAttribute('aria-hidden', n === 0 ? 'true' : 'false');
+  }
+
+  // Called by the label's onclick so we intercept before the checkbox toggles.
+  function onCardCheckboxClick(e, label) {
+    // Only intercept clicks on the label or checkbox itself — not the card body.
+    const cb = label.querySelector('.card-checkbox');
+
+    if (e.shiftKey && _lastCheck && _lastCheck !== cb) {
+      e.preventDefault(); // prevent default toggle; we'll set state manually
+      _bulkShiftSelect(cb);
+      return;
+    }
+
+    // Let the checkbox toggle naturally, then sync.
+    // We use a microtask so .checked reflects the new value.
+    setTimeout(() => {
+      if (cb.checked) {
+        _selected.add(cb.dataset.id);
+      } else {
+        _selected.delete(cb.dataset.id);
+      }
+      _lastCheck = cb;
+      _bulkSyncUI();
+    }, 0);
+  }
+
+  // Select all cards between _lastCheck and targetCb within the same column.
+  function _bulkShiftSelect(targetCb) {
+    const targetCard = targetCb.closest('.task-card');
+    const lastCard   = _lastCheck.closest('.task-card');
+    if (!targetCard || !lastCard) return;
+
+    // Must be in the same column.
+    const targetList = targetCard.closest('.task-list');
+    const lastList   = lastCard.closest('.task-list');
+    if (!targetList || targetList !== lastList) {
+      // Different columns — just toggle the target.
+      targetCb.checked = !targetCb.checked;
+      if (targetCb.checked) _selected.add(targetCb.dataset.id);
+      else                   _selected.delete(targetCb.dataset.id);
+      _lastCheck = targetCb;
+      _bulkSyncUI();
+      return;
+    }
+
+    const allCards = [...targetList.querySelectorAll('.task-card')];
+    const aIdx = allCards.indexOf(lastCard);
+    const bIdx = allCards.indexOf(targetCard);
+    const lo = Math.min(aIdx, bIdx);
+    const hi = Math.max(aIdx, bIdx);
+
+    // Determine intent: if the anchor was checked, select the range; if not, deselect.
+    const select = _lastCheck.checked;
+    for (let i = lo; i <= hi; i++) {
+      const cb = allCards[i].querySelector('.card-checkbox');
+      if (!cb) continue;
+      cb.checked = select;
+      if (select) _selected.add(cb.dataset.id);
+      else         _selected.delete(cb.dataset.id);
+    }
+    _lastCheck = targetCb;
+    _bulkSyncUI();
+  }
+
+  function bulkClearSelection() {
+    _selected.clear();
+    document.querySelectorAll('.card-checkbox').forEach(cb => { cb.checked = false; });
+    document.querySelectorAll('.task-card.card-selected').forEach(c => c.classList.remove('card-selected'));
+    _lastCheck = null;
+    _bulkSyncUI();
+    _bulkMoveDropdownClose();
+  }
+
+  // Keep card highlight in sync with checkbox state (CSS can't reach sibling easily).
+  document.addEventListener('change', e => {
+    if (!e.target.matches('.card-checkbox')) return;
+    e.target.closest('.task-card').classList.toggle('card-selected', e.target.checked);
+  });
+
+  // ── Bulk move ─────────────────────────────────────────────────────────────
+
+  function bulkMoveDropdownToggle(e) {
+    e.stopPropagation();
+    const dd = document.getElementById('bulk-move-dropdown');
+    dd.classList.toggle('bulk-move-dropdown--open');
+  }
+
+  function _bulkMoveDropdownClose() {
+    document.getElementById('bulk-move-dropdown').classList.remove('bulk-move-dropdown--open');
+  }
+
+  document.addEventListener('click', () => _bulkMoveDropdownClose());
+
+  async function bulkMove(tier, tierLabel) {
+    _bulkMoveDropdownClose();
+    if (_selected.size === 0) return;
+
+    const btn = document.getElementById('bulk-move-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    const ids = [..._selected];
+    for (const id of ids) {
+      try {
+        const r = await fetch(`/tasks/${id}/move`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ tier, before_id: '' }),
+        });
+        if (!r.ok) { console.error(`move ${id} failed: ${r.status}`); continue; }
+
+        // DOM surgery: move the card to the target column's task-list.
+        const card     = document.querySelector(`.task-card[data-id="${id}"]`);
+        const fromList = card ? card.closest('.task-list') : null;
+        const toCol    = document.querySelector(`.tier-col[data-tier="${tier}"]`);
+        const toList   = toCol ? toCol.querySelector('.task-list') : null;
+
+        if (card && toList && fromList !== toList) {
+          // Uncheck before moving so selection highlight doesn't persist.
+          const cb = card.querySelector('.card-checkbox');
+          if (cb) cb.checked = false;
+          card.classList.remove('card-selected');
+          toList.appendChild(card);
+          _updateColCount(fromList.closest('.tier-col'));
+          _updateColCount(toCol);
+        }
+      } catch (err) {
+        console.error(`move ${id} error:`, err);
+      }
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Move to ▾';
+    bulkClearSelection();
+  }
+
+  // ── Bulk mark done ────────────────────────────────────────────────────────
+
+  async function bulkMarkDone() {
+    if (_selected.size === 0) return;
+
+    const btn = document.getElementById('bulk-done-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+
+    const ids = [..._selected];
+    for (const id of ids) {
+      try {
+        // POST to /tasks/{id}/done — server redirects to /, we just need the
+        // request to succeed (any 2xx or 3xx response means done).
+        const r = await fetch(`/tasks/${id}/done`, {
+          method:   'POST',
+          redirect: 'manual',   // don't follow the 303 redirect
+        });
+        // 303 → success, anything else is a server error.
+        if (r.status !== 303 && r.status !== 0 && !r.ok) {
+          console.error(`mark-done ${id} failed: ${r.status}`);
+          continue;
+        }
+        // Remove card from DOM.
+        const card = document.querySelector(`.task-card[data-id="${id}"]`);
+        if (card) {
+          const col = card.closest('.tier-col');
+          card.remove();
+          if (col) _updateColCount(col);
+        }
+      } catch (err) {
+        console.error(`mark-done ${id} error:`, err);
+      }
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Mark done';
+    bulkClearSelection();
+  }
+
+  // ── Column count badge helper ──────────────────────────────────────────────
+
+  function _updateColCount(col) {
+    if (!col) return;
+    const list    = col.querySelector('.task-list');
+    const count   = col.querySelector('.count');
+    const cards   = list ? list.querySelectorAll('.task-card') : [];
+    if (count) count.textContent = cards.length;
+
+    // Empty-state management.
+    let empty = list && list.querySelector('.empty:not(.filter-empty)');
+    if (cards.length === 0) {
+      if (!empty) {
+        empty = document.createElement('p');
+        empty.className = 'empty';
+        list.appendChild(empty);
+      }
+      empty.textContent = 'Nothing here';
+      empty.style.display = '';
+    } else if (empty) {
+      empty.style.display = 'none';
+    }
+  }
 </script>
 </body>
 </html>
@@ -575,9 +814,12 @@
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
      data-direction="{{.Direction}}"
-     data-tags="{{jsonStr .Tags}}"
+     data-tags="{{jsonArr .Tags}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
+  <label class="card-select-wrap" title="Select task" onclick="onCardCheckboxClick(event, this)">
+    <input type="checkbox" class="card-checkbox" data-id="{{.ID}}" tabindex="-1">
+  </label>
   <div class="task-card-header">
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}

@@ -125,6 +125,15 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 		},
 		"recurrenceLabel": recurrenceLabel,
 		"jsonStr":         jsonStr,
+		// jsonArr encodes a []string as a JSON array string safe for use in
+		// HTML data-* attributes (e.g. data-tags='["a","b"]').
+		"jsonArr": func(ss []string) string {
+			if len(ss) == 0 {
+				return "[]"
+			}
+			b, _ := json.Marshal(ss)
+			return string(b)
+		},
 		"jsonEscape": func(s string) template.JS {
 			b, _ := json.Marshal(s)
 			return template.JS(b)
