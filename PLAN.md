@@ -396,7 +396,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task comments / activity log**
+- [x] **Task comments / activity log** ✅ 2026-03-08
   - Lightweight per-task comments: text entry, timestamp, author ("You")
   - Displayed below the agent brief on the task page, newest-first or chronological toggle
   - Useful for jotting manual notes, decisions, follow-ups alongside the agent session
