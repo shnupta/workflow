@@ -379,10 +379,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Nav layout fix — consistent top bar across all tabs**
-  - The "New Task" button only appears on the board tab, causing the nav/tab bar to shift position on Sessions, Notes, and Digest tabs
-  - Fix: reserve the same space for the button on all tabs (e.g. render it as `visibility: hidden` when not applicable, or always include it in the layout with a no-op state)
-  - Goal: tab selector stays in exactly the same position regardless of which tab is active
+- [x] **Nav layout fix — consistent top bar across all tabs** ✅ 2026-03-08
+  - Button now always rendered with `visibility: hidden` on non-board tabs — tab bar no longer shifts
 
 - [ ] **CSV export**
   - `/export/tasks.csv` — all tasks with time tracked, status, work type, created/completed dates
