@@ -402,10 +402,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Useful for jotting manual notes, decisions, follow-ups alongside the agent session
   - `task_comments` table (task_id, body, created_at); `GET/POST /api/tasks/{id}/comments`
 
-- [ ] **Bulk board actions**
-  - Select multiple cards (checkbox on hover, or shift-click range)
-  - Bulk move to column, bulk mark done, bulk assign due date
-  - Toolbar appears above board when ≥1 card selected
+- [x] **Bulk board actions** ✅ 2026-03-08
+  - Checkbox on hover per card; shift-click range select within column
+  - Floating sticky toolbar: count + Move to dropdown + Mark done + Clear
+  - Sequential DOM surgery (no reload); fixed jsonArr bug (was 500 on tasks with tags); 141 tests
 
 - [x] **Task labels / tags** ✅ 2026-03-08
   - `task_tags` join table; AddTag/RemoveTag/ListTags/ListAllTags DB methods; no N+1 (bulk hydration)
