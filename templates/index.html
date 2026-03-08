@@ -186,34 +186,266 @@
     }
   }
 
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  // ── Keyboard navigation ────────────────────────────────────────────────────
+  //
+  // State: focusedCard tracks the currently focused .task-card element (or
+  // null). colIndex / rowIndex are maintained separately so arrow moves across
+  // columns can attempt to keep the same row.
 
-  document.addEventListener('keydown', e => {
-    // Don't fire when typing in an input/textarea
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
+  (function() {
+    let focusedCard = null; // the DOM node that currently has the focus ring
+    let colIndex    = 0;   // index within the ordered list of visible columns
+    let rowIndex    = 0;   // index within the column's visible cards
 
-    switch (e.key) {
-      case 'n':
-        e.preventDefault();
-        window.location.href = '/tasks/new';
-        break;
-      case 'q':
-        e.preventDefault();
-        // Open quick-add on the first (leftmost) tier
-        const firstTier = document.querySelector('.tier-col');
-        if (firstTier) openQuickAdd(firstTier.dataset.tier);
-        break;
-      case 's':
-        e.preventDefault();
-        window.location.href = '/search';
-        break;
-      case '?':
-        e.preventDefault();
-        toggleShortcutsOverlay();
-        break;
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    // Returns all visible .tier-col elements in DOM order.
+    function cols() {
+      return [...document.querySelectorAll('.tier-col')];
     }
-  });
+
+    // Returns visible (non-hidden) .task-card elements inside a column.
+    function visibleCards(col) {
+      return [...col.querySelectorAll('.task-card')].filter(
+        c => c.style.display !== 'none'
+      );
+    }
+
+    // Returns true if a modal/overlay is open.
+    function overlayOpen() {
+      return !!document.getElementById('shortcuts-overlay');
+    }
+
+    // ── Focus management ──────────────────────────────────────────────────────
+
+    function setFocus(card, cIdx, rIdx) {
+      if (focusedCard) focusedCard.classList.remove('kb-focus');
+      focusedCard = card;
+      colIndex    = cIdx;
+      rowIndex    = rIdx;
+      if (!card) return;
+      card.classList.add('kb-focus');
+      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function clearFocus() {
+      setFocus(null, 0, 0);
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+
+    // Find where a given card currently lives (col / row indices).
+    function locateCard(card) {
+      const allCols = cols();
+      for (let c = 0; c < allCols.length; c++) {
+        const cards = visibleCards(allCols[c]);
+        const r = cards.indexOf(card);
+        if (r !== -1) return { c, r, col: allCols[c], cards };
+      }
+      return null;
+    }
+
+    function moveDown() {
+      if (!focusedCard) { focusFirst(); return; }
+      const allCols = cols();
+      const col = allCols[colIndex];
+      if (!col) return;
+      const cards = visibleCards(col);
+      if (cards.length === 0) return;
+      const nextRow = (rowIndex + 1) % cards.length; // wrap bottom→top
+      setFocus(cards[nextRow], colIndex, nextRow);
+    }
+
+    function moveUp() {
+      if (!focusedCard) { focusFirst(); return; }
+      const allCols = cols();
+      const col = allCols[colIndex];
+      if (!col) return;
+      const cards = visibleCards(col);
+      if (cards.length === 0) return;
+      const prevRow = (rowIndex - 1 + cards.length) % cards.length; // wrap top→bottom
+      setFocus(cards[prevRow], colIndex, prevRow);
+    }
+
+    function moveRight() {
+      const allCols = cols();
+      const nextColIdx = focusedCard ? colIndex + 1 : 0;
+      if (nextColIdx >= allCols.length) return;
+      const cards = visibleCards(allCols[nextColIdx]);
+      if (cards.length === 0) { colIndex = nextColIdx; return; }
+      const targetRow = Math.min(rowIndex, cards.length - 1);
+      setFocus(cards[targetRow], nextColIdx, targetRow);
+    }
+
+    function moveLeft() {
+      if (!focusedCard) return;
+      if (colIndex === 0) return;
+      const allCols = cols();
+      const prevColIdx = colIndex - 1;
+      const cards = visibleCards(allCols[prevColIdx]);
+      if (cards.length === 0) { colIndex = prevColIdx; return; }
+      const targetRow = Math.min(rowIndex, cards.length - 1);
+      setFocus(cards[targetRow], prevColIdx, targetRow);
+    }
+
+    function focusFirst() {
+      const allCols = cols();
+      for (let c = 0; c < allCols.length; c++) {
+        const cards = visibleCards(allCols[c]);
+        if (cards.length > 0) { setFocus(cards[0], c, 0); return; }
+      }
+    }
+
+    // ── Move card to next tier ────────────────────────────────────────────────
+
+    async function moveFocusedCard() {
+      if (!focusedCard) return;
+
+      const allCols = cols();
+      const currentCol = allCols[colIndex];
+      if (!currentCol) return;
+
+      // Determine next tier (wraps around).
+      const nextColIdx = (colIndex + 1) % allCols.length;
+      const nextCol    = allCols[nextColIdx];
+      const nextTier   = nextCol.dataset.tier;
+      const taskID     = focusedCard.dataset.id;
+
+      try {
+        const res = await fetch(`/tasks/${taskID}/move`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ tier: nextTier, before_id: '' }),
+        });
+        if (!res.ok) { console.error('move failed', res.status); return; }
+      } catch (err) {
+        console.error('move error', err);
+        return;
+      }
+
+      // DOM surgery: move the card to the next column's task-list.
+      const nextList = nextCol.querySelector('.task-list');
+      const cardElem = focusedCard; // capture before setFocus clears
+
+      // Update colIndex/rowIndex before splicing the DOM so locateCard() still
+      // works if called from a resize/filter observer.
+      const newRow = visibleCards(nextList).length; // will be appended last
+
+      nextList.appendChild(cardElem);
+
+      // Update column counts.
+      updateColCount(currentCol);
+      updateColCount(nextCol);
+
+      // Keep focus on the moved card in its new location.
+      setFocus(cardElem, nextColIdx, newRow);
+    }
+
+    function updateColCount(col) {
+      const heading = col.querySelector('.tier-heading .count');
+      if (heading) heading.textContent = visibleCards(col).length;
+
+      // Show/hide "Nothing here" empty state.
+      const list  = col.querySelector('.task-list');
+      let   empty = list.querySelector('.empty');
+      if (visibleCards(col).length === 0) {
+        if (!empty) {
+          empty = document.createElement('p');
+          empty.className = 'empty';
+          list.appendChild(empty);
+        }
+        empty.textContent = 'Nothing here';
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
+    }
+
+    // ── Keyboard event handler ────────────────────────────────────────────────
+
+    document.addEventListener('keydown', e => {
+      // Never intercept when typing.
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Arrow keys / nav-actions only when overlay is closed.
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          if (!overlayOpen()) moveDown();
+          return;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (!overlayOpen()) moveUp();
+          return;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (!overlayOpen()) moveRight();
+          return;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (!overlayOpen()) moveLeft();
+          return;
+        case 'Enter':
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            window.location.href = `/tasks/${focusedCard.dataset.id}`;
+          }
+          return;
+        case 'm':
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            moveFocusedCard();
+          }
+          return;
+        case 'Escape':
+          if (overlayOpen()) return; // let the overlay handler deal with it
+          if (focusedCard) { e.preventDefault(); clearFocus(); return; }
+          // Fall through to filter-clear when no card is focused.
+          return;
+      }
+
+      // ── Existing letter shortcuts (only when no card focused & no overlay) ──
+      if (focusedCard || overlayOpen()) return;
+
+      switch (e.key) {
+        case 'n':
+          e.preventDefault();
+          window.location.href = '/tasks/new';
+          break;
+        case 'q':
+          e.preventDefault();
+          const firstTier = document.querySelector('.tier-col');
+          if (firstTier) openQuickAdd(firstTier.dataset.tier);
+          break;
+        case 's':
+          e.preventDefault();
+          window.location.href = '/search';
+          break;
+        case '?':
+          e.preventDefault();
+          toggleShortcutsOverlay();
+          break;
+      }
+    });
+
+    // Clear focus when the user clicks somewhere that isn't a card.
+    document.addEventListener('mousedown', e => {
+      if (!focusedCard) return;
+      if (!e.target.closest('.task-card')) clearFocus();
+    });
+
+    // Clicking a card directly focuses it (useful with mouse + keyboard mix).
+    document.addEventListener('click', e => {
+      const card = e.target.closest('.task-card');
+      if (!card) return;
+      // Only focus on a plain click (not on the ✓ done button or title link).
+      if (e.target.closest('.btn-done') || e.target.closest('.task-title')) return;
+      const loc = locateCard(card);
+      if (loc) setFocus(card, loc.c, loc.r);
+    });
+
+  })();
 
   // ── Shortcuts overlay ──────────────────────────────────────────────────────
 
@@ -227,11 +459,15 @@
       <div class="shortcuts-box">
         <div class="shortcuts-title">Keyboard shortcuts</div>
         <div class="shortcuts-grid">
+          <kbd>↑ ↓</kbd><span>Move focus between cards in column</span>
+          <kbd>← →</kbd><span>Move focus between columns</span>
+          <kbd>Enter</kbd><span>Open focused task</span>
+          <kbd>m</kbd><span>Move focused task to next column</span>
+          <kbd>Esc</kbd><span>Clear focus / close overlay</span>
           <kbd>n</kbd><span>New task (full form)</span>
           <kbd>q</kbd><span>Quick-add to first column</span>
           <kbd>s</kbd><span>Search sessions</span>
           <kbd>?</kbd><span>Show / hide this</span>
-          <kbd>Esc</kbd><span>Close overlay / clear filter</span>
         </div>
       </div>
     `;
@@ -243,7 +479,8 @@
     if (e.key === 'Escape') {
       const overlay = document.getElementById('shortcuts-overlay');
       if (overlay) { overlay.remove(); e.preventDefault(); return; }
-      // Also clear filter on Esc if one is active
+      // Clear filter on Esc if one is active and no card is focused
+      // (card-focused Esc is handled above).
       const active = document.querySelector('.filter-chip.active');
       if (active && active.dataset.filter !== 'all') setFilter('all', document.querySelector('[data-filter=all]'));
     }

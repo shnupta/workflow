@@ -125,6 +125,13 @@ main { padding: 24px; }
 }
 .task-card:hover { border-color: var(--accent-dim); }
 
+/* Keyboard navigation focus ring — indigo, distinct from hover/overdue/blocked */
+.task-card.kb-focus {
+  outline: 2px solid #7c6af7;
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
 /* Depth tinting */
 .task-card.depth-deep    { border-left: 3px solid var(--accent); }
 .task-card.depth-medium  { border-left: 3px solid var(--amber); }
