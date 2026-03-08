@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -685,5 +686,212 @@ func TestHandler_UpdateNote_PersistsToList(t *testing.T) {
 	}
 	if notes[0]["content"] != "After" {
 		t.Errorf("patched content not reflected in list: %v", notes[0]["content"])
+	}
+}
+
+// ── GET /api/tasks/{id}/comments ─────────────────────────────────────────────
+
+func TestHandler_ListComments_EmptyOnFreshTask(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "comment task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := get(t, srv, "/api/tasks/"+task.ID+"/comments")
+	body := readBody(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /api/tasks/{id}/comments expected 200, got %d", resp.StatusCode)
+	}
+	var comments []interface{}
+	if err := json.Unmarshal([]byte(body), &comments); err != nil {
+		t.Fatalf("response not JSON array: %v; body: %s", err, body)
+	}
+	if len(comments) != 0 {
+		t.Errorf("expected empty array, got %d items", len(comments))
+	}
+}
+
+// ── POST /api/tasks/{id}/comments ────────────────────────────────────────────
+
+func TestHandler_CreateComment_Returns201(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "task with comment", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{
+		"body": "this is a comment",
+	})
+	body := readBody(t, resp)
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("POST /api/tasks/{id}/comments expected 201, got %d; body: %s", resp.StatusCode, body)
+	}
+}
+
+func TestHandler_CreateComment_ReturnsCommentJSON(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "task for json", WorkType: "docs", Tier: "backlog", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{
+		"body": "hello comment",
+	})
+	body := readBody(t, resp)
+
+	var c map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &c); err != nil {
+		t.Fatalf("response not JSON: %v; body: %s", err, body)
+	}
+	if c["body"] != "hello comment" {
+		t.Errorf("body field: got %v", c["body"])
+	}
+	if c["id"] == nil || c["id"] == float64(0) {
+		t.Error("expected non-zero id in response")
+	}
+	if c["formatted_time"] == "" || c["formatted_time"] == nil {
+		t.Error("expected non-empty formatted_time in response")
+	}
+	if c["task_id"] != task.ID {
+		t.Errorf("task_id: got %v, want %q", c["task_id"], task.ID)
+	}
+}
+
+func TestHandler_CreateComment_EmptyBody_Returns400(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "empty body task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{
+		"body": "",
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty body, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandler_CreateComment_AppearsInList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "list check task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{"body": "first"})
+	postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{"body": "second"})
+
+	resp := get(t, srv, "/api/tasks/"+task.ID+"/comments")
+	body := readBody(t, resp)
+
+	var comments []map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &comments); err != nil {
+		t.Fatalf("not JSON: %v", err)
+	}
+	if len(comments) != 2 {
+		t.Fatalf("expected 2 comments, got %d", len(comments))
+	}
+	if comments[0]["body"] != "first" {
+		t.Errorf("expected first comment to be 'first', got %v", comments[0]["body"])
+	}
+	if comments[1]["body"] != "second" {
+		t.Errorf("expected second comment to be 'second', got %v", comments[1]["body"])
+	}
+}
+
+// ── DELETE /api/comments/{id} ─────────────────────────────────────────────────
+
+func TestHandler_DeleteComment_Returns204(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "delete me", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Create via API so we get the ID back as JSON.
+	createResp := postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{
+		"body": "to be deleted",
+	})
+	var c map[string]interface{}
+	json.Unmarshal([]byte(readBody(t, createResp)), &c)
+	id := int64(c["id"].(float64))
+
+	// Delete it.
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/comments/"+strconv.FormatInt(id, 10), nil)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	delResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer delResp.Body.Close()
+	if delResp.StatusCode != http.StatusNoContent {
+		t.Errorf("DELETE /api/comments/{id} expected 204, got %d", delResp.StatusCode)
+	}
+}
+
+func TestHandler_DeleteComment_GoneFromList(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "gone task", WorkType: "coding", Tier: "today", Direction: "blocked_on_me"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	createResp := postJSON(t, srv, "/api/tasks/"+task.ID+"/comments", map[string]string{"body": "gone"})
+	var c map[string]interface{}
+	json.Unmarshal([]byte(readBody(t, createResp)), &c)
+	id := int64(c["id"].(float64))
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/comments/"+strconv.FormatInt(id, 10), nil)
+	client.Do(req)
+
+	listResp := get(t, srv, "/api/tasks/"+task.ID+"/comments")
+	var comments []interface{}
+	json.Unmarshal([]byte(readBody(t, listResp)), &comments)
+	if len(comments) != 0 {
+		t.Errorf("expected 0 comments after delete, got %d", len(comments))
+	}
+}
+
+func TestHandler_DeleteComment_InvalidID_Returns400(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest(http.MethodDelete, srv.URL+"/api/comments/not-a-number", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for non-numeric ID, got %d", resp.StatusCode)
 	}
 }

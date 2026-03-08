@@ -107,6 +107,16 @@ func (d *DB) migrate() error {
 		log.Printf("db: seeding default templates: %v", err)
 	}
 
+	// Task comments table
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS task_comments (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			task_id    TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			body       TEXT    NOT NULL,
+			created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+		)
+	`)
+
 	// Session migrations
 	for _, col := range []string{
 		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
@@ -1206,4 +1216,92 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	dw.SessionCount = sc
 
 	return dw, nil
+}
+
+// ─────────────────────────────────────────────────────────
+// Task comments
+// ─────────────────────────────────────────────────────────
+
+// CreateComment inserts a new comment for the given task and populates c.ID
+// and c.CreatedAt from the inserted row.
+func (d *DB) CreateComment(taskID, body string) (*models.Comment, error) {
+	res, err := d.conn.Exec(
+		`INSERT INTO task_comments (task_id, body) VALUES (?, ?)`,
+		taskID, body,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create comment: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("create comment: last insert id: %w", err)
+	}
+	// Re-fetch so created_at is populated from the DB default.
+	return d.getComment(id)
+}
+
+func (d *DB) getComment(id int64) (*models.Comment, error) {
+	row := d.conn.QueryRow(
+		`SELECT id, task_id, body, created_at FROM task_comments WHERE id = ?`, id,
+	)
+	return scanComment(row)
+}
+
+// ListComments returns all comments for a task ordered oldest-first.
+func (d *DB) ListComments(taskID string) ([]*models.Comment, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, task_id, body, created_at FROM task_comments
+		 WHERE task_id = ? ORDER BY created_at ASC, id ASC`,
+		taskID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list comments: %w", err)
+	}
+	defer rows.Close()
+
+	var comments []*models.Comment
+	for rows.Next() {
+		c, err := scanCommentRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("list comments: scan: %w", err)
+		}
+		comments = append(comments, c)
+	}
+	return comments, rows.Err()
+}
+
+// DeleteComment removes a comment by its ID. Deleting a non-existent comment
+// is not an error.
+func (d *DB) DeleteComment(id int64) error {
+	_, err := d.conn.Exec(`DELETE FROM task_comments WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete comment %d: %w", id, err)
+	}
+	return nil
+}
+
+func scanComment(row *sql.Row) (*models.Comment, error) {
+	var c models.Comment
+	var createdAt string
+	if err := row.Scan(&c.ID, &c.TaskID, &c.Body, &createdAt); err != nil {
+		return nil, err
+	}
+	c.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	if c.CreatedAt.IsZero() {
+		c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	}
+	return &c, nil
+}
+
+func scanCommentRow(rows *sql.Rows) (*models.Comment, error) {
+	var c models.Comment
+	var createdAt string
+	if err := rows.Scan(&c.ID, &c.TaskID, &c.Body, &createdAt); err != nil {
+		return nil, err
+	}
+	c.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	if c.CreatedAt.IsZero() {
+		c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	}
+	return &c, nil
 }

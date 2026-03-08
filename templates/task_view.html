@@ -136,6 +136,36 @@
         {{end}}
       </div>
 
+      <!-- Comments / activity log -->
+      <div class="comments-panel" id="comments-panel">
+        <h2 class="comments-title">Comments</h2>
+
+        <div class="comments-list" id="comments-list">
+          {{if .Comments}}
+            {{range .Comments}}
+            <div class="comment-item" data-comment-id="{{.ID}}">
+              <span class="comment-body">{{.Body}}</span>
+              <div class="comment-meta">
+                <span class="comment-time">{{.FormattedTime}}</span>
+                <button class="comment-delete" title="Delete comment"
+                  onclick="deleteComment({{.ID}}, this)">×</button>
+              </div>
+            </div>
+            {{end}}
+          {{else}}
+            <p class="comments-empty" id="comments-empty">No comments yet.</p>
+          {{end}}
+        </div>
+
+        <form class="comment-form" id="comment-form" onsubmit="submitComment(event)">
+          <textarea class="comment-input" id="comment-input" rows="2"
+            placeholder="Add a comment…"></textarea>
+          <div class="comment-form-row">
+            <button type="submit" class="btn btn-ghost">Add comment</button>
+          </div>
+        </form>
+      </div>
+
       <!-- Sessions panel -->
       <div class="sessions-panel" id="sessions-panel">
         <div class="sessions-header">
@@ -623,6 +653,78 @@
       }
     };
   })();
+
+  // ── Comments ──────────────────────────────────────────────────────────────
+
+  async function submitComment(e) {
+    e.preventDefault();
+    const input = document.getElementById('comment-input');
+    const body = input.value.trim();
+    if (!body) return;
+
+    try {
+      const resp = await fetch('/api/tasks/{{.Task.ID}}/comments', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({body}),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const comment = await resp.json();
+
+      // Remove empty-state paragraph if present.
+      const empty = document.getElementById('comments-empty');
+      if (empty) empty.remove();
+
+      const list = document.getElementById('comments-list');
+      list.appendChild(buildCommentEl(comment));
+      input.value = '';
+    } catch (err) {
+      alert('Failed to add comment: ' + err.message);
+    }
+  }
+
+  async function deleteComment(id, btn) {
+    if (!confirm('Delete this comment?')) return;
+    try {
+      const resp = await fetch('/api/comments/' + id, {method: 'DELETE'});
+      if (!resp.ok) throw new Error(await resp.text());
+      const item = btn.closest('.comment-item');
+      item.remove();
+      // Show empty state if no comments remain.
+      const list = document.getElementById('comments-list');
+      if (list.querySelectorAll('.comment-item').length === 0) {
+        const p = document.createElement('p');
+        p.className = 'comments-empty';
+        p.id = 'comments-empty';
+        p.textContent = 'No comments yet.';
+        list.appendChild(p);
+      }
+    } catch (err) {
+      alert('Failed to delete comment: ' + err.message);
+    }
+  }
+
+  function buildCommentEl(c) {
+    const div = document.createElement('div');
+    div.className = 'comment-item';
+    div.dataset.commentId = c.id;
+    div.innerHTML =
+      `<span class="comment-body">${escapeHTML(c.body)}</span>` +
+      `<div class="comment-meta">` +
+        `<span class="comment-time">${escapeHTML(c.formatted_time)}</span>` +
+        `<button class="comment-delete" title="Delete comment" ` +
+          `onclick="deleteComment(${c.id}, this)">×</button>` +
+      `</div>`;
+    return div;
+  }
+
+  function escapeHTML(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
 </script>
 </body>
 </html>

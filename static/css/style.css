@@ -828,6 +828,103 @@ input[type="date"] {
 }
 .scratchpad-textarea::placeholder { color: var(--text-muted); }
 .scratchpad-textarea:focus { background: var(--surface2); }
+
+/* ── Comments / activity log ── */
+.comments-panel {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.comments-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.comment-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.comment-body {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.comment-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.comment-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.comment-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+}
+.comment-delete:hover {
+  opacity: 1;
+  color: var(--red);
+}
+.comments-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 0 16px;
+}
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comment-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+.comment-input::placeholder { color: var(--text-muted); }
+.comment-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.comment-form-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ─────────────────────────────────────────────────────────────────── */
 
 .brief-panel {

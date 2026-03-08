@@ -1083,3 +1083,174 @@ func TestListAllTasks_Empty(t *testing.T) {
 		t.Errorf("expected empty result, got %d tasks", len(all))
 	}
 }
+
+// ── Task comments ────────────────────────────────────────────────────────────
+
+func TestCreateComment_BasicRoundTrip(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("comment target", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	c, err := db.CreateComment(task.ID, "first comment")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+	if c.ID == 0 {
+		t.Error("expected non-zero ID after CreateComment")
+	}
+	if c.TaskID != task.ID {
+		t.Errorf("task_id: got %q, want %q", c.TaskID, task.ID)
+	}
+	if c.Body != "first comment" {
+		t.Errorf("body: got %q, want %q", c.Body, "first comment")
+	}
+	if c.CreatedAt.IsZero() {
+		t.Error("expected non-zero CreatedAt")
+	}
+	if c.FormattedTime() == "" {
+		t.Error("FormattedTime should not be empty")
+	}
+}
+
+func TestListComments_OrderedASC(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("ordered comments", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	bodies := []string{"alpha", "beta", "gamma"}
+	for _, b := range bodies {
+		if _, err := db.CreateComment(task.ID, b); err != nil {
+			t.Fatalf("CreateComment %q: %v", b, err)
+		}
+	}
+
+	comments, err := db.ListComments(task.ID)
+	if err != nil {
+		t.Fatalf("ListComments: %v", err)
+	}
+	if len(comments) != 3 {
+		t.Fatalf("expected 3 comments, got %d", len(comments))
+	}
+	for i, want := range bodies {
+		if comments[i].Body != want {
+			t.Errorf("comment[%d]: got %q, want %q (expected ASC order)", i, comments[i].Body, want)
+		}
+	}
+}
+
+func TestListComments_OnlyForTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := newTask("task one", "today")
+	t2 := newTask("task two", "today")
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("CreateTask t1: %v", err)
+	}
+	if err := db.CreateTask(t2); err != nil {
+		t.Fatalf("CreateTask t2: %v", err)
+	}
+
+	db.CreateComment(t1.ID, "belongs to t1")
+	db.CreateComment(t2.ID, "belongs to t2")
+
+	comments, err := db.ListComments(t1.ID)
+	if err != nil {
+		t.Fatalf("ListComments: %v", err)
+	}
+	if len(comments) != 1 {
+		t.Fatalf("expected 1 comment for t1, got %d", len(comments))
+	}
+	if comments[0].Body != "belongs to t1" {
+		t.Errorf("unexpected comment body: %q", comments[0].Body)
+	}
+}
+
+func TestListComments_EmptyForNewTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("no comments", "backlog")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	comments, err := db.ListComments(task.ID)
+	if err != nil {
+		t.Fatalf("ListComments: %v", err)
+	}
+	if len(comments) != 0 {
+		t.Errorf("expected 0 comments, got %d", len(comments))
+	}
+}
+
+func TestDeleteComment(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("deletable comment", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	c, err := db.CreateComment(task.ID, "delete me")
+	if err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+
+	if err := db.DeleteComment(c.ID); err != nil {
+		t.Fatalf("DeleteComment: %v", err)
+	}
+
+	comments, err := db.ListComments(task.ID)
+	if err != nil {
+		t.Fatalf("ListComments after delete: %v", err)
+	}
+	if len(comments) != 0 {
+		t.Errorf("expected 0 comments after delete, got %d", len(comments))
+	}
+}
+
+func TestDeleteComment_NonExistentIsNoop(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Deleting a non-existent comment should not return an error.
+	if err := db.DeleteComment(99999); err != nil {
+		t.Errorf("DeleteComment non-existent: expected nil error, got %v", err)
+	}
+}
+
+func TestDeleteComment_CascadesWithTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("cascade me", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if _, err := db.CreateComment(task.ID, "will cascade"); err != nil {
+		t.Fatalf("CreateComment: %v", err)
+	}
+
+	// Delete the task — the comment should be removed by CASCADE.
+	if err := db.DeleteTask(task.ID); err != nil {
+		t.Fatalf("DeleteTask: %v", err)
+	}
+
+	comments, err := db.ListComments(task.ID)
+	if err != nil {
+		t.Fatalf("ListComments after task delete: %v", err)
+	}
+	if len(comments) != 0 {
+		t.Errorf("expected comments to be cascade-deleted, got %d", len(comments))
+	}
+}
