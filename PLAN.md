@@ -407,10 +407,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Bulk move to column, bulk mark done, bulk assign due date
   - Toolbar appears above board when ≥1 card selected
 
-- [ ] **Task labels / tags**
-  - Free-form tags on tasks (e.g. "urgent", "blocked", "needs-review")
-  - Tag chips on board cards; filter bar includes tag filters
-  - `task_tags` join table; tag autocomplete from existing tags on create/edit
+- [x] **Task labels / tags** ✅ 2026-03-08
+  - `task_tags` join table; AddTag/RemoveTag/ListTags/ListAllTags DB methods; no N+1 (bulk hydration)
+  - Tag chips on task page (autocomplete) + board cards (up to 3, +N overflow); board filter by tag
+  - 141 tests passing
 
 ### Lower priority
 
