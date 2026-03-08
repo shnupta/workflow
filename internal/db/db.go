@@ -231,6 +231,51 @@ func (d *DB) migrate() error {
 			INSERT OR IGNORE INTO messages_fts(rowid, content, session_id)
 			SELECT rowid, content, session_id FROM messages
 		`)
+
+		// ── tasks_fts: FTS5 index over task title, description, and scratchpad ──
+
+		_, _ = d.conn.Exec(`
+			CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(
+				title,
+				description,
+				scratchpad,
+				content='tasks',
+				content_rowid='rowid'
+			)
+		`)
+
+		// Triggers to keep tasks_fts in sync with tasks.
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS tasks_fts_insert AFTER INSERT ON tasks BEGIN
+				INSERT INTO tasks_fts(rowid, title, description, scratchpad)
+				VALUES (new.rowid, new.title, new.description, new.scratchpad);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS tasks_fts_delete AFTER DELETE ON tasks BEGIN
+				INSERT INTO tasks_fts(tasks_fts, rowid, title, description, scratchpad)
+				VALUES ('delete', old.rowid, old.title, old.description, old.scratchpad);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS tasks_fts_update AFTER UPDATE ON tasks BEGIN
+				INSERT INTO tasks_fts(tasks_fts, rowid, title, description, scratchpad)
+				VALUES ('delete', old.rowid, old.title, old.description, old.scratchpad);
+				INSERT INTO tasks_fts(rowid, title, description, scratchpad)
+				VALUES (new.rowid, new.title, new.description, new.scratchpad);
+			END
+		`)
+
+		// Backfill any existing tasks (INSERT OR IGNORE is safe on re-runs
+		// because the FTS rowid acts as the dedup key here; FTS5 content tables
+		// don't enforce UNIQUE on rowid inserts, so we use a DELETE+INSERT
+		// pattern instead — but for the initial backfill a plain INSERT is fine
+		// since tasks_fts will be empty on a fresh DB, and on an upgrade the
+		// trigger will keep it current going forward).
+		_, _ = d.conn.Exec(`
+			INSERT INTO tasks_fts(rowid, title, description, scratchpad)
+			SELECT rowid, title, description, scratchpad FROM tasks
+		`)
 	}
 
 	return nil
@@ -412,32 +457,124 @@ func (d *DB) ListAllTasks() ([]*models.Task, error) {
 	return tasks, nil
 }
 
-// SearchTasks returns up to 20 non-done tasks whose title contains query (case-insensitive).
-func (d *DB) SearchTasks(query string) ([]*models.Task, error) {
+// TaskSearchResult is a task hit from FTS5 full-text search with a snippet of
+// the matching field content.
+type TaskSearchResult struct {
+	Task    *models.Task
+	Snippet string
+}
+
+// SearchTasks performs a full-text search over task title, description, and
+// scratchpad using the tasks_fts FTS5 index. Results are ranked by relevance
+// and limited to 50. Falls back to a LIKE search on title when FTS5 is
+// unavailable (e.g. tests run without the fts5 build tag).
+func (d *DB) SearchTasks(query string) ([]*TaskSearchResult, error) {
+	if query == "" {
+		return nil, nil
+	}
+	if !d.fts5 {
+		return d.searchTasksFallback(query)
+	}
 	rows, err := d.conn.Query(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence
+		SELECT
+			t.id, t.title, t.description, t.work_type, t.tier, t.direction,
+			t.pr_url, t.brief, t.brief_status, t.link, t.done, t.position,
+			t.created_at, t.updated_at, t.done_at, t.due_date,
+			t.timer_started, t.timer_total, t.scratchpad, t.blocked_by, t.recurrence,
+			snippet(tasks_fts, 0, '<mark>', '</mark>', '…', 12) AS snippet
+		FROM tasks_fts
+		JOIN tasks t ON t.rowid = tasks_fts.rowid
+		WHERE tasks_fts MATCH ? AND t.done = 0
+		ORDER BY rank
+		LIMIT 50
+	`, query)
+	if err != nil {
+		// FTS5 MATCH syntax errors surface here; return a descriptive error.
+		return nil, fmt.Errorf("task search: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*TaskSearchResult
+	var tasks []*models.Task
+	for rows.Next() {
+		var sr TaskSearchResult
+		var snippet string
+		t, err := scanTaskRowWithExtra(rows, &snippet)
+		if err != nil {
+			return nil, err
+		}
+		sr.Task = t
+		sr.Snippet = snippet
+		out = append(out, &sr)
+		tasks = append(tasks, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// scanTaskRowWithExtra scans a task row that has one additional trailing column
+// (e.g. a snippet string from FTS5). The extra value is written to *extra.
+func scanTaskRowWithExtra(rows *sql.Rows, extra *string) (*models.Task, error) {
+	var t models.Task
+	var createdAt, updatedAt string
+	var doneAt, dueDate, timerStarted, blockedBy *string
+	err := rows.Scan(
+		&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position,
+		&createdAt, &updatedAt, &doneAt, &dueDate,
+		&timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence,
+		extra,
+	)
+	if err != nil {
+		return nil, err
+	}
+	parseTaskScanned(&t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
+	if blockedBy != nil {
+		t.BlockedBy = *blockedBy
+	}
+	return &t, nil
+}
+
+// searchTasksFallback is a simple LIKE-based title search used when FTS5 is
+// not available (e.g. tests built without -tags fts5).
+func (d *DB) searchTasksFallback(query string) ([]*TaskSearchResult, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
+		       link, done, position, created_at, updated_at, done_at, due_date,
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence
 		FROM tasks
-		WHERE done=0 AND title LIKE ?
+		WHERE done=0 AND (title LIKE ? OR description LIKE ? OR scratchpad LIKE ?)
 		ORDER BY updated_at DESC
-		LIMIT 20`,
-		"%"+query+"%",
+		LIMIT 50`,
+		"%"+query+"%", "%"+query+"%", "%"+query+"%",
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
+	var out []*TaskSearchResult
 	var tasks []*models.Task
 	for rows.Next() {
 		t, err := scanTaskRow(rows)
 		if err != nil {
 			return nil, err
 		}
+		out = append(out, &TaskSearchResult{Task: t})
 		tasks = append(tasks, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	if err := d.populateTagsForTasks(tasks); err != nil {
 		return nil, err
 	}
-	return tasks, nil
+	return out, nil
 }
 
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.

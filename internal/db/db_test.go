@@ -1843,3 +1843,216 @@ func TestListRemindersForTask_Empty(t *testing.T) {
 		t.Errorf("expected 0 reminders, got %d", len(rems))
 	}
 }
+
+// ── SearchTasks (FTS5) ────────────────────────────────────────────────────────
+
+func TestSearchTasks_MatchesTitle(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	tasks := []*models.Task{
+		newTask("Fix the authentication bug", "today"),
+		newTask("Refactor the login service", "today"),
+		newTask("Update deployment pipeline", "backlog"),
+	}
+	for _, task := range tasks {
+		if err := db.CreateTask(task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+
+	results, err := db.SearchTasks("authentication")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Task.Title != "Fix the authentication bug" {
+		t.Errorf("unexpected title: %q", results[0].Task.Title)
+	}
+}
+
+func TestSearchTasks_MatchesScratchpad(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Unrelated task title", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	// Update scratchpad directly — no dedicated setter, use UpdateTask.
+	task.Scratchpad = "needs to check the oauth token expiry logic"
+	if err := db.UpdateTask(task); err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("oauth")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for scratchpad match, got %d", len(results))
+	}
+	if results[0].Task.ID != task.ID {
+		t.Errorf("unexpected task: %q", results[0].Task.Title)
+	}
+}
+
+func TestSearchTasks_MatchesDescription(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Ordinary task", "today")
+	task.Description = "This involves updating the kafka consumer group config"
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("kafka")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for description match, got %d", len(results))
+	}
+	if results[0].Task.ID != task.ID {
+		t.Errorf("unexpected task: %q", results[0].Task.Title)
+	}
+}
+
+func TestSearchTasks_NoResults(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Build new dashboard", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("unicorn")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(results))
+	}
+}
+
+func TestSearchTasks_EmptyQueryReturnsNil(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	results, err := db.SearchTasks("")
+	if err != nil {
+		t.Fatalf("SearchTasks empty: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil result for empty query, got %v", results)
+	}
+}
+
+func TestSearchTasks_ExcludesDoneTasks(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Done authentication task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if _, err := db.MarkDone(task.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	results, err := db.SearchTasks("authentication")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for done task, got %d", len(results))
+	}
+}
+
+func TestSearchTasks_MultipleMatches(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	for _, title := range []string{
+		"Fix redis connection pool",
+		"Add redis cache layer",
+		"Document redis schema",
+	} {
+		task := newTask(title, "today")
+		if err := db.CreateTask(task); err != nil {
+			t.Fatalf("CreateTask %q: %v", title, err)
+		}
+	}
+	// Non-matching task.
+	if err := db.CreateTask(newTask("Unrelated postgres work", "today")); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("redis")
+	if err != nil {
+		t.Fatalf("SearchTasks: %v", err)
+	}
+	if len(results) != 3 {
+		t.Errorf("expected 3 results, got %d", len(results))
+	}
+}
+
+func TestSearchTasks_UpdateReflectedInIndex(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Initial title", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Should not be found before update.
+	results, _ := db.SearchTasks("refactored")
+	if len(results) != 0 {
+		t.Error("unexpected pre-update match")
+	}
+
+	task.Title = "Refactored title"
+	if err := db.UpdateTask(task); err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("refactored")
+	if err != nil {
+		t.Fatalf("SearchTasks after update: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result after update, got %d", len(results))
+	}
+}
+
+func TestSearchTasks_DeleteRemovedFromIndex(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Task to delete with splork keyword", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	results, _ := db.SearchTasks("splork")
+	if len(results) != 1 {
+		t.Fatalf("expected task in index before delete, got %d", len(results))
+	}
+
+	if err := db.DeleteTask(task.ID); err != nil {
+		t.Fatalf("DeleteTask: %v", err)
+	}
+
+	results, err := db.SearchTasks("splork")
+	if err != nil {
+		t.Fatalf("SearchTasks after delete: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results after delete, got %d", len(results))
+	}
+}

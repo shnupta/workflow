@@ -1348,3 +1348,78 @@ func TestHandler_DeleteReminder_InvalidID_Returns400(t *testing.T) {
 		t.Errorf("expected 400 for non-numeric ID, got %d", resp.StatusCode)
 	}
 }
+
+// ── GET /search/tasks ─────────────────────────────────────────────────────────
+
+func TestHandler_TaskSearch_EmptyQuery_Returns200(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/search/tasks")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /search/tasks expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+	if !strings.Contains(body, "search-tabs") {
+		t.Error("expected search tabs in response")
+	}
+	if !strings.Contains(body, `action="/search/tasks"`) {
+		t.Error("expected search form pointing to /search/tasks")
+	}
+}
+
+func TestHandler_TaskSearch_WithQuery_Returns200(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{
+		Title:     "Fix the authentication bug",
+		WorkType:  "coding",
+		Tier:      "today",
+		Direction: "blocked_on_me",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	resp := get(t, srv, "/search/tasks?q=authentication")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /search/tasks?q=authentication expected 200, got %d; body: %s",
+			resp.StatusCode, body)
+	}
+	if !strings.Contains(body, "Fix the authentication bug") {
+		t.Errorf("expected task title in results; body snippet: %.200s", body)
+	}
+}
+
+func TestHandler_TaskSearch_NoResults_ShowsEmptyState(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/search/tasks?q=zzznomatch")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "No tasks found") {
+		t.Errorf("expected empty state message; body snippet: %.300s", body)
+	}
+}
+
+func TestHandler_TaskSearch_TabLinksPresentOnSessionsSearch(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/search")
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /search expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "search-tabs") {
+		t.Error("expected search tabs on /search page too")
+	}
+	if !strings.Contains(body, `href="/search/tasks"`) {
+		t.Error("expected link to /search/tasks from /search")
+	}
+}

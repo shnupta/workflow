@@ -180,6 +180,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
+	mux.HandleFunc("GET /search/tasks", h.searchTasks)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
 	h.registerSessionRoutes(mux)
@@ -288,6 +289,25 @@ func (h *Handler) searchSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	h.render(w, "search.html", map[string]interface{}{
 		"Nav":       "sessions",
+		"Query":     q,
+		"Results":   results,
+		"SearchErr": searchErr,
+	})
+}
+
+func (h *Handler) searchTasks(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	var results []*db.TaskSearchResult
+	var searchErr string
+	if q != "" {
+		var err error
+		results, err = h.db.SearchTasks(q)
+		if err != nil {
+			searchErr = err.Error()
+		}
+	}
+	h.render(w, "task_search.html", map[string]interface{}{
+		"Nav":       "search",
 		"Query":     q,
 		"Results":   results,
 		"SearchErr": searchErr,
@@ -639,7 +659,7 @@ func (h *Handler) apiClearBlockedBy(w http.ResponseWriter, r *http.Request) {
 }
 
 // apiSearchTasks handles GET /api/tasks?q=QUERY.
-// Returns up to 20 non-done tasks matching the query as JSON.
+// Returns up to 50 non-done tasks matching the query as JSON.
 func (h *Handler) apiSearchTasks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	if q == "" {
@@ -647,7 +667,7 @@ func (h *Handler) apiSearchTasks(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("[]"))
 		return
 	}
-	tasks, err := h.db.SearchTasks(q)
+	results, err := h.db.SearchTasks(q)
 	if err != nil {
 		jsonError(w, "search failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -658,17 +678,17 @@ func (h *Handler) apiSearchTasks(w http.ResponseWriter, r *http.Request) {
 		Tier  string `json:"tier"`
 		Done  bool   `json:"done"`
 	}
-	results := make([]taskResult, 0, len(tasks))
-	for _, t := range tasks {
-		results = append(results, taskResult{
-			ID:    t.ID,
-			Title: t.Title,
-			Tier:  t.Tier,
-			Done:  t.Done,
+	out := make([]taskResult, 0, len(results))
+	for _, sr := range results {
+		out = append(out, taskResult{
+			ID:    sr.Task.ID,
+			Title: sr.Task.Title,
+			Tier:  sr.Task.Tier,
+			Done:  sr.Task.Done,
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(out)
 }
 
 // rebrief re-runs the auto-brief agent for a task.
