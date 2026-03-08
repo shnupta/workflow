@@ -433,10 +433,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - FTS5 on title/description/scratchpad; `GET /search/tasks?q=...`; snippet with `<mark>` highlights
   - Tabbed search page (Tasks | Sessions), tab carries `?q=` across; `s` shortcut → task search; 178 tests
 
-- [ ] **Recurring task calendar view**
-  - Simple calendar on `/digest` or a new `/calendar` route showing tasks by due date
-  - Week view: tasks with due dates shown on their day
-  - Useful for seeing what's coming up at a glance
+- [x] **Recurring task calendar view** ✅ 2026-03-08
+  - `GET /calendar` week view; Mon–Sun grid; `?week=N` navigation; overdue banner; month-span label
+  - "Calendar" nav link added; 198 tests
 
 - [x] **Task age indicator** ✅ 2026-03-08
   - `DaysInColumn()`, `AgeLabel()`, `AgeClass()` on Task model; midnight-truncated for whole-day accuracy
