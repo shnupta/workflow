@@ -440,10 +440,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Week view: tasks with due dates shown on their day
   - Useful for seeing what's coming up at a glance
 
-- [ ] **Task age indicator**
-  - Show how long a task has been in its current column (e.g. "4 days" on board card)
-  - Helps surface stale tasks that have been sitting in "Today" for a week
-  - Colour: green < 2 days, amber 2-5 days, red > 5 days
+- [x] **Task age indicator** ✅ 2026-03-08
+  - `DaysInColumn()`, `AgeLabel()`, `AgeClass()` on Task model; midnight-truncated for whole-day accuracy
+  - age-fresh (<2d, grey) / age-warn (2-5d, amber) / age-stale (≥6d, red); right-aligned on board cards; 165 tests
 
 ### Lower priority
 
