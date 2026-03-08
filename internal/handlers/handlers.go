@@ -332,8 +332,12 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	if strings.TrimSpace(r.FormValue("title")) == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
 	t := &models.Task{
-		Title:       r.FormValue("title"),
+		Title:       strings.TrimSpace(r.FormValue("title")),
 		Description: r.FormValue("description"),
 		WorkType:    r.FormValue("work_type"),
 		Tier:        r.FormValue("tier"),
