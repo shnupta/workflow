@@ -360,12 +360,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task dependencies**
-  - "Blocked by" field on a task — link to another task that must be done first
-  - Visual indicator on blocked cards: greyed out with "⛔ blocked by: [task title]"
-  - Optional: warn when moving a blocked task to Today if blocker isn't done
-  - Schema: `dependencies` table (task_id, blocks_task_id); or simple `blocked_by_id INTEGER` on tasks for single-parent case
-  - Useful for Casey as tech lead: PRs blocked on review, deployments blocked on sign-off, etc.
+- [x] **Task dependencies** ✅ 2026-03-07
+  - `blocked_by TEXT` column on tasks; SetBlockedBy/ClearBlockedBy/GetBlockerTask DB methods
+  - Search endpoint GET /api/tasks?q= for dropdown; POST/DELETE /api/tasks/{id}/blocked-by
+  - Task page dependencies panel with live search + clear button
+  - Board cards: ⛔ badge + opacity:0.7 when blocked; cascade-clear on MarkDone
+  - 33 tests passing
 
 - [ ] **Recurring tasks**
   - Task marked as recurring (daily / weekly / biweekly / monthly)
