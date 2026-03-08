@@ -422,3 +422,32 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [ ] **Sub-sessions / thread view**
   - Sessions can spawn sub-sessions (parent_id is already in schema)
   - UI for this is a future concern — defer until a concrete use case emerges
+
+---
+
+## New features (proposed 2026-03-08 evening)
+
+### Medium priority
+
+- [ ] **Task search**
+  - Global search across task titles, notes, and scratchpad content
+  - Quick-access via `s` shortcut (already opens search page for sessions — repurpose or add task search tab)
+  - `/search/tasks?q=...` endpoint; FTS5 on task title + notes + scratchpad
+  - Results page: shows matching tasks with snippet, linked to task page
+
+- [ ] **Recurring task calendar view**
+  - Simple calendar on `/digest` or a new `/calendar` route showing tasks by due date
+  - Week view: tasks with due dates shown on their day
+  - Useful for seeing what's coming up at a glance
+
+- [ ] **Task age indicator**
+  - Show how long a task has been in its current column (e.g. "4 days" on board card)
+  - Helps surface stale tasks that have been sitting in "Today" for a week
+  - Colour: green < 2 days, amber 2-5 days, red > 5 days
+
+### Lower priority
+
+- [ ] **Agent session quality feedback**
+  - Thumbs up/down on each agent session, stored in DB
+  - Used to track which kinds of sessions are useful vs not
+  - `session_feedback` column on sessions table; simple UI on session page
