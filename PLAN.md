@@ -372,11 +372,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Recurrence select on create/edit; ↻ badge on board cards and task page
   - Flash banner on board when clone created; 41 tests passing
 
-- [ ] **Task templates**
-  - Save a task configuration as a template (title, work type, notes template)
-  - "New from template" option on board
-  - Common templates: PR Review, Deployment, Design Review, Weekly Sync
-  - Stored as `task_templates` table; accessible from quick-add or new task form
+- [x] **Task templates** ✅ 2026-03-08
+  - `task_templates` table, 4 default seeds (PR Review, Deployment, Weekly Sync, Design Review)
+  - `/templates` page, "Start from template" dropdown on new task form, "Save as template" on task page
+  - JSON API for JS dropdown; 51 tests passing
 
 ### Lower priority
 
