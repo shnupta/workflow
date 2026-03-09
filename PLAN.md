@@ -475,7 +475,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `GET /api/tasks/{id}/briefs/diff?from=N&to=M` returns unified diff
   - Rendered in brief history panel with toggle between raw and diff views
 
-- [ ] **Session export as markdown**
+- [x] **Session export as markdown** ✅ 2026-03-09
   - "Export" button on session page → downloads `session-{id}.md`
   - Format: task title, session name, date, full message history (role: content blocks)
   - Useful for sharing AI code reviews or analysis with teammates
