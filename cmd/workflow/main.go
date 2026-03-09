@@ -117,6 +117,20 @@ func cmdServe(args []string) {
 		log.Fatalf("create data dir: %v", err)
 	}
 
+	// Migrate legacy DB: if the target DB doesn't exist yet but a workflow.db
+	// exists in the current working directory (old default), move it over so
+	// data isn't silently lost.
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if _, err2 := os.Stat("workflow.db"); err2 == nil {
+			log.Printf("migrating workflow.db from CWD to %s", dbPath)
+			if err3 := os.Rename("workflow.db", dbPath); err3 != nil {
+				log.Printf("migration failed (copy manually): %v", err3)
+			} else {
+				log.Printf("migration complete")
+			}
+		}
+	}
+
 	watcher, err := config.NewWatcher(configPath)
 	if err != nil {
 		log.Fatalf("config: %v", err)
@@ -183,6 +197,16 @@ func cmdUpdate() {
 			binary, _ := os.Executable()
 			binary, _ = filepath.Abs(binary)
 			return runInDir(repoDir, "go", "build", "-tags", "fts5", "-o", binary, "./cmd/workflow/")
+		}},
+		{"refresh plist", func() error {
+			if !daemon.IsInstalled() {
+				fmt.Println("  (service not installed — skipping)")
+				return nil
+			}
+			binary, _ := os.Executable()
+			binary, _ = filepath.Abs(binary)
+			dataDir := defaultDataDir()
+			return daemon.Install(binary, dataDir)
 		}},
 		{"restart service", func() error {
 			if !daemon.IsInstalled() {
