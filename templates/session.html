@@ -133,19 +133,23 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function renderMarkdown(thenScroll) {
+  function renderMarkdown() {
     document.querySelectorAll('.md-content:not([data-rendered])').forEach(el => {
       el.dataset.rendered = '1';
       el.innerHTML = marked.parse(el.textContent);
     });
-    if (thenScroll) scrollToBottom();
   }
 
   function scrollToBottom() {
     const chat = document.getElementById('chat');
-    // Two rAF passes: first lets the browser lay out DOM changes,
-    // second ensures the final scrollHeight is measured after paint.
-    requestAnimationFrame(() => {
+    // Wait for web fonts to finish loading before measuring scrollHeight.
+    // DOMContentLoaded fires before fonts resolve, so a double-rAF alone
+    // reads a stale (too-small) scrollHeight when custom fonts are in use.
+    // document.fonts.ready is a Promise that resolves once all fonts are
+    // loaded and their metrics are available, giving us a stable layout.
+    // The trailing rAF ensures the browser has painted the post-font layout
+    // before we set scrollTop.
+    document.fonts.ready.then(() => {
       requestAnimationFrame(() => {
         chat.scrollTop = chat.scrollHeight;
       });
@@ -193,7 +197,8 @@
       chat.appendChild(div);
     }
     lastMessageID = msg.id;
-    renderMarkdown(true);
+    renderMarkdown();
+    scrollToBottom();
   }
 
   // ── Status management ──────────────────────────────────────
@@ -347,7 +352,8 @@
     const rendered = document.querySelectorAll('#chat [data-id]');
     if (rendered.length) lastMessageID = rendered[rendered.length - 1].dataset.id;
 
-    renderMarkdown(true); // scroll after markdown expands content
+    renderMarkdown();
+    scrollToBottom(); // waits for fonts.ready so scrollHeight is stable
 
     // Auto-grow textarea
     const input = document.getElementById('chat-input');
