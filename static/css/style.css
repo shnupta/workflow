@@ -2010,6 +2010,26 @@ input[type="date"] {
 .session-header-actions {
   flex-shrink: 0;
   padding-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.feedback-btns {
+  display: flex;
+  gap: 4px;
+}
+.feedback-btn {
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+.feedback-btn:hover {
+  opacity: 1;
+}
+.feedback-btn.feedback-active {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 .page-header-controls {
   display: flex;

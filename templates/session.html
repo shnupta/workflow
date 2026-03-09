@@ -33,6 +33,12 @@
           {{if .Session.Archived}}<span class="tag tag-archived">archived</span>{{end}}
         </div>
         <div class="session-header-actions">
+          <div class="feedback-btns" id="feedback-btns">
+            <button class="btn btn-ghost btn-sm feedback-btn {{if eq .Session.Feedback "up"}}feedback-active{{end}}"
+              id="feedback-up" onclick="setFeedback('up')" title="Useful session">👍</button>
+            <button class="btn btn-ghost btn-sm feedback-btn {{if eq .Session.Feedback "down"}}feedback-active{{end}}"
+              id="feedback-down" onclick="setFeedback('down')" title="Not useful">👎</button>
+          </div>
           <button class="btn btn-ghost btn-sm" id="pin-btn"
             onclick="togglePin()"
             title="{{if .Session.Pinned}}Unpin session{{else}}Pin to top of list{{end}}">
@@ -362,6 +368,25 @@
   // ── Session pin ────────────────────────────────────────────────────────────
 
   let isPinned = {{if .Session.Pinned}}true{{else}}false{{end}};
+
+  // ── Session feedback ───────────────────────────────────────────────────────
+
+  let currentFeedback = "{{.Session.Feedback}}";
+
+  async function setFeedback(val) {
+    // Toggle off if clicking the same button again
+    const next = currentFeedback === val ? "" : val;
+    const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: next })
+    });
+    if (r.ok) {
+      currentFeedback = next;
+      document.getElementById('feedback-up').classList.toggle('feedback-active', next === 'up');
+      document.getElementById('feedback-down').classList.toggle('feedback-active', next === 'down');
+    }
+  }
 
   async function togglePin() {
     const btn = document.getElementById('pin-btn');

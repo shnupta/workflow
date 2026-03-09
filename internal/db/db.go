@@ -141,8 +141,9 @@ func (d *DB) migrate() error {
 
 	// Session migrations
 	for _, col := range []string{
-		`ALTER TABLE sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE sessions ADD COLUMN pinned   INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN archived  INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN pinned    INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN feedback  TEXT    NOT NULL DEFAULT ''`,
 	} {
 		_, _ = d.conn.Exec(col)
 	}
@@ -166,6 +167,7 @@ func (d *DB) migrate() error {
 			error_message    TEXT NOT NULL DEFAULT '',
 			archived         INTEGER NOT NULL DEFAULT 0,
 			pinned           INTEGER NOT NULL DEFAULT 0,
+			feedback         TEXT    NOT NULL DEFAULT '',
 			created_at       TEXT NOT NULL,
 			updated_at       TEXT NOT NULL
 		)
@@ -874,14 +876,14 @@ func (d *DB) UpdateSessionName(id, name string) error {
 
 func (d *DB) GetSession(id string) (*models.Session, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, created_at, updated_at
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, feedback, created_at, updated_at
 		FROM sessions WHERE id=?`, id)
 	return scanSession(row)
 }
 
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, created_at, updated_at
+		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, feedback, created_at, updated_at
 		FROM sessions WHERE task_id=? AND name != '[brief]' AND archived=0
 		ORDER BY pinned DESC, updated_at DESC`, taskID)
 	if err != nil {
@@ -923,13 +925,19 @@ type sessionScanner interface {
 	Scan(dest ...any) error
 }
 
+func (d *DB) SetSessionFeedback(id, feedback string) error {
+	_, err := d.conn.Exec(`UPDATE sessions SET feedback=?, updated_at=? WHERE id=?`,
+		feedback, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
 func scanSession(row sessionScanner) (*models.Session, error) {
 	var s models.Session
 	var parentID, agentSessionID sql.NullString
 	var createdAt, updatedAt string
 	err := row.Scan(
 		&s.ID, &s.TaskID, &parentID, &s.Name, &s.Mode, &s.Status,
-		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &s.Pinned, &createdAt, &updatedAt,
+		&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &s.Pinned, &s.Feedback, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -1019,7 +1027,7 @@ func (d *DB) ListAllSessions(showArchived bool) ([]*models.SessionWithTask, erro
 	}
 	q := fmt.Sprintf(`
 		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status,
-		       s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.pinned, s.created_at, s.updated_at,
+		       s.agent_provider, s.agent_session_id, s.error_message, s.archived, s.pinned, s.feedback, s.created_at, s.updated_at,
 		       t.title
 		FROM sessions s
 		JOIN tasks t ON t.id = s.task_id
@@ -1038,7 +1046,7 @@ func (d *DB) ListAllSessions(showArchived bool) ([]*models.SessionWithTask, erro
 		var createdAt, updatedAt string
 		err := rows.Scan(
 			&sw.ID, &sw.TaskID, &parentID, &sw.Name, &sw.Mode, &sw.Status,
-			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &sw.Archived, &sw.Pinned, &createdAt, &updatedAt,
+			&sw.AgentProvider, &agentSessionID, &sw.ErrorMessage, &sw.Archived, &sw.Pinned, &sw.Feedback, &createdAt, &updatedAt,
 			&sw.TaskTitle,
 		)
 		if err != nil {

@@ -19,6 +19,7 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /tasks/{id}/sessions/{sid}/name", h.renameSession)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/archive", h.archiveSession)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/pin", h.pinSession)
+	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/feedback", h.setSessionFeedback)
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/messages", h.getMessages)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/messages", h.sendMessage)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/interrupt", h.interruptSession)
@@ -152,6 +153,28 @@ func (h *Handler) archiveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.db.ArchiveSession(sid, body.Archived); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// setSessionFeedback records thumbs up/down feedback on a session.
+// Body: {"feedback": "up"|"down"|""}
+func (h *Handler) setSessionFeedback(w http.ResponseWriter, r *http.Request) {
+	sid := r.PathValue("sid")
+	var body struct {
+		Feedback string `json:"feedback"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if body.Feedback != "up" && body.Feedback != "down" && body.Feedback != "" {
+		http.Error(w, "feedback must be 'up', 'down', or ''", 400)
+		return
+	}
+	if err := h.db.SetSessionFeedback(sid, body.Feedback); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}

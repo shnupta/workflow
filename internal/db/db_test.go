@@ -424,6 +424,50 @@ func TestArchiveSession(t *testing.T) {
 	}
 }
 
+func TestSetSessionFeedback(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("Task", "today")
+	db.CreateTask(task)
+
+	sess := newSession(task.ID, "Feedback me")
+	db.CreateSession(sess)
+
+	// Default is empty
+	got, _ := db.GetSession(sess.ID)
+	if got.Feedback != "" {
+		t.Errorf("expected empty feedback, got %q", got.Feedback)
+	}
+
+	// Set thumbs up
+	if err := db.SetSessionFeedback(sess.ID, "up"); err != nil {
+		t.Fatalf("SetSessionFeedback up: %v", err)
+	}
+	got, _ = db.GetSession(sess.ID)
+	if got.Feedback != "up" {
+		t.Errorf("expected feedback=up, got %q", got.Feedback)
+	}
+
+	// Toggle to thumbs down
+	if err := db.SetSessionFeedback(sess.ID, "down"); err != nil {
+		t.Fatalf("SetSessionFeedback down: %v", err)
+	}
+	got, _ = db.GetSession(sess.ID)
+	if got.Feedback != "down" {
+		t.Errorf("expected feedback=down, got %q", got.Feedback)
+	}
+
+	// Clear feedback
+	if err := db.SetSessionFeedback(sess.ID, ""); err != nil {
+		t.Fatalf("SetSessionFeedback clear: %v", err)
+	}
+	got, _ = db.GetSession(sess.ID)
+	if got.Feedback != "" {
+		t.Errorf("expected empty feedback after clear, got %q", got.Feedback)
+	}
+}
+
 func TestMoveTask_ReordersPositions(t *testing.T) {
 	db, cleanup := openTestDB(t)
 	defer cleanup()

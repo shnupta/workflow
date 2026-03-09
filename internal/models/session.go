@@ -34,6 +34,7 @@ type Session struct {
 	ErrorMessage   string        `db:"error_message"   json:"error_message"`
 	Archived       bool          `db:"archived"        json:"archived"`
 	Pinned         bool          `db:"pinned"          json:"pinned"`
+	Feedback       string        `db:"feedback"        json:"feedback"` // "up", "down", or ""
 	CreatedAt      time.Time     `db:"created_at"      json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at"      json:"updated_at"`
 }
