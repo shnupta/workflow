@@ -3293,3 +3293,37 @@ input[type="date"] {
   background: var(--green) !important;
   color: #fff !important;
 }
+
+/* ── Brief diff ──────────────────────────────────────────────────────────── */
+.brief-version-diff {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  margin-top: 8px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.diff-add {
+  color: #6ee7a0;
+  background: rgba(34, 197, 94, 0.08);
+  display: block;
+}
+.diff-del {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.08);
+  display: block;
+}
+.diff-eq {
+  color: var(--text-muted);
+  display: block;
+}
+.btn-xs {
+  font-size: 11px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

@@ -1947,3 +1947,51 @@ func TestSessionExportMarkdown(t *testing.T) {
 		t.Errorf("expected attachment Content-Disposition, got %q", cd)
 	}
 }
+
+// ── GET /api/tasks/{id}/briefs/diff ─────────────────────────────────────────
+
+func TestBriefDiffAPI(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "Diff test task", WorkType: "PR Review", Tier: "today"}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Store two brief versions.
+	if err := h.db.UpdateBrief(task.ID, "## Summary\n\nOld content here.\n\nLine only in v1.", "done"); err != nil {
+		t.Fatalf("UpdateBrief v1: %v", err)
+	}
+	if err := h.db.UpdateBrief(task.ID, "## Summary\n\nNew content here.\n\nLine only in v2.", "done"); err != nil {
+		t.Fatalf("UpdateBrief v2: %v", err)
+	}
+
+	// Default diff (latest vs previous).
+	resp := get(t, srv, "/api/tasks/"+task.ID+"/briefs/diff")
+	if resp.StatusCode != 200 {
+		t.Fatalf("diff API expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+	if !strings.Contains(body, `"type"`) {
+		t.Error("expected diff JSON with 'type' field")
+	}
+	// Should contain add and del entries for the changed lines.
+	if !strings.Contains(body, `"add"`) || !strings.Contains(body, `"del"`) {
+		t.Errorf("expected add/del diff entries; got: %.300s", body)
+	}
+
+	// With only 1 version, should return empty array.
+	task2 := &models.Task{Title: "Single brief", WorkType: "coding", Tier: "today"}
+	if err := h.db.CreateTask(task2); err != nil {
+		t.Fatalf("CreateTask2: %v", err)
+	}
+	if err := h.db.UpdateBrief(task2.ID, "only version", "done"); err != nil {
+		t.Fatalf("UpdateBrief single: %v", err)
+	}
+	resp2 := get(t, srv, "/api/tasks/"+task2.ID+"/briefs/diff")
+	body2 := readBody(t, resp2)
+	if !strings.Contains(body2, "[]") {
+		t.Errorf("single-version task should return empty diff; got: %.200s", body2)
+	}
+}

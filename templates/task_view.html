@@ -15,7 +15,7 @@
 <body>
   {{template "nav" .}}
   <main>
-    <div class="task-page">
+    <div class="task-page" data-task-id="{{.Task.ID}}">
       <div class="task-page-header">
         <div class="task-meta">
           <span class="tag tag-type">{{workTypeLabel .Task.WorkType}}</span>
@@ -144,10 +144,14 @@
             ▸ {{len .BriefVersions}} versions
           </button>
           <div class="brief-history-list" style="display:none">
-            {{range .BriefVersions}}
+            {{range $i, $v := .BriefVersions}}
             <details class="brief-version">
-              <summary>{{.CreatedAt.Format "Jan 2 15:04"}}</summary>
-              <div class="brief-version-content md-content">{{markdownHTML .Content}}</div>
+              <summary>
+                {{$v.CreatedAt.Format "Jan 2 15:04"}}
+                {{if gt $i 0}}<button class="btn btn-ghost btn-xs diff-toggle-btn" onclick="toggleBriefDiff(event, '{{$v.ID}}', this)" title="Show diff vs previous version">± diff</button>{{end}}
+              </summary>
+              <div class="brief-version-diff" id="diff-{{$v.ID}}" style="display:none"></div>
+              <div class="brief-version-content md-content" id="content-{{$v.ID}}">{{markdownHTML $v.Content}}</div>
             </details>
             {{end}}
           </div>
@@ -527,6 +531,53 @@
     const collapsed = list.style.display === 'none';
     list.style.display = collapsed ? '' : 'none';
     btn.textContent = (collapsed ? '▾ ' : '▸ ') + btn.textContent.slice(2);
+  }
+
+  async function toggleBriefDiff(e, versionID, btn) {
+    e.stopPropagation(); // don't toggle the <details>
+    const diffEl = document.getElementById('diff-' + versionID);
+    const contentEl = document.getElementById('content-' + versionID);
+    if (!diffEl) return;
+
+    const showing = diffEl.style.display !== 'none';
+    if (showing) {
+      diffEl.style.display = 'none';
+      contentEl.style.display = '';
+      btn.textContent = '± diff';
+      return;
+    }
+
+    // Fetch diff if not already loaded.
+    if (!diffEl.dataset.loaded) {
+      btn.textContent = '…';
+      try {
+        const taskID = document.querySelector('[data-task-id]')?.dataset.taskId || location.pathname.split('/')[2];
+        const resp = await fetch(`/api/tasks/${taskID}/briefs/diff?to=${versionID}`);
+        const lines = await resp.json();
+        if (!lines || lines.length === 0) {
+          diffEl.textContent = '(no diff available)';
+        } else {
+          diffEl.innerHTML = renderDiff(lines);
+        }
+        diffEl.dataset.loaded = '1';
+      } catch(err) {
+        diffEl.textContent = 'Error loading diff.';
+        diffEl.dataset.loaded = '1';
+      }
+    }
+
+    diffEl.style.display = '';
+    contentEl.style.display = 'none';
+    btn.textContent = '✕ diff';
+  }
+
+  function renderDiff(lines) {
+    return lines.map(l => {
+      const escaped = l.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (l.type === 'add') return `<div class="diff-add">+ ${escaped}</div>`;
+      if (l.type === 'del') return `<div class="diff-del">- ${escaped}</div>`;
+      return `<div class="diff-eq">  ${escaped}</div>`;
+    }).join('');
   }
 
   // ── Scratchpad ──────────────────────────────────────────────────

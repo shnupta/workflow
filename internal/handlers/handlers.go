@@ -172,6 +172,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/timer/reset", h.timerReset)
 	mux.HandleFunc("GET /tasks/{id}/timer", h.timerStatus)
 	mux.HandleFunc("GET /tasks/{id}/brief-history", h.briefHistory)
+	mux.HandleFunc("GET /api/tasks/{id}/briefs/diff", h.briefDiff)
 	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
 	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
@@ -494,6 +495,108 @@ func (h *Handler) briefHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(versions)
+}
+
+// briefDiff returns a line-level diff between two brief versions.
+// Query params: from=<version_id> (older) to=<version_id> (newer)
+// If only one param is provided, diffs against the immediately adjacent version.
+// Returns JSON: [{type: "add"|"del"|"eq", text: "..."}, ...]
+func (h *Handler) briefDiff(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	fromID := r.URL.Query().Get("from")
+	toID := r.URL.Query().Get("to")
+
+	versions, err := h.db.ListBriefVersions(taskID)
+	if err != nil || len(versions) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]interface{}{})
+		return
+	}
+
+	// Build a map for quick lookup.
+	byID := make(map[string]*db.BriefVersion, len(versions))
+	for _, v := range versions {
+		byID[v.ID] = v
+	}
+
+	var older, newer *db.BriefVersion
+
+	if fromID != "" && toID != "" {
+		older = byID[fromID]
+		newer = byID[toID]
+	} else if toID != "" {
+		// Find the version immediately after toID in the list (versions are newest-first).
+		newer = byID[toID]
+		for i, v := range versions {
+			if v.ID == toID && i+1 < len(versions) {
+				older = versions[i+1]
+				break
+			}
+		}
+	} else {
+		// Default: diff the two most recent versions.
+		newer = versions[0]
+		older = versions[1]
+	}
+
+	if older == nil || newer == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]interface{}{})
+		return
+	}
+
+	diff := computeLineDiff(older.Content, newer.Content)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(diff)
+}
+
+// DiffLine is one line in a computed diff.
+type DiffLine struct {
+	Type string `json:"type"` // "add", "del", "eq"
+	Text string `json:"text"`
+}
+
+// computeLineDiff produces a simple line-level diff between two strings.
+// Uses a basic LCS approach sufficient for brief text (not huge files).
+func computeLineDiff(oldText, newText string) []DiffLine {
+	oldLines := strings.Split(oldText, "\n")
+	newLines := strings.Split(newText, "\n")
+
+	// Build LCS table.
+	m, n := len(oldLines), len(newLines)
+	dp := make([][]int, m+1)
+	for i := range dp {
+		dp[i] = make([]int, n+1)
+	}
+	for i := m - 1; i >= 0; i-- {
+		for j := n - 1; j >= 0; j-- {
+			if oldLines[i] == newLines[j] {
+				dp[i][j] = dp[i+1][j+1] + 1
+			} else if dp[i+1][j] >= dp[i][j+1] {
+				dp[i][j] = dp[i+1][j]
+			} else {
+				dp[i][j] = dp[i][j+1]
+			}
+		}
+	}
+
+	// Trace back to build diff.
+	var result []DiffLine
+	i, j := 0, 0
+	for i < m || j < n {
+		if i < m && j < n && oldLines[i] == newLines[j] {
+			result = append(result, DiffLine{Type: "eq", Text: oldLines[i]})
+			i++
+			j++
+		} else if j < n && (i >= m || dp[i][j+1] >= dp[i+1][j]) {
+			result = append(result, DiffLine{Type: "add", Text: newLines[j]})
+			j++
+		} else {
+			result = append(result, DiffLine{Type: "del", Text: oldLines[i]})
+			i++
+		}
+	}
+	return result
 }
 
 func (h *Handler) editTaskForm(w http.ResponseWriter, r *http.Request) {
