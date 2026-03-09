@@ -443,6 +443,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
+- [x] **Command palette** ✅ 2026-03-09
+  - ⌘K / Ctrl+K from any page; default: 8 quick-nav actions; live task search (debounced 150ms, `/api/tasks`)
+  - Arrow keys + Enter + Esc; tier pills on results; backdrop blur; global via nav.html
+
 - [x] **Agent session quality feedback** ✅ 2026-03-09
   - `feedback TEXT` column on sessions; `SetSessionFeedback` DB method
   - `POST /tasks/{id}/sessions/{sid}/feedback` — "up", "down", or "" to clear
