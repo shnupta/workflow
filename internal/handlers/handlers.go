@@ -178,6 +178,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
 	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
+	mux.HandleFunc("GET /api/tasks/recent", h.apiRecentTasks)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
 	mux.HandleFunc("GET /search", h.searchSessions)
 	mux.HandleFunc("GET /search/tasks", h.searchTasks)
@@ -657,6 +658,27 @@ func (h *Handler) apiClearBlockedBy(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// apiRecentTasks handles GET /api/tasks/recent.
+// Returns up to 8 most recently updated non-done tasks as JSON.
+func (h *Handler) apiRecentTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := h.db.RecentTasks(8)
+	if err != nil {
+		jsonError(w, "recent tasks failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type taskResult struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		Tier  string `json:"tier"`
+	}
+	out := make([]taskResult, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, taskResult{ID: t.ID, Title: t.Title, Tier: t.Tier})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }
 
 // apiSearchTasks handles GET /api/tasks?q=QUERY.

@@ -74,14 +74,46 @@
   function renderItems(q) {
     const box = document.getElementById('cmd-results');
     if (!q.trim()) {
-      _items = STATIC_ACTIONS.map(a => ({ ...a, type: 'action' }));
-      _selected = 0;
-      box.innerHTML = _items.map((it, i) =>
-        `<div class="cmd-item ${i === _selected ? 'cmd-item-active' : ''}" data-idx="${i}" onclick="selectItem(${i})">
-          <span class="cmd-item-icon">${it.icon}</span>
-          <span class="cmd-item-label">${_esc(it.label)}</span>
-        </div>`
-      ).join('');
+      // Show recent tasks first, then static nav actions
+      fetch('/api/tasks/recent').then(r => r.ok ? r.json() : []).then(recent => {
+        const tierLabel = { today: 'Today', 'this-week': 'This week', backlog: 'Backlog' };
+        const recentItems = (recent || []).map(t => ({
+          type: 'task', label: t.title, href: '/tasks/' + t.id,
+          tier: t.tier, tierLabel: tierLabel[t.tier] || t.tier,
+        }));
+        const actionItems = STATIC_ACTIONS.map(a => ({ ...a, type: 'action' }));
+        _items = [...recentItems, ...actionItems];
+        _selected = 0;
+        const sections = [];
+        if (recentItems.length > 0) {
+          sections.push('<div class="cmd-section-label">Recent tasks</div>');
+          sections.push(...recentItems.map((it, i) =>
+            `<div class="cmd-item ${i === _selected ? 'cmd-item-active' : ''}" data-idx="${i}" onclick="selectItem(${i})">
+              <span class="cmd-item-tier tier-pill-${_esc(it.tier)}">${_esc(it.tierLabel)}</span>
+              <span class="cmd-item-label">${_esc(it.label)}</span>
+            </div>`
+          ));
+          sections.push('<div class="cmd-divider"></div>');
+        }
+        sections.push('<div class="cmd-section-label">Actions</div>');
+        sections.push(...actionItems.map((it, i) => {
+          const idx = recentItems.length + i;
+          return `<div class="cmd-item ${idx === _selected ? 'cmd-item-active' : ''}" data-idx="${idx}" onclick="selectItem(${idx})">
+            <span class="cmd-item-icon">${it.icon}</span>
+            <span class="cmd-item-label">${_esc(it.label)}</span>
+          </div>`;
+        }));
+        box.innerHTML = sections.join('');
+      }).catch(() => {
+        _items = STATIC_ACTIONS.map(a => ({ ...a, type: 'action' }));
+        _selected = 0;
+        box.innerHTML = _items.map((it, i) =>
+          `<div class="cmd-item ${i === _selected ? 'cmd-item-active' : ''}" data-idx="${i}" onclick="selectItem(${i})">
+            <span class="cmd-item-icon">${it.icon}</span>
+            <span class="cmd-item-label">${_esc(it.label)}</span>
+          </div>`
+        ).join('');
+      });
       return;
     }
 
