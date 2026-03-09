@@ -1463,6 +1463,115 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 }
 
 // ─────────────────────────────────────────────────────────
+// Daily standup
+// ─────────────────────────────────────────────────────────
+
+// StandupTask is a task entry in the daily standup.
+type StandupTask struct {
+	ID           string
+	Title        string
+	WorkType     string
+	Done         bool
+	DoneAt       *time.Time
+	TimerTotal   int
+	TimerStarted *time.Time
+	SessionCount int
+}
+
+func (t *StandupTask) ElapsedLabel() string {
+	total := t.TimerTotal
+	if t.TimerStarted != nil {
+		total += int(time.Since(*t.TimerStarted).Seconds())
+	}
+	if total < 60 {
+		return ""
+	}
+	h := total / 3600
+	m := (total % 3600) / 60
+	if h > 0 {
+		return fmt.Sprintf("%dh %dm", h, m)
+	}
+	return fmt.Sprintf("%dm", m)
+}
+
+// DailyStandup returns tasks completed and in-progress for a given day (UTC).
+func (d *DB) DailyStandup(day time.Time) (done []*StandupTask, inProgress []*StandupTask, err error) {
+	dayStart := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+	dayEnd := dayStart.AddDate(0, 0, 1)
+
+	// Tasks completed today
+	rows, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.done, t.done_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 1 AND t.done_at >= ? AND t.done_at < ?
+		GROUP BY t.id
+		ORDER BY t.done_at DESC
+	`, dayStart.Format(time.RFC3339), dayEnd.Format(time.RFC3339))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var st StandupTask
+		var doneAt, timerStarted sql.NullString
+		if err := rows.Scan(&st.ID, &st.Title, &st.WorkType, &st.Done, &doneAt,
+			&st.TimerTotal, &timerStarted, &st.SessionCount); err != nil {
+			return nil, nil, err
+		}
+		if doneAt.Valid {
+			t, _ := time.Parse(time.RFC3339, doneAt.String)
+			st.DoneAt = &t
+		}
+		if timerStarted.Valid {
+			t, _ := time.Parse(time.RFC3339, timerStarted.String)
+			st.TimerStarted = &t
+		}
+		done = append(done, &st)
+	}
+	rows.Close()
+
+	// Tasks touched today but not done (created or updated today, not done)
+	rows2, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.done, t.done_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 0 AND (t.updated_at >= ? AND t.updated_at < ?)
+		GROUP BY t.id
+		ORDER BY t.updated_at DESC
+	`, dayStart.Format(time.RFC3339), dayEnd.Format(time.RFC3339))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows2.Close()
+
+	for rows2.Next() {
+		var st StandupTask
+		var doneAt, timerStarted sql.NullString
+		if err := rows2.Scan(&st.ID, &st.Title, &st.WorkType, &st.Done, &doneAt,
+			&st.TimerTotal, &timerStarted, &st.SessionCount); err != nil {
+			return nil, nil, err
+		}
+		if doneAt.Valid {
+			t, _ := time.Parse(time.RFC3339, doneAt.String)
+			st.DoneAt = &t
+		}
+		if timerStarted.Valid {
+			t, _ := time.Parse(time.RFC3339, timerStarted.String)
+			st.TimerStarted = &t
+		}
+		inProgress = append(inProgress, &st)
+	}
+
+	return done, inProgress, nil
+}
+
+// ─────────────────────────────────────────────────────────
 // Task comments
 // ─────────────────────────────────────────────────────────
 

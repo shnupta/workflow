@@ -3246,3 +3246,50 @@ input[type="date"] {
   background: var(--border);
   margin: 4px 0;
 }
+
+/* ── Standup ─────────────────────────────────────────────────────────────── */
+.standup-page {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+.standup-copy-section {
+  margin-bottom: 32px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.standup-copy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.standup-copy-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.standup-textarea {
+  width: 100%;
+  min-height: 140px;
+  padding: 14px;
+  background: var(--surface1);
+  color: var(--text);
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.btn-success {
+  background: var(--green) !important;
+  color: #fff !important;
+}

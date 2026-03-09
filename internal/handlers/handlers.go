@@ -193,6 +193,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerReminderRoutes(mux)
 	h.registerExportRoutes(mux)
 	h.registerCalendarRoutes(mux)
+	h.registerStandupRoutes(mux)
 }
 
 func (h *Handler) sessionsIndex(w http.ResponseWriter, r *http.Request) {

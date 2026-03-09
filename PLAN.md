@@ -451,3 +451,33 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `feedback TEXT` column on sessions; `SetSessionFeedback` DB method
   - `POST /tasks/{id}/sessions/{sid}/feedback` — "up", "down", or "" to clear
   - Thumbs up/down in session header; toggle off on second click; accent colour when active; 202 tests passing
+
+---
+
+## New features (proposed 2026-03-09)
+
+### High priority
+
+- [ ] **Daily standup generator**
+  - One-click "What did I work on today?" on the Digest tab
+  - Queries: tasks moved/completed today, sessions started today (titles + brief summaries), time tracked
+  - Formats as: "Yesterday: ..., Today: ..., Blockers: ..." (standard standup format)
+  - Copy-to-clipboard button; optional "regenerate" to vary wording via agent
+  - `GET /api/standup?date=YYYY-MM-DD` returns JSON; `/standup` page with copy button
+  - No new DB columns needed — uses existing task/session/comment data
+
+### Medium priority
+
+- [ ] **Brief diff view**
+  - When a PR brief is re-run (e.g. after a `synchronize` webhook), show a diff vs previous version
+  - Highlight added/removed lines in brief versions panel (green/red, like a code diff)
+  - Useful for tech lead reviewing what changed in a PR update
+  - `GET /api/tasks/{id}/briefs/diff?from=N&to=M` returns unified diff
+  - Rendered in brief history panel with toggle between raw and diff views
+
+- [ ] **Session export as markdown**
+  - "Export" button on session page → downloads `session-{id}.md`
+  - Format: task title, session name, date, full message history (role: content blocks)
+  - Useful for sharing AI code reviews or analysis with teammates
+  - `GET /tasks/{id}/sessions/{sid}/export.md`
+

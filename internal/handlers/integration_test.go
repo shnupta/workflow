@@ -1795,3 +1795,79 @@ func TestHandler_Calendar_TaskOnlyInItsOwnWeek(t *testing.T) {
 		t.Errorf("task due in 2 weeks should appear in week=2 view; snippet: %.400s", body2)
 	}
 }
+
+// ── GET /standup ──────────────────────────────────────────────────────────────
+
+func TestStandupPage(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// GET /standup returns 200 with expected structure.
+	resp := get(t, srv, "/standup")
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /standup expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+	if !strings.Contains(body, "Standup") {
+		t.Error("expected 'Standup' heading in standup page")
+	}
+	if !strings.Contains(body, "standup-textarea") {
+		t.Error("expected standup-textarea in standup page")
+	}
+
+	// Create a task and mark it done — should appear in standup.
+	task := &models.Task{
+		Title:    "My standup task",
+		WorkType: "coding",
+		Tier:     "today",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if _, err := h.db.MarkDone(task.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	// Should now appear on today's standup.
+	resp2 := get(t, srv, "/standup")
+	body2 := readBody(t, resp2)
+	if !strings.Contains(body2, "My standup task") {
+		t.Errorf("completed task should appear in standup; snippet: %.500s", body2)
+	}
+}
+
+func TestStandupAPI(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	resp := get(t, srv, "/api/standup")
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /api/standup expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+	if !strings.Contains(body, `"date"`) {
+		t.Error("expected 'date' field in API response")
+	}
+	if !strings.Contains(body, `"text"`) {
+		t.Error("expected 'text' field in API response")
+	}
+
+	// Create and complete a task — should appear in API response.
+	task2 := &models.Task{
+		Title:    "API standup task",
+		WorkType: "coding",
+		Tier:     "today",
+	}
+	if err := h.db.CreateTask(task2); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if _, err := h.db.MarkDone(task2.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+
+	resp2 := get(t, srv, "/api/standup")
+	body2 := readBody(t, resp2)
+	if !strings.Contains(body2, "API standup task") {
+		t.Errorf("completed task should appear in API; snippet: %.400s", body2)
+	}
+}

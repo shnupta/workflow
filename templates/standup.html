@@ -1,0 +1,110 @@
+{{define "standup.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Daily Standup</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="standup-page">
+
+      <!-- Day navigation -->
+      <div class="digest-nav">
+        <a href="/standup?date={{.PrevDay}}" class="digest-nav-btn">← prev</a>
+        <h1 class="digest-title">
+          {{.DayLabel}}
+          {{if .IsToday}}<span class="digest-badge">today</span>{{end}}
+        </h1>
+        {{if .IsToday}}
+        <span class="digest-nav-btn" style="opacity:0;pointer-events:none">next →</span>
+        {{else}}
+        <a href="/standup?date={{.NextDay}}" class="digest-nav-btn">next →</a>
+        {{end}}
+      </div>
+
+      <!-- Copy box -->
+      <div class="standup-copy-section">
+        <div class="standup-copy-header">
+          <span class="standup-copy-label">Standup message</span>
+          <button id="copy-btn" class="btn btn-secondary btn-sm" onclick="copyStandup()">Copy</button>
+        </div>
+        <textarea id="standup-text" class="standup-textarea" spellcheck="false">{{.Text}}</textarea>
+      </div>
+
+      <!-- Done today -->
+      <section class="digest-section">
+        <h2 class="digest-section-title">Completed today</h2>
+        {{if .Done}}
+        <div class="digest-task-list">
+          {{range .Done}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row">
+            <span class="digest-task-check">✓</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+              {{if .ElapsedLabel}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
+              {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
+            </span>
+          </a>
+          {{end}}
+        </div>
+        {{else}}
+        <p class="digest-empty">Nothing completed today yet.</p>
+        {{end}}
+      </section>
+
+      <!-- In progress today -->
+      {{if .InProgress}}
+      <section class="digest-section">
+        <h2 class="digest-section-title">In progress today</h2>
+        <div class="digest-task-list">
+          {{range .InProgress}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row">
+            <span class="digest-task-check" style="color:var(--accent)">○</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+              {{if .ElapsedLabel}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
+              {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
+            </span>
+          </a>
+          {{end}}
+        </div>
+      </section>
+      {{end}}
+
+    </div>
+  </main>
+
+  <script>
+  function copyStandup() {
+    const ta = document.getElementById('standup-text');
+    navigator.clipboard.writeText(ta.value).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('btn-success');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('btn-success');
+      }, 2000);
+    });
+  }
+
+  // Allow editing the textarea — user can tweak before copying
+  document.getElementById('standup-text').addEventListener('keydown', function(e) {
+    // Cmd/Ctrl+Enter copies
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      copyStandup();
+    }
+  });
+  </script>
+</body>
+</html>
+{{end}}
