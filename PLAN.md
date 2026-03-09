@@ -468,7 +468,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Brief diff view**
+- [x] **Brief diff view** ✅ 2026-03-09
   - When a PR brief is re-run (e.g. after a `synchronize` webhook), show a diff vs previous version
   - Highlight added/removed lines in brief versions panel (green/red, like a code diff)
   - Useful for tech lead reviewing what changed in a PR update
