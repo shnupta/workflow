@@ -49,6 +49,7 @@
             title="{{if .Session.Archived}}Unarchive{{else}}Archive{{end}} session">
             {{if .Session.Archived}}Unarchive{{else}}Archive{{end}}
           </button>
+          <a class="btn btn-ghost btn-sm" href="/tasks/{{.Task.ID}}/sessions/{{.Session.ID}}/export.md" title="Download session as Markdown" download>Export ↓</a>
         </div>
       </div>
 

@@ -1871,3 +1871,79 @@ func TestStandupAPI(t *testing.T) {
 		t.Errorf("completed task should appear in API; snippet: %.400s", body2)
 	}
 }
+
+// ── GET /tasks/{id}/sessions/{sid}/export.md ──────────────────────────────────
+
+
+// ── GET /tasks/{id}/sessions/{sid}/export.md ──────────────────────────────────
+
+func TestSessionExportMarkdown(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// Create task.
+	task := &models.Task{
+		Title:    "Export test task",
+		WorkType: "coding",
+		Tier:     "today",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Create session via the struct API.
+	sess := &models.Session{
+		TaskID: task.ID,
+		Name:   "export-session",
+		Mode:   "interactive",
+	}
+	if err := h.db.CreateSession(sess); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	// Add user and assistant messages.
+	userMsg := &models.Message{
+		SessionID: sess.ID,
+		Role:      models.MessageRoleUser,
+		Kind:      models.MessageKindText,
+		Content:   "Hello, review this code.",
+		CreatedAt: sess.CreatedAt,
+	}
+	if err := h.db.CreateMessage(userMsg); err != nil {
+		t.Fatalf("CreateMessage user: %v", err)
+	}
+	asstMsg := &models.Message{
+		SessionID: sess.ID,
+		Role:      models.MessageRoleAssistant,
+		Kind:      models.MessageKindText,
+		Content:   "The code looks good!",
+		CreatedAt: sess.CreatedAt,
+	}
+	if err := h.db.CreateMessage(asstMsg); err != nil {
+		t.Fatalf("CreateMessage assistant: %v", err)
+	}
+
+	resp := get(t, srv, "/tasks/"+task.ID+"/sessions/"+sess.ID+"/export.md")
+	if resp.StatusCode != 200 {
+		t.Fatalf("export.md expected 200, got %d", resp.StatusCode)
+	}
+	body := readBody(t, resp)
+
+	if !strings.Contains(body, "Export test task") {
+		t.Errorf("export should contain task title; got: %.300s", body)
+	}
+	if !strings.Contains(body, "Hello, review this code.") {
+		t.Error("export should contain user message")
+	}
+	if !strings.Contains(body, "The code looks good!") {
+		t.Error("export should contain assistant message")
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "text/markdown") {
+		t.Errorf("expected text/markdown Content-Type, got %q", ct)
+	}
+	cd := resp.Header.Get("Content-Disposition")
+	if !strings.Contains(cd, "attachment") {
+		t.Errorf("expected attachment Content-Disposition, got %q", cd)
+	}
+}

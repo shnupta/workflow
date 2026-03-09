@@ -23,6 +23,7 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/messages", h.getMessages)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/messages", h.sendMessage)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/interrupt", h.interruptSession)
+	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/export.md", h.exportSessionMarkdown)
 }
 
 // createSession starts a new agent session on a task.
@@ -351,4 +352,89 @@ func buildTaskContext(t *models.Task) string {
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// exportSessionMarkdown renders a session as a downloadable Markdown file.
+// GET /tasks/{id}/sessions/{sid}/export.md
+func (h *Handler) exportSessionMarkdown(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	sid := r.PathValue("sid")
+
+	task, err := h.db.GetTask(taskID)
+	if err != nil {
+		http.Error(w, "task not found", 404)
+		return
+	}
+	sess, err := h.db.GetSession(sid)
+	if err != nil || sess.TaskID != taskID {
+		http.Error(w, "session not found", 404)
+		return
+	}
+	messages, err := h.db.ListMessages(sid)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	var sb strings.Builder
+
+	// Header
+	sb.WriteString("# " + task.Title + "\n\n")
+	if task.WorkType != "" {
+		sb.WriteString("**Type:** " + task.WorkType + "  \n")
+	}
+	sb.WriteString("**Session:** " + sess.Name + "  \n")
+	sb.WriteString("**Date:** " + sess.CreatedAt.Format("2006-01-02 15:04 UTC") + "  \n")
+	if task.PRURL != "" {
+		sb.WriteString("**PR:** " + task.PRURL + "  \n")
+	}
+	sb.WriteString("\n---\n\n")
+
+	// Messages
+	for _, msg := range messages {
+		switch msg.Kind {
+		case "context":
+			continue // skip injected context block
+		case "tool_use", "tool_result":
+			continue // skip tool calls for cleaner export
+		}
+
+		var label string
+		switch msg.Role {
+		case "user":
+			label = "**You**"
+		case "assistant":
+			label = "**Agent**"
+		default:
+			continue
+		}
+
+		if strings.TrimSpace(msg.Content) == "" {
+			continue
+		}
+
+		sb.WriteString(label + "\n\n")
+		sb.WriteString(msg.Content + "\n\n")
+		sb.WriteString("---\n\n")
+	}
+
+	// Filename: session name sanitised
+	filename := strings.Map(func(r rune) rune {
+		if r == ' ' {
+			return '-'
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			return r
+		}
+		return -1
+	}, sess.Name)
+	if filename == "" {
+		filename = "session-" + sid[:8]
+	}
+	filename += ".md"
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.WriteHeader(200)
+	w.Write([]byte(sb.String()))
 }
