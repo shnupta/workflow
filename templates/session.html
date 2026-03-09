@@ -133,16 +133,23 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function renderMarkdown() {
+  function renderMarkdown(thenScroll) {
     document.querySelectorAll('.md-content:not([data-rendered])').forEach(el => {
       el.dataset.rendered = '1';
       el.innerHTML = marked.parse(el.textContent);
     });
+    if (thenScroll) scrollToBottom();
   }
 
   function scrollToBottom() {
     const chat = document.getElementById('chat');
-    chat.scrollTop = chat.scrollHeight;
+    // Two rAF passes: first lets the browser lay out DOM changes,
+    // second ensures the final scrollHeight is measured after paint.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        chat.scrollTop = chat.scrollHeight;
+      });
+    });
   }
 
   function appendMessage(msg) {
@@ -186,8 +193,7 @@
       chat.appendChild(div);
     }
     lastMessageID = msg.id;
-    renderMarkdown();
-    scrollToBottom();
+    renderMarkdown(true);
   }
 
   // ── Status management ──────────────────────────────────────
@@ -341,8 +347,7 @@
     const rendered = document.querySelectorAll('#chat [data-id]');
     if (rendered.length) lastMessageID = rendered[rendered.length - 1].dataset.id;
 
-    renderMarkdown();
-    scrollToBottom();
+    renderMarkdown(true); // scroll after markdown expands content
 
     // Auto-grow textarea
     const input = document.getElementById('chat-input');
