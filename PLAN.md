@@ -458,7 +458,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### High priority
 
-- [ ] **Daily standup generator**
+- [x] **Daily standup generator** ✅ 2026-03-09
   - One-click "What did I work on today?" on the Digest tab
   - Queries: tasks moved/completed today, sessions started today (titles + brief summaries), time tracked
   - Formats as: "Yesterday: ..., Today: ..., Blockers: ..." (standard standup format)
