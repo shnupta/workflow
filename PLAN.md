@@ -518,7 +518,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Useful for templated tasks that don't fit the formal template system
   - Simple `POST /api/tasks/{id}/duplicate` → redirects to new task
 
-- [ ] **Keyboard shortcut cheatsheet**
+- [x] **Keyboard shortcut cheatsheet** ✅ 2026-03-10
   - `?` key already bound to toggle help modal (stub)
   - Fill in the actual shortcuts: board nav, `n` new task, `s` search, `⌘K` palette, etc.
 
