@@ -488,7 +488,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Webhook / GitHub PR sync**
+- [x] **Webhook / GitHub PR sync** ✅ 2026-03-10
   - Receive GitHub webhooks for `pull_request` events (opened, synchronize, closed, merged)
   - Auto-create PR Review tasks on `opened`; auto-update title/URL on `synchronize`
   - Auto-mark done on `closed`/`merged`
