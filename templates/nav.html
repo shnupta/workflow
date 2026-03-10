@@ -187,6 +187,44 @@
     }
   });
 
+  // Global ? → shortcuts overlay (only on non-board pages; board handles it itself)
+  document.addEventListener('keydown', e => {
+    if (_open) return; // palette takes priority
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+    if (e.key !== '?') return;
+    // If the board page is loaded it handles ? itself — skip duplicating
+    if (typeof toggleShortcutsOverlay === 'function') return;
+    e.preventDefault();
+    let overlay = document.getElementById('shortcuts-overlay');
+    if (overlay) { overlay.remove(); return; }
+    overlay = document.createElement('div');
+    overlay.id = 'shortcuts-overlay';
+    overlay.className = 'shortcuts-overlay';
+    overlay.innerHTML = `
+      <div class="shortcuts-box">
+        <div class="shortcuts-title">Keyboard shortcuts</div>
+        <div class="shortcuts-grid">
+          <kbd>⌘K</kbd><span>Command palette (any page)</span>
+          <kbd>s</kbd><span>Search tasks &amp; sessions (board)</span>
+          <kbd>n</kbd><span>New task — full form (board)</span>
+          <kbd>q</kbd><span>Quick-add task (board)</span>
+          <kbd>↑ ↓</kbd><span>Move between cards in column (board)</span>
+          <kbd>← →</kbd><span>Move between columns (board)</span>
+          <kbd>Enter</kbd><span>Open focused card (board)</span>
+          <kbd>m</kbd><span>Move focused card to next column (board)</span>
+          <kbd>Esc</kbd><span>Close overlay / clear focus</span>
+          <kbd>?</kbd><span>Show / hide this</span>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.addEventListener('keydown', function escClose(ev) {
+      if (ev.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', escClose); }
+    });
+    document.body.appendChild(overlay);
+  });
+
   // Live search on input
   document.addEventListener('input', e => {
     if (e.target.id === 'cmd-input') {
