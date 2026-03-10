@@ -548,3 +548,26 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Nucleo fuzzy matching in file picker (modal-editor)** ✅ 2026-03-10
   - Replaced hand-rolled subsequence matcher with nucleo-matcher
   - Results sorted by descending score (best match first)
+
+## New features (proposed 2026-03-10 nudge 2)
+
+### Medium priority
+
+- [x] **Task effort estimate (XS/S/M/L/XL)** ✅ 2026-03-10
+  - New `effort` TEXT column on tasks (auto-migration)
+  - Select on create/edit form: XS (<1h), S (1-3h), M (half-day), L (full-day), XL (2+ days)
+  - Effort badge on board cards (teal/blue/purple/pink scale, distinct from priority)
+  - Effort badge on task view header
+  - data-effort attribute on board cards
+  - `effortLabel` + `EffortPoints()` template/model methods
+  - CSV export includes priority + effort columns
+  - 3 integration tests; all 237 tests passing
+
+- [x] **LSP client (modal-editor)** ✅ 2026-03-10
+  - stdio transport with Content-Length framing
+  - initialize/initialized handshake; did_open/did_change/did_close
+  - hover request (returns Option<String>)
+  - publishDiagnostics broadcast via LspEvent enum
+  - EditorCore.lsp field; open_file notifies server
+  - language_id_for_path helper (12 extensions)
+  - 12 tests covering wire encoding, language IDs, dispatch, reader task

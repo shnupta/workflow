@@ -887,6 +887,27 @@
     bulkClearSelection();
   }
 
+  // ── Tab title badge (P1 + overdue count) ─────────────────────────────────
+
+  function updateTabTitle() {
+    const cards = document.querySelectorAll('.task-card');
+    let p1 = 0, overdue = 0;
+    cards.forEach(card => {
+      if (card.dataset.priority === 'p1') p1++;
+      if (card.classList.contains('overdue')) overdue++;
+    });
+    const total = p1 + overdue;
+    document.title = total > 0 ? `(${total}) workflow` : 'workflow';
+  }
+
+  // Call on load and after filter changes.
+  updateTabTitle();
+  // Patch applyFilter to also refresh the title.
+  const _origApplyFilter = applyFilter;
+  // (Already called at load via restoreFilter — hook into setFilter)
+  const _origSetFilter = setFilter;
+  function setFilter(val, chip) { _origSetFilter(val, chip); updateTabTitle(); }
+
   // ── Column count badge helper ──────────────────────────────────────────────
 
   function _updateColCount(col) {
