@@ -1663,6 +1663,34 @@ func scanCommentRow(rows *sql.Rows) (*models.Comment, error) {
 // Task tags
 // ─────────────────────────────────────────────────────────
 
+// DuplicateTask creates a copy of the given task (title, description, work_type,
+// direction, pr_url, link, recurrence, tags) placed at the top of the same tier.
+// Timer state, brief, scratchpad, done status, and comments are NOT copied.
+func (d *DB) DuplicateTask(id string) (*models.Task, error) {
+	src, err := d.GetTask(id)
+	if err != nil {
+		return nil, fmt.Errorf("source task: %w", err)
+	}
+	dup := &models.Task{
+		Title:      "Copy of " + src.Title,
+		WorkType:   src.WorkType,
+		Description: src.Description,
+		Direction:  src.Direction,
+		PRURL:      src.PRURL,
+		Link:       src.Link,
+		Recurrence: src.Recurrence,
+		Tier:       src.Tier,
+	}
+	if err := d.CreateTask(dup); err != nil {
+		return nil, err
+	}
+	for _, tag := range src.Tags {
+		_ = d.AddTag(dup.ID, tag)
+	}
+	dup.Tags = src.Tags
+	return dup, nil
+}
+
 // AddTag associates tag with the given task. If the tag already exists the
 // call is a no-op (INSERT OR IGNORE).
 // tag is normalised to lowercase and trimmed before storage.

@@ -25,6 +25,7 @@
         <div class="task-page-actions">
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
           <button class="btn btn-ghost" onclick="saveAsTemplate()" title="Save this task as a reusable template">Save as template</button>
+          <button class="btn btn-ghost" onclick="duplicateTask()" title="Duplicate this task">Duplicate</button>
           <form method="POST" action="/tasks/{{.Task.ID}}/done" style="display:contents">
             <button type="submit" class="btn btn-primary">Mark done</button>
           </form>
@@ -870,6 +871,17 @@
       }
     };
   })();
+
+  // ── Duplicate ─────────────────────────────────────────────────────────────
+
+  async function duplicateTask() {
+    const r = await fetch(`/tasks/${taskID}/duplicate`, { method: 'POST', redirect: 'follow' });
+    if (r.ok || r.redirected) {
+      window.location = r.url || '/';
+    } else {
+      alert('Failed to duplicate task');
+    }
+  }
 
   // ── Comments ──────────────────────────────────────────────────────────────
 

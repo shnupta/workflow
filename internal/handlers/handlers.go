@@ -166,6 +166,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/done", h.markDone)
 	mux.HandleFunc("POST /tasks/{id}/move", h.moveTask)
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
+	mux.HandleFunc("POST /tasks/{id}/duplicate", h.duplicateTask)
 	mux.HandleFunc("POST /tasks/{id}/rebrief", h.rebrief)
 	mux.HandleFunc("GET /tasks/{id}/brief-status", h.briefStatus)
 	mux.HandleFunc("POST /tasks/{id}/timer", h.timerToggle)
@@ -816,6 +817,16 @@ func (h *Handler) apiSearchTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
+}
+
+// duplicateTask creates a copy of a task and redirects to it.
+func (h *Handler) duplicateTask(w http.ResponseWriter, r *http.Request) {
+	dup, err := h.db.DuplicateTask(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	http.Redirect(w, r, "/tasks/"+dup.ID, http.StatusSeeOther)
 }
 
 // rebrief re-runs the auto-brief agent for a task.

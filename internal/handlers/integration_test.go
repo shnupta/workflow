@@ -1995,3 +1995,61 @@ func TestBriefDiffAPI(t *testing.T) {
 		t.Errorf("single-version task should return empty diff; got: %.200s", body2)
 	}
 }
+
+// ── POST /tasks/{id}/duplicate ───────────────────────────────────────────────
+
+func TestDuplicateTask(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	src := &models.Task{Title: "Original task", WorkType: "coding", Tier: "today", Description: "desc", Recurrence: "weekly"}
+	if err := h.db.CreateTask(src); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := h.db.AddTag(src.ID, "backend"); err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	resp := postForm(t, srv, "/tasks/"+src.ID+"/duplicate", nil)
+	// Should redirect (303) to new task page
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect, got %d", resp.StatusCode)
+	}
+
+	// The redirect location should be the new task's page: /tasks/{newID}
+	loc := resp.Header.Get("Location")
+	if loc == "" || loc == "/tasks/"+src.ID {
+		t.Fatalf("expected redirect to new task, got %q", loc)
+	}
+	newID := strings.TrimPrefix(loc, "/tasks/")
+
+	// Fetch the duplicate
+	dup, err := h.db.GetTask(newID)
+	if err != nil {
+		t.Fatalf("GetTask duplicate: %v", err)
+	}
+	if !strings.HasPrefix(dup.Title, "Copy of") {
+		t.Errorf("expected title to start with 'Copy of', got %q", dup.Title)
+	}
+	if dup.WorkType != src.WorkType {
+		t.Errorf("work_type mismatch: got %q want %q", dup.WorkType, src.WorkType)
+	}
+	if dup.Description != src.Description {
+		t.Errorf("description mismatch")
+	}
+	if dup.Recurrence != src.Recurrence {
+		t.Errorf("recurrence mismatch")
+	}
+	// Tags should be copied
+	tags, _ := h.db.ListTags(dup.ID)
+	if len(tags) != 1 || tags[0] != "backend" {
+		t.Errorf("tags not copied: got %v", tags)
+	}
+	// Timer and brief should NOT be copied
+	if dup.TimerTotal != 0 {
+		t.Errorf("timer_total should be 0, got %d", dup.TimerTotal)
+	}
+	if dup.Brief != "" {
+		t.Errorf("brief should be empty on duplicate")
+	}
+}
