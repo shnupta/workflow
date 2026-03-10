@@ -481,3 +481,44 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Useful for sharing AI code reviews or analysis with teammates
   - `GET /tasks/{id}/sessions/{sid}/export.md`
 
+
+---
+
+## New features (proposed 2026-03-09 nudge)
+
+### Medium priority
+
+- [ ] **Webhook / GitHub PR sync**
+  - Receive GitHub webhooks for `pull_request` events (opened, synchronize, closed, merged)
+  - Auto-create PR Review tasks on `opened`; auto-update title/URL on `synchronize`
+  - Auto-mark done on `closed`/`merged`
+  - Config: `github_webhook_secret` in workflow.json; single endpoint `POST /webhooks/github`
+  - Reduces manual task creation for PR workflows
+
+- [ ] **Session pinning to task top**
+  - Pin a session as the "canonical review" for a task — shown prominently on task page above others
+  - Useful when a task has many sessions but one is the definitive output (e.g. final brief)
+  - `pinned BOOLEAN` already exists on sessions table — just needs UI promotion
+
+- [ ] **Time-boxed focus mode**
+  - Start a focus timer for a task (25min Pomodoro or custom duration)
+  - Timer shown in page title + floating badge; notification when done
+  - Increments task's time_tracked automatically when timer completes
+  - No backend needed — pure JS with localStorage persistence
+
+- [ ] **Board swimlanes by assignee / tag**
+  - Current board has Today / This Week / Backlog columns
+  - Add optional row grouping by tag (e.g. group all "frontend" tasks in a swimlane)
+  - Toggle swimlane view; collapse/expand per lane
+
+### Lower priority
+
+- [ ] **Task duplication**
+  - "Duplicate" button on task page — copies title, description, work type, tags, recurrence
+  - Useful for templated tasks that don't fit the formal template system
+  - Simple `POST /api/tasks/{id}/duplicate` → redirects to new task
+
+- [ ] **Keyboard shortcut cheatsheet**
+  - `?` key already bound to toggle help modal (stub)
+  - Fill in the actual shortcuts: board nav, `n` new task, `s` search, `⌘K` palette, etc.
+

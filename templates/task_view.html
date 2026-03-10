@@ -86,6 +86,17 @@
         {{if or .Task.TimerStarted (gt .Task.TimerTotal 0)}}
         <button class="timer-reset-btn" id="timer-reset-btn" onclick="timerReset()" title="Reset timer">↺</button>
         {{end}}
+        <!-- Focus / Pomodoro -->
+        <div class="focus-dropdown" id="focus-dropdown">
+          <button class="focus-btn" id="focus-btn" onclick="focusToggleMenu(event)" title="Focus timer">⏱ Focus</button>
+          <div class="focus-menu" id="focus-menu">
+            <button class="focus-menu-item" onclick="focusStart(25)">25 min (Pomodoro)</button>
+            <button class="focus-menu-item" onclick="focusStart(50)">50 min (deep work)</button>
+            <button class="focus-menu-item" onclick="focusStart(15)">15 min (quick)</button>
+            <button class="focus-menu-item" onclick="focusStart(5)">5 min (break)</button>
+          </div>
+        </div>
+        <span class="focus-countdown" id="focus-countdown" style="display:none"></span>
       </div>
 
       <!-- Scratchpad -->
@@ -525,6 +536,107 @@
     const resetBtn = document.getElementById('timer-reset-btn');
     if (resetBtn) resetBtn.remove();
   }
+
+  // ── Focus / Pomodoro timer ────────────────────────────────────────────────
+
+  let focusInterval = null;
+  let focusSecsLeft = 0;
+  const FOCUS_KEY = `workflow_focus_${taskID}`;
+
+  function focusFmt(s) {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${m}:${String(sec).padStart(2,'0')}`;
+  }
+
+  function focusToggleMenu(e) {
+    e.stopPropagation();
+    // If already running, clicking the button cancels focus mode
+    if (focusInterval) { focusStop(false); return; }
+    const menu = document.getElementById('focus-menu');
+    menu.classList.toggle('open');
+  }
+
+  function focusStart(mins) {
+    document.getElementById('focus-menu').classList.remove('open');
+    if (focusInterval) clearInterval(focusInterval);
+
+    focusSecsLeft = mins * 60;
+    const endMs = Date.now() + focusSecsLeft * 1000;
+    localStorage.setItem(FOCUS_KEY, JSON.stringify({ endMs, taskID, taskTitle: document.title }));
+
+    focusRender();
+    focusInterval = setInterval(() => {
+      focusSecsLeft = Math.max(0, Math.round((endMs - Date.now()) / 1000));
+      focusRender();
+      if (focusSecsLeft <= 0) focusDone();
+    }, 500);
+
+    // Update page title
+    document.title = `[${focusFmt(focusSecsLeft)}] ${document.title.replace(/^\[.*?\] /, '')}`;
+  }
+
+  function focusRender() {
+    const countdown = document.getElementById('focus-countdown');
+    const btn = document.getElementById('focus-btn');
+    countdown.style.display = '';
+    countdown.textContent = focusFmt(focusSecsLeft);
+    countdown.className = 'focus-countdown' + (focusSecsLeft <= 60 ? ' focus-warning' : '');
+    btn.className = 'focus-btn focus-active';
+    btn.textContent = '⏱ ' + focusFmt(focusSecsLeft);
+    document.title = `[${focusFmt(focusSecsLeft)}] ${document.title.replace(/^\[.*?\] /, '')}`;
+  }
+
+  function focusStop(done) {
+    clearInterval(focusInterval);
+    focusInterval = null;
+    localStorage.removeItem(FOCUS_KEY);
+    const countdown = document.getElementById('focus-countdown');
+    countdown.style.display = 'none';
+    const btn = document.getElementById('focus-btn');
+    btn.className = 'focus-btn';
+    btn.textContent = '⏱ Focus';
+    document.title = document.title.replace(/^\[.*?\] /, '');
+  }
+
+  function focusDone() {
+    focusStop(true);
+    // Browser notification if permitted
+    const title = document.querySelector('.task-title')?.textContent?.trim() || 'Task';
+    if (Notification.permission === 'granted') {
+      new Notification('Focus session complete!', { body: title, icon: '/static/favicon-32.png' });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(p => {
+        if (p === 'granted') new Notification('Focus session complete!', { body: title, icon: '/static/favicon-32.png' });
+      });
+    }
+    // Visual flash
+    document.getElementById('focus-btn').textContent = '✓ Done!';
+    setTimeout(() => { document.getElementById('focus-btn').textContent = '⏱ Focus'; }, 3000);
+  }
+
+  // Restore focus session if same tab/page reload during active session
+  (function restoreFocus() {
+    const stored = localStorage.getItem(FOCUS_KEY);
+    if (!stored) return;
+    try {
+      const { endMs } = JSON.parse(stored);
+      const secsLeft = Math.round((endMs - Date.now()) / 1000);
+      if (secsLeft <= 0) { localStorage.removeItem(FOCUS_KEY); return; }
+      focusSecsLeft = secsLeft;
+      const endMsVal = endMs;
+      focusRender();
+      focusInterval = setInterval(() => {
+        focusSecsLeft = Math.max(0, Math.round((endMsVal - Date.now()) / 1000));
+        focusRender();
+        if (focusSecsLeft <= 0) focusDone();
+      }, 500);
+    } catch (e) { localStorage.removeItem(FOCUS_KEY); }
+  })();
+
+  // Close focus menu on outside click
+  document.addEventListener('click', () => {
+    document.getElementById('focus-menu')?.classList.remove('open');
+  });
 
   function toggleBriefHistory(btn) {
     const list = btn.nextElementSibling;

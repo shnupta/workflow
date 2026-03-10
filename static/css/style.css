@@ -3327,3 +3327,62 @@ input[type="date"] {
   margin-left: 8px;
   vertical-align: middle;
 }
+
+/* ── Focus / Pomodoro timer ────────────────────────────────────────────────── */
+.focus-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 10px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.focus-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+.focus-btn.focus-active {
+  background: rgba(99,102,241,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.focus-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.focus-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  gap: 4px;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  min-width: 120px;
+}
+.focus-menu.open { display: flex; flex-direction: column; }
+.focus-menu-item {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.focus-menu-item:hover { background: var(--surface3); color: var(--text-primary); }
+.focus-countdown {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  min-width: 38px;
+}
+.focus-countdown.focus-warning { color: #f87171; }
