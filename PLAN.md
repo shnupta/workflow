@@ -495,7 +495,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Config: `github_webhook_secret` in workflow.json; single endpoint `POST /webhooks/github`
   - Reduces manual task creation for PR workflows
 
-- [ ] **Session pinning to task top**
+- [x] **Session pinning to task top** ✅ 2026-03-10
   - Pin a session as the "canonical review" for a task — shown prominently on task page above others
   - Useful when a task has many sessions but one is the definitive output (e.g. final brief)
   - `pinned BOOLEAN` already exists on sessions table — just needs UI promotion
