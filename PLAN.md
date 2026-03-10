@@ -506,7 +506,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Increments task's time_tracked automatically when timer completes
   - No backend needed — pure JS with localStorage persistence
 
-- [ ] **Board swimlanes by assignee / tag**
+- [x] **Board swimlanes by assignee / tag** ✅ 2026-03-10
   - Current board has Today / This Week / Backlog columns
   - Add optional row grouping by tag (e.g. group all "frontend" tasks in a swimlane)
   - Toggle swimlane view; collapse/expand per lane
