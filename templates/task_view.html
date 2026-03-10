@@ -254,10 +254,25 @@
 
         <div id="sessions-list" class="sessions-list">
           {{if .Sessions}}
-          {{range .Sessions}}
-          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card {{if .Pinned}}session-card-pinned{{end}}">
+          {{if .PinnedSessions}}
+          <div class="sessions-section-label">Pinned</div>
+          {{range .PinnedSessions}}
+          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card session-card-pinned">
             <div class="session-card-main">
-              {{if .Pinned}}<span class="pin-icon" title="Pinned">📌</span>{{end}}
+              <span class="pin-icon" title="Pinned">📌</span>
+              <span class="session-card-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
+              <span class="session-status status-{{.Status}}">{{.Status}}</span>
+            </div>
+            <div class="session-card-meta">{{.AgentProvider}} · {{timeAgo .UpdatedAt}}</div>
+          </a>
+          {{end}}
+          {{if .UnpinnedSessions}}
+          <div class="sessions-section-label sessions-section-label-rest">Other sessions</div>
+          {{end}}
+          {{end}}
+          {{range .UnpinnedSessions}}
+          <a href="/tasks/{{$.Task.ID}}/sessions/{{.ID}}" class="session-card">
+            <div class="session-card-main">
               <span class="session-card-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
               <span class="session-status status-{{.Status}}">{{.Status}}</span>
             </div>

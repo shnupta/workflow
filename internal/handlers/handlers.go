@@ -466,13 +466,26 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	blocker, _ := h.db.GetBlockerTask(t.ID)
 	comments, _ := h.db.ListComments(t.ID)
 	reminders, _ := h.db.ListRemindersForTask(t.ID)
+
+	// Split sessions into pinned / unpinned for prominent display.
+	var pinnedSessions, unpinnedSessions []*models.Session
+	for _, s := range sessions {
+		if s.Pinned {
+			pinnedSessions = append(pinnedSessions, s)
+		} else {
+			unpinnedSessions = append(unpinnedSessions, s)
+		}
+	}
+
 	h.render(w, "task_view.html", map[string]interface{}{
-		"Task":          t,
-		"Sessions":      sessions,
-		"BriefVersions": briefVersions,
-		"Blocker":       blocker,
-		"Comments":      comments,
-		"Reminders":     reminders,
+		"Task":             t,
+		"Sessions":         sessions,
+		"PinnedSessions":   pinnedSessions,
+		"UnpinnedSessions": unpinnedSessions,
+		"BriefVersions":    briefVersions,
+		"Blocker":          blocker,
+		"Comments":         comments,
+		"Reminders":        reminders,
 		"Nav":           "tasks",
 	})
 }

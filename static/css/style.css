@@ -3386,3 +3386,17 @@ input[type="date"] {
   min-width: 38px;
 }
 .focus-countdown.focus-warning { color: #f87171; }
+
+/* ─── Session section labels ───────────────────────────── */
+.sessions-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 6px 2px 3px;
+}
+.sessions-section-label-rest {
+  color: var(--text-muted);
+  margin-top: 4px;
+}
