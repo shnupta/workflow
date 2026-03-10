@@ -571,3 +571,23 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - EditorCore.lsp field; open_file notifies server
   - language_id_for_path helper (12 extensions)
   - 12 tests covering wire encoding, language IDs, dispatch, reader task
+
+## New features (proposed 2026-03-10 nudge 3)
+
+### Medium priority
+
+- [x] **LSP diagnostics + hover popup (modal-editor)** ✅ 2026-03-10
+  - EditorCore.diagnostics: HashMap<uri, Vec<Diagnostic>>
+  - apply_diagnostics() / active_diagnostics() / error_count() / warning_count()
+  - Renderer: diag_ranges_for_line() underlines errors (red) and warnings (orange)
+  - Status bar E:N W:N indicator
+  - Hover popup: K in Normal mode, floating widget, dismisses on any other key
+  - Tokio runtime in run() for async LSP calls; lang_server_cmd() auto-spawns server
+  - 5 new tests (diagnostics storage, counts, replace)
+
+### Lower priority
+
+- [x] **Tab title badge** ✅ 2026-03-10
+  - Board page: '(N) workflow' in browser tab when P1 or overdue tasks present
+  - Resets to 'workflow' when all clear; updates on load + filter changes
+  - Zero backend — pure JS

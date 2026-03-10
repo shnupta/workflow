@@ -18,6 +18,9 @@ type DB struct {
 	fts5 bool // true if FTS5 is available (built with -tags fts5)
 }
 
+// Conn exposes the underlying *sql.DB for test helpers that need raw SQL access.
+func (d *DB) Conn() *sql.DB { return d.conn }
+
 func Open(path string) (*DB, error) {
 	dsn := path + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
 	conn, err := sql.Open("sqlite3", dsn)
@@ -1386,6 +1389,7 @@ type DigestWeek struct {
 	WeekEnd     time.Time // Sunday 23:59 UTC
 	Done        []*DigestTask
 	InProgress  []*DigestTask
+	WaitingOnOthers []*DigestTask // direction='blocked_on_them', not done, age >= 2 days
 	TotalTimeSecs  int
 	SessionCount   int
 	WorkTypeBreakdown []WorkTypeTime // sorted by seconds desc, only types with time > 0
@@ -1501,6 +1505,41 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 					wtt.Label = fmt.Sprintf("%dm", m)
 				}
 				dw.WorkTypeBreakdown = append(dw.WorkTypeBreakdown, wtt)
+			}
+		}
+	}
+
+	// Tasks waiting on others: direction='blocked_on_them', not done, created 2+ days ago
+	cutoff := time.Now().UTC().AddDate(0, 0, -2).Format(time.RFC3339)
+	waitRows, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 0 AND t.direction = 'blocked_on_them' AND t.created_at <= ?
+		GROUP BY t.id
+		ORDER BY t.created_at ASC
+	`, cutoff)
+	if err == nil {
+		defer waitRows.Close()
+		for waitRows.Next() {
+			var dt DigestTask
+			var doneAt, createdAt *string
+			var timerStarted *string
+			if waitRows.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
+				&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount) == nil {
+				if createdAt != nil {
+					if t, err := time.Parse(time.RFC3339, *createdAt); err == nil {
+						dt.CreatedAt = t
+					}
+				}
+				if timerStarted != nil {
+					if t, err := time.Parse(time.RFC3339, *timerStarted); err == nil {
+						dt.TimerStarted = &t
+					}
+				}
+				dw.WaitingOnOthers = append(dw.WaitingOnOthers, &dt)
 			}
 		}
 	}

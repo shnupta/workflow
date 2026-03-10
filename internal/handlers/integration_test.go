@@ -2267,3 +2267,62 @@ func TestTaskEffort_InvalidIgnored(t *testing.T) {
 		t.Errorf("expected empty effort for invalid value, got %q", tasks[0].Effort)
 	}
 }
+
+func TestDigest_WaitingOnOthers(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// Create a "blocked on them" task, then backdate it to 3 days ago via raw SQL
+	task := &models.Task{
+		Title:     "Waiting for sign-off",
+		WorkType:  "approval",
+		Tier:      "this_week",
+		Direction: "blocked_on_them",
+	}
+	if err := h.db.CreateTask(task); err != nil {
+		t.Fatal(err)
+	}
+	oldTime := time.Now().UTC().AddDate(0, 0, -3).Format(time.RFC3339)
+	h.db.Conn().Exec(`UPDATE tasks SET created_at=? WHERE id=?`, oldTime, task.ID)
+
+	// Create a fresh blocked_on_them task (too new — should NOT appear)
+	newTask := &models.Task{
+		ID:        "chase-task-2",
+		Title:     "Fresh chase",
+		WorkType:  "approval",
+		Tier:      "today",
+		Direction: "blocked_on_them",
+		Done:      false,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		Position:  0,
+	}
+	if err := h.db.CreateTask(newTask); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fetch digest for current week
+	weekStart := weekMonday(time.Now().UTC())
+	dw, err := h.db.WeeklyDigest(weekStart)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(dw.WaitingOnOthers) != 1 {
+		t.Errorf("expected 1 waiting-on-others task (old one), got %d", len(dw.WaitingOnOthers))
+	}
+	if len(dw.WaitingOnOthers) > 0 && dw.WaitingOnOthers[0].Title != "Waiting for sign-off" {
+		t.Errorf("expected 'Waiting for sign-off', got %s", dw.WaitingOnOthers[0].Title)
+	}
+	_ = srv
+}
+
+// weekMonday returns the Monday 00:00 UTC for the week containing t.
+func weekMonday(t time.Time) time.Time {
+	// ISO weekday: Monday=1 ... Sunday=7
+	wd := int(t.Weekday())
+	if wd == 0 {
+		wd = 7
+	}
+	return time.Date(t.Year(), t.Month(), t.Day()-wd+1, 0, 0, 0, 0, time.UTC)
+}

@@ -106,6 +106,25 @@
       </section>
       {{end}}
 
+      <!-- Waiting on others (direction=blocked_on_them, 2+ days old) -->
+      {{if .Digest.WaitingOnOthers}}
+      <section class="digest-section">
+        <h2 class="digest-section-title" title="Tasks you're waiting on others to unblock (2+ days old)">⏳ Waiting on others</h2>
+        <div class="digest-task-list">
+          {{range .Digest.WaitingOnOthers}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row digest-task-row--chase">
+            <span class="digest-task-check digest-task-chase-icon">⌛</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+              <span class="digest-task-age">{{.DaysInColumn}}d waiting</span>
+            </span>
+          </a>
+          {{end}}
+        </div>
+      </section>
+      {{end}}
+
       <div class="digest-export">
         <a href="/export/tasks.csv" class="digest-export-link" download>↓ Export all tasks as CSV</a>
       </div>

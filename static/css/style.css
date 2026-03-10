@@ -2363,6 +2363,9 @@ input[type="date"] {
   transition: background 0.12s;
 }
 .digest-task-row:hover { background: var(--surface-hover); }
+.digest-task-row--chase { border-left: 2px solid rgba(245,158,11,0.4); }
+.digest-task-chase-icon { color: var(--amber, #f59e0b); }
+.digest-task-age { font-size: 11px; color: var(--amber, #f59e0b); white-space: nowrap; }
 
 .digest-task-check {
   font-size: 14px;
