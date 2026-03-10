@@ -522,3 +522,29 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `?` key already bound to toggle help modal (stub)
   - Fill in the actual shortcuts: board nav, `n` new task, `s` search, `⌘K` palette, etc.
 
+
+---
+
+## New features (proposed 2026-03-10 nudge)
+
+### Medium priority
+
+- [x] **Inline title / description editing** ✅ 2026-03-10
+  - Click task title on task view → editable input; Enter/blur saves via PATCH /api/tasks/{id}
+  - Click description → textarea with auto-grow; blur saves; Esc cancels
+  - "Add description…" placeholder shown when empty; click to start editing
+  - PATCH /api/tasks/{id} endpoint + PatchTaskFields() DB method
+  - 3 new integration tests
+
+- [x] **Markdown task descriptions** ✅ 2026-03-10
+  - Task description now rendered by marked.js (same pipeline as agent briefs)
+  - Raw markdown preserved in data attribute for re-editing
+
+- [x] **Tree-sitter syntax highlighting (modal-editor)** ✅ 2026-03-10
+  - Implemented in modal-editor/src/syntax/mod.rs
+  - Rust, Python, JavaScript/TS, Go, Lua — auto-detected from file extension
+  - Wired into open_file() and save_active(); 8 tests
+
+- [x] **Nucleo fuzzy matching in file picker (modal-editor)** ✅ 2026-03-10
+  - Replaced hand-rolled subsequence matcher with nucleo-matcher
+  - Results sorted by descending score (best match first)
