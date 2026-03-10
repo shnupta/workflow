@@ -513,7 +513,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Task duplication**
+- [x] **Task duplication** ✅ 2026-03-10
   - "Duplicate" button on task page — copies title, description, work type, tags, recurrence
   - Useful for templated tasks that don't fit the formal template system
   - Simple `POST /api/tasks/{id}/duplicate` → redirects to new task
