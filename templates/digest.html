@@ -50,6 +50,19 @@
         {{end}}
       </div>
 
+      <!-- Work type time breakdown -->
+      {{if .Digest.WorkTypeBreakdown}}
+      <div class="digest-breakdown">
+        <span class="digest-breakdown-label">Time by type:</span>
+        {{range .Digest.WorkTypeBreakdown}}
+        <span class="digest-breakdown-chip">
+          <span class="breakdown-type">{{workTypeLabel .WorkType}}</span>
+          <span class="breakdown-time">{{.Label}}</span>
+        </span>
+        {{end}}
+      </div>
+      {{end}}
+
       <!-- Completed tasks -->
       <section class="digest-section">
         <h2 class="digest-section-title">Completed</h2>

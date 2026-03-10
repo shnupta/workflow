@@ -1371,13 +1371,21 @@ func (t *DigestTask) ElapsedLabel() string {
 }
 
 // DigestWeek holds all data for a given ISO week.
+// WorkTypeTime holds time-tracked seconds for a single work type.
+type WorkTypeTime struct {
+	WorkType string
+	Seconds  int
+	Label    string // e.g. "2h 30m"
+}
+
 type DigestWeek struct {
 	WeekStart   time.Time // Monday 00:00 UTC
 	WeekEnd     time.Time // Sunday 23:59 UTC
 	Done        []*DigestTask
 	InProgress  []*DigestTask
-	TotalTimeSecs int
-	SessionCount  int
+	TotalTimeSecs  int
+	SessionCount   int
+	WorkTypeBreakdown []WorkTypeTime // sorted by seconds desc, only types with time > 0
 }
 
 func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
@@ -1458,6 +1466,41 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	d.conn.QueryRow(`SELECT COUNT(*) FROM sessions WHERE created_at >= ? AND created_at < ?`,
 		weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339)).Scan(&sc)
 	dw.SessionCount = sc
+
+	// Work type breakdown: aggregate timer_total across all tasks touched this week.
+	// "Touched" = done this week OR still in progress (created before week end).
+	typeRows, err := d.conn.Query(`
+		SELECT work_type, SUM(timer_total) as total_secs
+		FROM tasks
+		WHERE work_type != ''
+		  AND timer_total > 0
+		  AND (
+		        (done = 1 AND done_at >= ? AND done_at < ?)
+		     OR (done = 0 AND created_at < ?)
+		      )
+		GROUP BY work_type
+		ORDER BY total_secs DESC`,
+		weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339),
+		weekEnd.Format(time.RFC3339),
+	)
+	if err == nil {
+		defer typeRows.Close()
+		for typeRows.Next() {
+			var wt string
+			var secs int
+			if typeRows.Scan(&wt, &secs) == nil && secs > 0 {
+				wtt := WorkTypeTime{WorkType: wt, Seconds: secs}
+				h := secs / 3600
+				m := (secs % 3600) / 60
+				if h > 0 {
+					wtt.Label = fmt.Sprintf("%dh %dm", h, m)
+				} else {
+					wtt.Label = fmt.Sprintf("%dm", m)
+				}
+				dw.WorkTypeBreakdown = append(dw.WorkTypeBreakdown, wtt)
+			}
+		}
+	}
 
 	return dw, nil
 }
