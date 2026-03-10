@@ -67,6 +67,7 @@ type prPayload struct {
 		Body    string `json:"body"`
 		State   string `json:"state"`
 		Draft   bool   `json:"draft"`
+		Merged  bool   `json:"merged"`
 		Head    struct {
 			Ref string `json:"ref"` // branch name
 		} `json:"head"`
@@ -89,7 +90,31 @@ func (h *Handler) handlePREvent(w http.ResponseWriter, body []byte) {
 		return
 	}
 
-	// Only handle open/reopen/sync; ignore closed, assigned, labeled, etc.
+	// Handle closed/merged: auto-mark the corresponding task done.
+	if payload.Action == "closed" {
+		existing, err := h.db.GetTaskByPRURL(payload.PullRequest.HTMLURL)
+		if err != nil || existing == nil {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, "no matching task")
+			return
+		}
+		if _, err := h.db.MarkDone(existing.ID); err != nil {
+			log.Printf("webhook: failed to mark task %s done: %v", existing.ID, err)
+			http.Error(w, "mark done failed", 500)
+			return
+		}
+		merged := payload.PullRequest.Merged
+		action := "closed"
+		if merged {
+			action = "merged"
+		}
+		log.Printf("webhook: PR %s (%s) — marked task %s done", payload.PullRequest.HTMLURL, action, existing.ID)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "task %s marked done (%s)", existing.ID, action)
+		return
+	}
+
+	// Only handle open/reopen/sync for other actions; ignore the rest.
 	switch payload.Action {
 	case "opened", "reopened", "synchronize", "ready_for_review":
 		// continue
