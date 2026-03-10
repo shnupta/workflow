@@ -500,7 +500,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Useful when a task has many sessions but one is the definitive output (e.g. final brief)
   - `pinned BOOLEAN` already exists on sessions table — just needs UI promotion
 
-- [ ] **Time-boxed focus mode**
+- [x] **Time-boxed focus mode** ✅ 2026-03-09
   - Start a focus timer for a task (25min Pomodoro or custom duration)
   - Timer shown in page title + floating badge; notification when done
   - Increments task's time_tracked automatically when timer completes
