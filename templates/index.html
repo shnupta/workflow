@@ -54,6 +54,8 @@
       <button class="filter-chip tag-chip" data-filter="tag:{{.}}" onclick="setFilter('tag:{{.}}', this)">{{.}}</button>
       {{end}}
       {{end}}
+      <div class="filter-sep"></div>
+      <button class="filter-chip swimlane-toggle" id="swimlane-btn" onclick="toggleSwimlanes(this)" title="Group by tag">⋮ Lanes</button>
     </div>
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
@@ -584,6 +586,106 @@
       document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       applyFilter();
+    }
+  })();
+
+  // ── Swimlanes (group by tag) ──────────────────────────────────────────────
+  //
+  // When active, each tier column shows cards grouped into tag-based lanes.
+  // Cards with no tags go into an "Other" lane. Lane headers are injected as
+  // DOM elements and removed when swimlanes are toggled off.
+  // Swimlane state persists in localStorage across page loads.
+
+  let swimelanesActive = localStorage.getItem('board-swimlanes') === '1';
+
+  function toggleSwimlanes(btn) {
+    swimelanesActive = !swimelanesActive;
+    localStorage.setItem('board-swimlanes', swimelanesActive ? '1' : '0');
+    btn.classList.toggle('active', swimelanesActive);
+    if (swimelanesActive) {
+      buildSwimlanes();
+    } else {
+      destroySwimlanes();
+    }
+  }
+
+  function buildSwimlanes() {
+    document.querySelectorAll('.tier-col').forEach(col => {
+      const list = col.querySelector('.task-list');
+      if (!list) return;
+
+      // Collect visible cards
+      const cards = [...list.querySelectorAll('.task-card')];
+      if (cards.length === 0) return;
+
+      // Group by first tag
+      const laneMap = new Map(); // tag → [card, ...]
+      cards.forEach(card => {
+        let tags = [];
+        try { tags = JSON.parse(card.dataset.tags || '[]'); } catch (_) {}
+        const key = tags.length > 0 ? tags[0] : '‹untagged›';
+        if (!laneMap.has(key)) laneMap.set(key, []);
+        laneMap.get(key).push(card);
+      });
+
+      // Sort lanes: named tags alphabetically, untagged last
+      const sortedKeys = [...laneMap.keys()].sort((a, b) => {
+        if (a === '‹untagged›') return 1;
+        if (b === '‹untagged›') return -1;
+        return a.localeCompare(b);
+      });
+
+      // Rebuild list content with lane headers
+      list.innerHTML = '';
+      sortedKeys.forEach(tag => {
+        const header = document.createElement('div');
+        header.className = 'swimlane-header';
+        header.dataset.lane = tag;
+        const collapsed = localStorage.getItem('lane-collapsed:' + tag) === '1';
+        header.innerHTML = `<span class="swimlane-caret">${collapsed ? '▶' : '▼'}</span> <span class="swimlane-tag">${tag}</span> <span class="swimlane-count">${laneMap.get(tag).length}</span>`;
+        header.onclick = () => toggleLane(header, tag);
+        list.appendChild(header);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'swimlane-cards';
+        wrapper.dataset.laneCards = tag;
+        if (collapsed) wrapper.style.display = 'none';
+        laneMap.get(tag).forEach(c => wrapper.appendChild(c));
+        list.appendChild(wrapper);
+      });
+    });
+  }
+
+  function destroySwimlanes() {
+    document.querySelectorAll('.tier-col').forEach(col => {
+      const list = col.querySelector('.task-list');
+      if (!list) return;
+
+      // Move all cards out of wrappers, remove headers and wrappers
+      const cards = [...list.querySelectorAll('.task-card')];
+      list.innerHTML = '';
+      cards.forEach(c => list.appendChild(c));
+      // Re-apply current filter
+      applyFilter();
+    });
+  }
+
+  function toggleLane(header, tag) {
+    const wrapper = header.nextElementSibling;
+    if (!wrapper) return;
+    const collapsed = wrapper.style.display === 'none';
+    wrapper.style.display = collapsed ? '' : 'none';
+    header.querySelector('.swimlane-caret').textContent = collapsed ? '▼' : '▶';
+    localStorage.setItem('lane-collapsed:' + tag, collapsed ? '0' : '1');
+  }
+
+  // Restore swimlane state on load
+  (function() {
+    const btn = document.getElementById('swimlane-btn');
+    if (swimelanesActive && btn) {
+      btn.classList.add('active');
+      // Defer until cards are rendered
+      requestAnimationFrame(buildSwimlanes);
     }
   })();
 
