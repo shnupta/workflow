@@ -923,6 +923,7 @@
      data-direction="{{.Direction}}"
      data-tags="{{jsonArr .Tags}}"
      data-priority="{{.Priority}}"
+     data-effort="{{.Effort}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <label class="card-select-wrap" title="Select task" onclick="onCardCheckboxClick(event, this)">
@@ -931,6 +932,7 @@
   <div class="task-card-header">
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if .Priority}}<span class="tag tag-priority tag-priority-{{.Priority}}" title="Priority {{priorityLabel .Priority}}">{{priorityLabel .Priority}}</span>{{end}}
+    {{if .Effort}}<span class="tag tag-effort tag-effort-{{.Effort}}" title="Effort: {{effortLabel .Effort}}">{{effortLabel .Effort}}</span>{{end}}
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
     {{if .IsBlocked}}<span class="tag tag-blocked" title="Blocked by another task">⛔ blocked</span>{{end}}
     {{if .IsRecurring}}<span class="tag tag-recurring" title="Recurring task">↻</span>{{end}}

@@ -28,6 +28,7 @@ type Task struct {
 	BlockedBy    string     `db:"blocked_by"     json:"blocked_by"`    // ID of the task blocking this one (empty = not blocked)
 	Recurrence   string     `db:"recurrence"     json:"recurrence"`    // "" | "daily" | "weekly" | "biweekly" | "monthly"
 	Priority     string     `db:"priority"       json:"priority"`      // "" | "p1" | "p2" | "p3"
+	Effort       string     `db:"effort"         json:"effort"`        // "" | "xs" | "s" | "m" | "l" | "xl"
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 }
 
@@ -155,5 +156,42 @@ func (t *Task) PriorityWeight() int {
 		return 2
 	default:
 		return 3
+	}
+}
+
+// EffortLabel returns a display label for the task's effort estimate.
+func (t *Task) EffortLabel() string {
+	switch t.Effort {
+	case "xs":
+		return "XS"
+	case "s":
+		return "S"
+	case "m":
+		return "M"
+	case "l":
+		return "L"
+	case "xl":
+		return "XL"
+	default:
+		return ""
+	}
+}
+
+// EffortPoints returns a rough story-points equivalent for effort estimates.
+// xs=1, s=2, m=3, l=5, xl=8 (Fibonacci-ish).
+func (t *Task) EffortPoints() int {
+	switch t.Effort {
+	case "xs":
+		return 1
+	case "s":
+		return 2
+	case "m":
+		return 3
+	case "l":
+		return 5
+	case "xl":
+		return 8
+	default:
+		return 0
 	}
 }

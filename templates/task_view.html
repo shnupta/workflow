@@ -22,6 +22,7 @@
           <span class="tag tag-tier">{{tierLabel .Task.Tier}}</span>
           <span class="tag tag-dir {{if eq .Task.Direction "blocked_on_them"}}tag-them{{end}}">{{.Task.DirectionLabel}}</span>
           {{if .Task.Priority}}<span class="tag tag-priority tag-priority-{{.Task.Priority}}">{{priorityLabel .Task.Priority}}</span>{{end}}
+          {{if .Task.Effort}}<span class="tag tag-effort tag-effort-{{.Task.Effort}}" title="Effort estimate">{{effortLabel .Task.Effort}}</span>{{end}}
         </div>
         <div class="task-page-actions">
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>

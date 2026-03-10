@@ -2200,3 +2200,70 @@ func TestTaskPriority_UpdateViaEdit(t *testing.T) {
 		t.Errorf("expected priority p2, got %q", updated.Priority)
 	}
 }
+
+func TestTaskEffort_SetAndRead(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	vals := url.Values{
+		"title": {"Effort task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"}, "effort": {"m"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	resp.Body.Close()
+
+	tasks, err := h.db.ListTasks(false, h.watcher.Get())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) == 0 {
+		t.Fatal("no tasks")
+	}
+	if tasks[0].Effort != "m" {
+		t.Errorf("expected effort=m, got %q", tasks[0].Effort)
+	}
+}
+
+func TestTaskEffort_UpdateViaEdit(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	vals := url.Values{
+		"title": {"Task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	resp.Body.Close()
+
+	tasks, _ := h.db.ListTasks(false, h.watcher.Get())
+	taskID := tasks[0].ID
+
+	editVals := url.Values{
+		"title": {"Task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"}, "effort": {"xl"},
+	}
+	resp = postForm(t, srv, "/tasks/"+taskID, editVals)
+	readBody(t, resp)
+
+	updated, _ := h.db.GetTask(taskID)
+	if updated.Effort != "xl" {
+		t.Errorf("expected effort=xl, got %q", updated.Effort)
+	}
+}
+
+func TestTaskEffort_InvalidIgnored(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	vals := url.Values{
+		"title": {"Task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"}, "effort": {"huge"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	resp.Body.Close()
+
+	tasks, _ := h.db.ListTasks(false, h.watcher.Get())
+	if tasks[0].Effort != "" {
+		t.Errorf("expected empty effort for invalid value, got %q", tasks[0].Effort)
+	}
+}

@@ -157,6 +157,22 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 				return ""
 			}
 		},
+		"effortLabel": func(e string) string {
+			switch e {
+			case "xs":
+				return "XS"
+			case "s":
+				return "S"
+			case "m":
+				return "M"
+			case "l":
+				return "L"
+			case "xl":
+				return "XL"
+			default:
+				return ""
+			}
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -411,6 +427,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		DueDate:     parseDateForm(r.FormValue("due_date")),
 		Recurrence:  sanitizeRecurrence(r.FormValue("recurrence")),
 		Priority:    sanitizePriority(r.FormValue("priority")),
+		Effort:      sanitizeEffort(r.FormValue("effort")),
 	}
 	if err := h.db.CreateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -662,6 +679,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	t.DueDate = parseDateForm(r.FormValue("due_date"))
 	t.Recurrence = sanitizeRecurrence(r.FormValue("recurrence"))
 	t.Priority = sanitizePriority(r.FormValue("priority"))
+	t.Effort = sanitizeEffort(r.FormValue("effort"))
 	if err := h.db.UpdateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -1111,6 +1129,15 @@ func sanitizeRecurrence(s string) string {
 func sanitizePriority(s string) string {
 	switch s {
 	case "p1", "p2", "p3":
+		return s
+	default:
+		return ""
+	}
+}
+
+func sanitizeEffort(s string) string {
+	switch s {
+	case "xs", "s", "m", "l", "xl":
 		return s
 	default:
 		return ""

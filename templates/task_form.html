@@ -105,6 +105,18 @@
         </div>
 
         <div class="field">
+          <label for="effort">Effort <span class="optional">(optional)</span></label>
+          <select id="effort" name="effort">
+            <option value=""   {{if eq .Task.Effort ""}}selected{{end}}>Not estimated</option>
+            <option value="xs" {{if eq .Task.Effort "xs"}}selected{{end}}>XS — tiny (< 1h)</option>
+            <option value="s"  {{if eq .Task.Effort "s"}}selected{{end}}>S — small (1–3h)</option>
+            <option value="m"  {{if eq .Task.Effort "m"}}selected{{end}}>M — medium (half day)</option>
+            <option value="l"  {{if eq .Task.Effort "l"}}selected{{end}}>L — large (full day)</option>
+            <option value="xl" {{if eq .Task.Effort "xl"}}selected{{end}}>XL — epic (2+ days)</option>
+          </select>
+        </div>
+
+        <div class="field">
           <label for="recurrence">Recurrence <span class="optional">(optional)</span></label>
           <select id="recurrence" name="recurrence">
             <option value=""         {{if eq .Task.Recurrence ""}}selected{{end}}>No recurrence</option>
