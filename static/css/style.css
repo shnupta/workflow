@@ -3437,3 +3437,49 @@ input[type="date"] {
   color: var(--text-muted);
 }
 .swimlane-cards { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+
+/* ─── Inline title / description editing ───────────────────────────────── */
+.task-page-title { cursor: pointer; }
+.task-page-title:hover { color: var(--accent); transition: color 0.15s; }
+
+.task-title-edit {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  width: 100%;
+  outline: none;
+  margin-bottom: 4px;
+}
+
+.task-page-desc { cursor: pointer; }
+.task-page-desc:hover { outline: 1px solid var(--border); border-radius: 4px; }
+
+.task-page-desc-placeholder {
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 20px;
+  opacity: 0.6;
+}
+.task-page-desc-placeholder:hover { opacity: 1; color: var(--accent); }
+
+.task-desc-edit {
+  width: 100%;
+  min-height: 80px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+  margin-bottom: 20px;
+}

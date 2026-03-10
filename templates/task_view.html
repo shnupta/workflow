@@ -36,7 +36,7 @@
         </div>
       </div>
 
-      <h1 class="task-page-title">{{.Task.Title}}</h1>
+      <h1 class="task-page-title" id="task-title" title="Click to edit" onclick="editTitle(this)">{{.Task.Title}}</h1>
 
       <!-- Tags -->
       <div class="tags-panel" id="tags-panel">
@@ -57,9 +57,13 @@
         </div>
       </div>
 
-      {{if .Task.Description}}
-      <p class="task-page-desc">{{.Task.Description}}</p>
-      {{end}}
+      <div class="task-page-desc-wrap" id="desc-wrap">
+        {{if .Task.Description}}
+        <div class="task-page-desc md-content" id="task-desc" title="Click to edit" onclick="editDesc(this)">{{.Task.Description}}</div>
+        {{else}}
+        <div class="task-page-desc-placeholder" id="task-desc-placeholder" title="Click to add description" onclick="editDescPlaceholder()">+ Add description…</div>
+        {{end}}
+      </div>
 
       {{if .Task.PRURL}}
       <p><a href="{{.Task.PRURL}}" target="_blank" class="external-link">→ Open PR</a></p>
@@ -303,6 +307,116 @@
 
   const taskID = "{{.Task.ID}}";
   let briefStatus = "{{.Task.BriefStatus}}";
+
+  // ── Inline title / description editing ───────────────────────────────────
+
+  function editTitle(el) {
+    const original = el.textContent.trim();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = original;
+    input.className = 'task-title-edit';
+    el.replaceWith(input);
+    input.focus();
+    input.select();
+
+    async function commitTitle() {
+      const newTitle = input.value.trim() || original;
+      const h1 = document.createElement('h1');
+      h1.className = 'task-page-title';
+      h1.id = 'task-title';
+      h1.title = 'Click to edit';
+      h1.onclick = function() { editTitle(this); };
+      h1.textContent = newTitle;
+      input.replaceWith(h1);
+      if (newTitle !== original) {
+        await fetch(`/api/tasks/${taskID}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({title: newTitle}),
+        });
+        document.title = `workflow — ${newTitle}`;
+      }
+    }
+
+    input.addEventListener('blur', commitTitle);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { input.value = original; input.blur(); }
+    });
+  }
+
+  function editDesc(el) {
+    const original = el.dataset.rawContent || el.textContent.trim();
+    const ta = document.createElement('textarea');
+    ta.className = 'task-desc-edit';
+    ta.value = original;
+    el.replaceWith(ta);
+    ta.style.height = Math.max(ta.scrollHeight, 80) + 'px';
+    ta.focus();
+
+    async function commitDesc() {
+      const newDesc = ta.value;
+      if (newDesc.trim() === '') {
+        // Show placeholder
+        const ph = document.createElement('div');
+        ph.className = 'task-page-desc-placeholder';
+        ph.id = 'task-desc-placeholder';
+        ph.title = 'Click to add description';
+        ph.onclick = editDescPlaceholder;
+        ph.textContent = '+ Add description…';
+        ta.replaceWith(ph);
+      } else {
+        const div = document.createElement('div');
+        div.className = 'task-page-desc md-content';
+        div.id = 'task-desc';
+        div.title = 'Click to edit';
+        div.onclick = function() { editDesc(this); };
+        div.dataset.rawContent = newDesc;
+        div.textContent = newDesc;
+        ta.replaceWith(div);
+        div.dataset.rendered = '1';
+        div.innerHTML = marked.parse(newDesc);
+      }
+      if (newDesc !== original) {
+        await fetch(`/api/tasks/${taskID}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({description: newDesc}),
+        });
+      }
+    }
+
+    ta.addEventListener('blur', commitDesc);
+    ta.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { ta.value = original; ta.blur(); }
+    });
+    // Auto-grow
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  }
+
+  function editDescPlaceholder() {
+    const ph = document.getElementById('task-desc-placeholder');
+    if (!ph) return;
+    const div = document.createElement('div');
+    div.className = 'task-page-desc md-content';
+    div.id = 'task-desc';
+    div.title = 'Click to edit';
+    div.onclick = function() { editDesc(this); };
+    ph.replaceWith(div);
+    editDesc(div);
+  }
+
+  // Store raw markdown in data attribute before marked.parse() overwrites textContent
+  (function() {
+    const descEl = document.getElementById('task-desc');
+    if (descEl) {
+      descEl.dataset.rawContent = descEl.textContent.trim();
+    }
+  })();
   let briefPollTimer = null;
 
   function renderMarkdown() {

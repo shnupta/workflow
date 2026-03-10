@@ -1980,3 +1980,15 @@ func scanReminderRows(rows *sql.Rows) ([]*models.Reminder, error) {
 	}
 	return out, rows.Err()
 }
+
+// PatchTaskFields updates only the title and description of a task.
+func (d *DB) PatchTaskFields(id, title, description string) (*models.Task, error) {
+	_, err := d.conn.Exec(
+		`UPDATE tasks SET title=?, description=?, updated_at=? WHERE id=?`,
+		title, description, time.Now().UTC().Format(time.RFC3339), id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return d.GetTask(id)
+}

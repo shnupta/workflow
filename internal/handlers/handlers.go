@@ -177,6 +177,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
 	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
+	mux.HandleFunc("PATCH /api/tasks/{id}", h.apiPatchTask)
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
 	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
@@ -1194,3 +1195,35 @@ func jsonError(w http.ResponseWriter, message string, code int) {
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
+
+// apiPatchTask handles PATCH /api/tasks/{id} for inline title/description editing.
+func (h *Handler) apiPatchTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	t, err := h.db.GetTask(id)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	if body.Title != nil {
+		if trimmed := strings.TrimSpace(*body.Title); trimmed != "" {
+			t.Title = trimmed
+		}
+	}
+	if body.Description != nil {
+		t.Description = *body.Description
+	}
+	if _, err := h.db.PatchTaskFields(id, t.Title, t.Description); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"title":%s,"description":%s}`, jsonStr(t.Title), jsonStr(t.Description))
+}

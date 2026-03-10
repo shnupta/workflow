@@ -2053,3 +2053,77 @@ func TestDuplicateTask(t *testing.T) {
 		t.Errorf("brief should be empty on duplicate")
 	}
 }
+
+func TestPatchTaskTitleAndDescription(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// Create a task via form POST
+	vals := url.Values{
+		"title": {"Original Title"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create task: unexpected status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	tasks, err := h.db.ListTasks(false, h.watcher.Get())
+	if err != nil || len(tasks) == 0 {
+		t.Fatalf("list tasks: %v, got %d tasks", err, len(tasks))
+	}
+	taskID := tasks[0].ID
+
+	// Patch title
+	resp = patchJSON(t, srv, "/api/tasks/"+taskID, map[string]string{"title": "Updated Title"})
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch title: %d %s", resp.StatusCode, body)
+	}
+
+	t.Run("title updated in DB", func(t *testing.T) {
+		updated, err := h.db.GetTask(taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Title != "Updated Title" {
+			t.Errorf("got title %q, want %q", updated.Title, "Updated Title")
+		}
+	})
+
+	// Patch description
+	resp = patchJSON(t, srv, "/api/tasks/"+taskID,
+		map[string]string{"description": "## Notes\n- item one\n- item two"})
+	body = readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch description: %d %s", resp.StatusCode, body)
+	}
+
+	t.Run("description updated in DB", func(t *testing.T) {
+		updated, err := h.db.GetTask(taskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "## Notes\n- item one\n- item two"
+		if updated.Description != want {
+			t.Errorf("got desc %q, want %q", updated.Description, want)
+		}
+		if updated.Title != "Updated Title" {
+			t.Errorf("title changed unexpectedly: got %q", updated.Title)
+		}
+	})
+
+	// Blank title → no-op (keeps previous title)
+	resp = patchJSON(t, srv, "/api/tasks/"+taskID, map[string]string{"title": "   "})
+	readBody(t, resp) //nolint
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("blank title patch: %d", resp.StatusCode)
+	}
+	t.Run("blank title is no-op", func(t *testing.T) {
+		updated, _ := h.db.GetTask(taskID)
+		if updated.Title != "Updated Title" {
+			t.Errorf("blank title was not a no-op: got %q", updated.Title)
+		}
+	})
+}
