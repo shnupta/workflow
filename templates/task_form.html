@@ -95,6 +95,16 @@
         </div>
 
         <div class="field">
+          <label for="priority">Priority <span class="optional">(optional)</span></label>
+          <select id="priority" name="priority">
+            <option value=""   {{if eq .Task.Priority ""}}selected{{end}}>None</option>
+            <option value="p1" {{if eq .Task.Priority "p1"}}selected{{end}}>P1 — Urgent</option>
+            <option value="p2" {{if eq .Task.Priority "p2"}}selected{{end}}>P2 — Normal</option>
+            <option value="p3" {{if eq .Task.Priority "p3"}}selected{{end}}>P3 — Low</option>
+          </select>
+        </div>
+
+        <div class="field">
           <label for="recurrence">Recurrence <span class="optional">(optional)</span></label>
           <select id="recurrence" name="recurrence">
             <option value=""         {{if eq .Task.Recurrence ""}}selected{{end}}>No recurrence</option>

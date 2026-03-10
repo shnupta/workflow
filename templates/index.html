@@ -48,6 +48,7 @@
       <div class="filter-sep"></div>
       <button class="filter-chip" data-filter="blocked_on_me" onclick="setFilter('blocked_on_me', this)">On me</button>
       <button class="filter-chip" data-filter="blocked_on_them" onclick="setFilter('blocked_on_them', this)">Waiting</button>
+      <button class="filter-chip filter-chip-p1" data-filter="priority:p1" onclick="setFilter('priority:p1', this)">P1</button>
       {{if .AllTags}}
       <div class="filter-sep"></div>
       {{range .AllTags}}
@@ -554,6 +555,9 @@
           const tags = JSON.parse(card.dataset.tags || '[]');
           show = tags.includes(tag);
         } catch (_) { show = false; }
+      } else if (currentFilter.startsWith('priority:')) {
+        const pri = currentFilter.slice(9);
+        show = card.dataset.priority === pri;
       } else {
         show = card.dataset.type === currentFilter;
       }
@@ -918,6 +922,7 @@
      data-type="{{.WorkType}}"
      data-direction="{{.Direction}}"
      data-tags="{{jsonArr .Tags}}"
+     data-priority="{{.Priority}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <label class="card-select-wrap" title="Select task" onclick="onCardCheckboxClick(event, this)">
@@ -925,6 +930,7 @@
   </label>
   <div class="task-card-header">
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
+    {{if .Priority}}<span class="tag tag-priority tag-priority-{{.Priority}}" title="Priority {{priorityLabel .Priority}}">{{priorityLabel .Priority}}</span>{{end}}
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
     {{if .IsBlocked}}<span class="tag tag-blocked" title="Blocked by another task">⛔ blocked</span>{{end}}
     {{if .IsRecurring}}<span class="tag tag-recurring" title="Recurring task">↻</span>{{end}}

@@ -27,6 +27,7 @@ type Task struct {
 	Scratchpad   string     `db:"scratchpad"     json:"scratchpad"`    // free-form notes/context for this task
 	BlockedBy    string     `db:"blocked_by"     json:"blocked_by"`    // ID of the task blocking this one (empty = not blocked)
 	Recurrence   string     `db:"recurrence"     json:"recurrence"`    // "" | "daily" | "weekly" | "biweekly" | "monthly"
+	Priority     string     `db:"priority"       json:"priority"`      // "" | "p1" | "p2" | "p3"
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 }
 
@@ -126,4 +127,33 @@ func (t *Task) ElapsedLabel() string {
 		return fmt.Sprintf("%dh %dm", h, m)
 	}
 	return fmt.Sprintf("%dm", m)
+}
+
+// PriorityLabel returns a human-readable label for the task's priority.
+func (t *Task) PriorityLabel() string {
+	switch t.Priority {
+	case "p1":
+		return "P1"
+	case "p2":
+		return "P2"
+	case "p3":
+		return "P3"
+	default:
+		return ""
+	}
+}
+
+// PriorityWeight returns a sort weight for priority (lower = higher priority).
+// Used for board card ordering: p1=0, p2=1, p3=2, ""=3.
+func (t *Task) PriorityWeight() int {
+	switch t.Priority {
+	case "p1":
+		return 0
+	case "p2":
+		return 1
+	case "p3":
+		return 2
+	default:
+		return 3
+	}
 }

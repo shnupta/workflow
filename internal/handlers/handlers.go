@@ -145,6 +145,18 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return len(tags) - n
 		},
+		"priorityLabel": func(p string) string {
+			switch p {
+			case "p1":
+				return "P1"
+			case "p2":
+				return "P2"
+			case "p3":
+				return "P3"
+			default:
+				return ""
+			}
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -398,6 +410,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		Link:        r.FormValue("link"),
 		DueDate:     parseDateForm(r.FormValue("due_date")),
 		Recurrence:  sanitizeRecurrence(r.FormValue("recurrence")),
+		Priority:    sanitizePriority(r.FormValue("priority")),
 	}
 	if err := h.db.CreateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -648,6 +661,7 @@ func (h *Handler) updateTask(w http.ResponseWriter, r *http.Request) {
 	t.Link = r.FormValue("link")
 	t.DueDate = parseDateForm(r.FormValue("due_date"))
 	t.Recurrence = sanitizeRecurrence(r.FormValue("recurrence"))
+	t.Priority = sanitizePriority(r.FormValue("priority"))
 	if err := h.db.UpdateTask(t); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -1088,6 +1102,15 @@ func (h *Handler) render(w http.ResponseWriter, name string, data interface{}) {
 func sanitizeRecurrence(s string) string {
 	switch s {
 	case "daily", "weekly", "biweekly", "monthly":
+		return s
+	default:
+		return ""
+	}
+}
+
+func sanitizePriority(s string) string {
+	switch s {
+	case "p1", "p2", "p3":
 		return s
 	default:
 		return ""

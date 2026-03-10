@@ -2127,3 +2127,76 @@ func TestPatchTaskTitleAndDescription(t *testing.T) {
 		}
 	})
 }
+
+func TestTaskPriority_SetAndFilterP1(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	// Create P1 task
+	vals := url.Values{
+		"title": {"Urgent task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"}, "priority": {"p1"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	resp.Body.Close()
+
+	// Create normal task (no priority)
+	vals2 := url.Values{
+		"title": {"Normal task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"},
+	}
+	resp = postForm(t, srv, "/tasks", vals2)
+	resp.Body.Close()
+
+	tasks, err := h.db.ListTasks(false, h.watcher.Get())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(tasks))
+	}
+
+	p1tasks := 0
+	for _, task := range tasks {
+		if task.Priority == "p1" {
+			p1tasks++
+		}
+	}
+	if p1tasks != 1 {
+		t.Errorf("expected 1 P1 task, got %d", p1tasks)
+	}
+}
+
+func TestTaskPriority_UpdateViaEdit(t *testing.T) {
+	srv, h, cleanup := openTestServer(t)
+	defer cleanup()
+
+	vals := url.Values{
+		"title": {"Task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"},
+	}
+	resp := postForm(t, srv, "/tasks", vals)
+	resp.Body.Close()
+
+	tasks, _ := h.db.ListTasks(false, h.watcher.Get())
+	if len(tasks) == 0 {
+		t.Fatal("no tasks created")
+	}
+	taskID := tasks[0].ID
+
+	// Update to p2
+	editVals := url.Values{
+		"title": {"Task"}, "work_type": {"code"},
+		"tier": {"today"}, "direction": {"blocked_on_me"}, "priority": {"p2"},
+	}
+	resp = postForm(t, srv, "/tasks/"+taskID, editVals)
+	readBody(t, resp)
+
+	updated, err := h.db.GetTask(taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Priority != "p2" {
+		t.Errorf("expected priority p2, got %q", updated.Priority)
+	}
+}
