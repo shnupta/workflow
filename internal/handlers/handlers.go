@@ -207,6 +207,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/brief/interrupt", h.interruptBrief)
 	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
+	mux.HandleFunc("PATCH /api/tasks/{id}/star", h.apiStarTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.apiPatchTask)
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
@@ -764,6 +765,19 @@ func (h *Handler) apiScratchpad(w http.ResponseWriter, r *http.Request) {
 }
 
 // apiSetBlockedBy sets the blocker for a task.
+// apiStarTask handles PATCH /api/tasks/{id}/star — toggles the starred state.
+// Returns JSON {"starred": true/false}.
+func (h *Handler) apiStarTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	starred, err := h.db.StarTask(taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"starred": starred})
+}
+
 // Body: {"blocked_by": "<task-id>"}
 // Validates: target exists, is not done, is not the task itself.
 func (h *Handler) apiSetBlockedBy(w http.ResponseWriter, r *http.Request) {

@@ -591,3 +591,13 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Board page: '(N) workflow' in browser tab when P1 or overdue tasks present
   - Resets to 'workflow' when all clear; updates on load + filter changes
   - Zero backend — pure JS
+
+- [x] **Priority/effort in weekly digest** ✅ 2026-03-10
+  - DigestTask.Priority + Effort fields; Done/InProgress DB queries select them
+  - Priority/effort badges (reuse existing card-tag CSS) on Done and InProgress rows in digest template
+  - InProgress sorted by priority first (P1→P2→P3→unset), then updated_at desc
+  - DaysInColumn computed on WaitingOnOthers items
+
+- [x] **Velocity comparison in digest stats** ✅ 2026-03-10
+  - DigestWeek.DoneLastWeek + TimeDeltaPct populated from prior-week query
+  - Completed stat shows ↑/↓/→ arrow with "N last wk" label when prior data available

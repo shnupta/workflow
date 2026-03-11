@@ -69,6 +69,9 @@ header {
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-ghost   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .btn-danger  { background: transparent; color: var(--red); border: 1px solid var(--red); }
+.btn-star    { font-size: 16px; color: var(--text-muted); border-color: transparent; background: transparent; }
+.btn-star--active { color: #f59e0b; }
+.btn-star:hover { color: #f59e0b; }
 .btn-done    { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
 .btn-done:hover { border-color: var(--green); color: var(--green); }
 
@@ -169,6 +172,14 @@ main { padding: 24px; }
 }
 .task-card {
   position: relative;                  /* needed for absolute checkbox */
+}
+.task-card.starred {
+  border-left: 2px solid #f59e0b;
+}
+.card-star-badge {
+  color: #f59e0b;
+  font-size: 12px;
+  margin-left: auto;
 }
 .task-card:hover .card-select-wrap,
 .task-card.card-selected .card-select-wrap {

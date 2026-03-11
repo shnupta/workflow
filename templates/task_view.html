@@ -25,6 +25,10 @@
           {{if .Task.Effort}}<span class="tag tag-effort tag-effort-{{.Task.Effort}}" title="Effort estimate">{{effortLabel .Task.Effort}}</span>{{end}}
         </div>
         <div class="task-page-actions">
+          <button class="btn btn-ghost btn-star {{if .Task.Starred}}btn-star--active{{end}}" id="star-btn"
+            onclick="toggleStar()" title="{{if .Task.Starred}}Unstar task{{else}}Star task{{end}}">
+            {{if .Task.Starred}}★{{else}}☆{{end}}
+          </button>
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
           <button class="btn btn-ghost" onclick="saveAsTemplate()" title="Save this task as a reusable template">Save as template</button>
           <button class="btn btn-ghost" onclick="duplicateTask()" title="Duplicate this task">Duplicate</button>
@@ -1002,6 +1006,18 @@
       }
     };
   })();
+
+  // ── Star ──────────────────────────────────────────────────────────────────
+
+  async function toggleStar() {
+    const btn = document.getElementById('star-btn');
+    const r = await fetch(`/api/tasks/${taskID}/star`, { method: 'PATCH' });
+    if (!r.ok) return;
+    const { starred } = await r.json();
+    btn.textContent = starred ? '★' : '☆';
+    btn.title = starred ? 'Unstar task' : 'Star task';
+    btn.classList.toggle('btn-star--active', starred);
+  }
 
   // ── Duplicate ─────────────────────────────────────────────────────────────
 

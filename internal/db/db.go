@@ -72,6 +72,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN recurrence   TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN priority     TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN effort       TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE tasks ADD COLUMN starred      INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -310,12 +311,16 @@ func (d *DB) CreateTask(t *models.Task) error {
 	if t.BlockedBy != "" {
 		blockedBy = t.BlockedBy
 	}
+	starred := 0
+	if t.Starred {
+		starred = 1
+	}
 	_, err := d.conn.Exec(`
-		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO tasks (id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, starred)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID, t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
-		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "", blockedBy, t.Recurrence, t.Priority, t.Effort,
+		t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339), nil, dueDate, nil, 0, "", blockedBy, t.Recurrence, t.Priority, t.Effort, starred,
 	)
 	return err
 }
@@ -338,15 +343,19 @@ func (d *DB) UpdateTask(t *models.Task) error {
 	if t.BlockedBy != "" {
 		blockedBy = t.BlockedBy
 	}
+	starred := 0
+	if t.Starred {
+		starred = 1
+	}
 	_, err := d.conn.Exec(`
 		UPDATE tasks SET title=?, description=?, work_type=?, tier=?, direction=?,
 		pr_url=?, brief=?, brief_status=?, link=?, done=?, position=?, updated_at=?, done_at=?, due_date=?,
-		timer_started=?, timer_total=?, scratchpad=?, blocked_by=?, recurrence=?, priority=?, effort=?
+		timer_started=?, timer_total=?, scratchpad=?, blocked_by=?, recurrence=?, priority=?, effort=?, starred=?
 		WHERE id=?`,
 		t.Title, t.Description, t.WorkType, t.Tier, t.Direction,
 		t.PRURL, t.Brief, t.BriefStatus, t.Link, t.Done, t.Position,
 		t.UpdatedAt.UTC().Format(time.RFC3339), doneAt, dueDate,
-		timerStarted, t.TimerTotal, t.Scratchpad, blockedBy, t.Recurrence, t.Priority, t.Effort, t.ID,
+		timerStarted, t.TimerTotal, t.Scratchpad, blockedBy, t.Recurrence, t.Priority, t.Effort, starred, t.ID,
 	)
 	return err
 }
@@ -385,7 +394,7 @@ func (d *DB) TimerReset(id string) error {
 
 func (d *DB) GetTask(id string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks WHERE id=?`, id)
 	t, err := scanTask(row)
 	if err != nil {
@@ -408,7 +417,7 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 
 	q := fmt.Sprintf(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks %s
 		ORDER BY CASE tier %s END, position ASC, updated_at DESC`, where, tierOrder)
 
@@ -440,7 +449,7 @@ func (d *DB) DeleteTask(id string) error {
 // RecentTasks returns the n most recently updated non-done tasks.
 func (d *DB) RecentTasks(n int) ([]*models.Task, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks WHERE done=0
 		ORDER BY updated_at DESC
 		LIMIT ?`, n)
@@ -471,7 +480,7 @@ func (d *DB) ListTasksWithDueDates() ([]*models.Task, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
 		       link, done, position, created_at, updated_at, done_at, due_date,
-		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks
 		WHERE done = 0 AND due_date IS NOT NULL AND due_date != ''
 		ORDER BY due_date ASC`)
@@ -501,7 +510,7 @@ func (d *DB) ListTasksWithDueDates() ([]*models.Task, error) {
 // created_at DESC. Intended for export — no pagination, no filtering.
 func (d *DB) ListAllTasks() ([]*models.Task, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks
 		ORDER BY created_at DESC`)
 	if err != nil {
@@ -549,6 +558,7 @@ func (d *DB) SearchTasks(query string) ([]*TaskSearchResult, error) {
 			t.pr_url, t.brief, t.brief_status, t.link, t.done, t.position,
 			t.created_at, t.updated_at, t.done_at, t.due_date,
 			t.timer_started, t.timer_total, t.scratchpad, t.blocked_by, t.recurrence, t.priority, t.effort,
+			COALESCE(t.starred,0),
 			snippet(tasks_fts, 0, '<mark>', '</mark>', '…', 12) AS snippet
 		FROM tasks_fts
 		JOIN tasks t ON t.rowid = tasks_fts.rowid
@@ -591,11 +601,12 @@ func scanTaskRowWithExtra(rows *sql.Rows, extra *string) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted, blockedBy *string
+	var starred int
 	err := rows.Scan(
 		&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
 		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position,
 		&createdAt, &updatedAt, &doneAt, &dueDate,
-		&timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort,
+		&timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort, &starred,
 		extra,
 	)
 	if err != nil {
@@ -605,6 +616,7 @@ func scanTaskRowWithExtra(rows *sql.Rows, extra *string) (*models.Task, error) {
 	if blockedBy != nil {
 		t.BlockedBy = *blockedBy
 	}
+	t.Starred = starred == 1
 	return &t, nil
 }
 
@@ -614,7 +626,7 @@ func (d *DB) searchTasksFallback(query string) ([]*TaskSearchResult, error) {
 	rows, err := d.conn.Query(`
 		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
 		       link, done, position, created_at, updated_at, done_at, due_date,
-		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks
 		WHERE done=0 AND (title LIKE ? OR description LIKE ? OR scratchpad LIKE ?)
 		ORDER BY updated_at DESC
@@ -648,7 +660,7 @@ func (d *DB) searchTasksFallback(query string) ([]*TaskSearchResult, error) {
 // GetTaskByPRURL returns the first non-done task matching the given PR URL, or nil if none found.
 func (d *DB) GetTaskByPRURL(prURL string) (*models.Task, error) {
 	row := d.conn.QueryRow(`
-		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
 		FROM tasks WHERE pr_url=? AND done=0 LIMIT 1`, prURL)
 	t, err := scanTask(row)
 	if err != nil {
@@ -830,8 +842,9 @@ func scanTask(row *sql.Row) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted, blockedBy *string
+	var starred int
 	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort, &starred)
 	if err != nil {
 		return nil, err
 	}
@@ -839,6 +852,7 @@ func scanTask(row *sql.Row) (*models.Task, error) {
 	if blockedBy != nil {
 		t.BlockedBy = *blockedBy
 	}
+	t.Starred = starred == 1
 	return &t, nil
 }
 
@@ -846,8 +860,9 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	var t models.Task
 	var createdAt, updatedAt string
 	var doneAt, dueDate, timerStarted, blockedBy *string
+	var starred int
 	err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
-		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort)
+		&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy, &t.Recurrence, &t.Priority, &t.Effort, &starred)
 	if err != nil {
 		return nil, err
 	}
@@ -855,6 +870,7 @@ func scanTaskRow(rows *sql.Rows) (*models.Task, error) {
 	if blockedBy != nil {
 		t.BlockedBy = *blockedBy
 	}
+	t.Starred = starred == 1
 	return &t, nil
 }
 
@@ -2105,4 +2121,43 @@ func (d *DB) PatchTaskFields(id, title, description string) (*models.Task, error
 		return nil, err
 	}
 	return d.GetTask(id)
+}
+
+// StarTask toggles the starred state of a task and returns the new value.
+func (d *DB) StarTask(id string) (bool, error) {
+	var current int
+	err := d.conn.QueryRow(`SELECT COALESCE(starred,0) FROM tasks WHERE id=?`, id).Scan(&current)
+	if err != nil {
+		return false, err
+	}
+	newVal := 1
+	if current == 1 {
+		newVal = 0
+	}
+	_, err = d.conn.Exec(`UPDATE tasks SET starred=?, updated_at=? WHERE id=?`,
+		newVal, time.Now().UTC().Format(time.RFC3339), id)
+	return newVal == 1, err
+}
+
+// ListStarredTasks returns all non-done starred tasks ordered by updated_at desc.
+func (d *DB) ListStarredTasks() ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
+		       link, done, position, created_at, updated_at, done_at, due_date,
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
+		FROM tasks WHERE done=0 AND starred=1
+		ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
 }

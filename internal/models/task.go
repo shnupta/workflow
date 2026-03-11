@@ -29,6 +29,7 @@ type Task struct {
 	Recurrence   string     `db:"recurrence"     json:"recurrence"`    // "" | "daily" | "weekly" | "biweekly" | "monthly"
 	Priority     string     `db:"priority"       json:"priority"`      // "" | "p1" | "p2" | "p3"
 	Effort       string     `db:"effort"         json:"effort"`        // "" | "xs" | "s" | "m" | "l" | "xl"
+	Starred      bool       `db:"starred"        json:"starred"`       // pinned to top of board
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 }
 

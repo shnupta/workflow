@@ -937,7 +937,7 @@
 {{end}}
 
 {{define "task_card"}}
-<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}{{if .IsBlocked}} blocked{{end}}"
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}{{if .IsBlocked}} blocked{{end}}{{if .Starred}} starred{{end}}"
      draggable="true"
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
@@ -945,6 +945,7 @@
      data-tags="{{jsonArr .Tags}}"
      data-priority="{{.Priority}}"
      data-effort="{{.Effort}}"
+     data-starred="{{if .Starred}}1{{else}}0{{end}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <label class="card-select-wrap" title="Select task" onclick="onCardCheckboxClick(event, this)">
@@ -957,6 +958,7 @@
     {{if eq .Direction "blocked_on_them"}}<span class="tag tag-them">waiting</span>{{end}}
     {{if .IsBlocked}}<span class="tag tag-blocked" title="Blocked by another task">⛔ blocked</span>{{end}}
     {{if .IsRecurring}}<span class="tag tag-recurring" title="Recurring task">↻</span>{{end}}
+    {{if .Starred}}<span class="card-star-badge" title="Starred">★</span>{{end}}
   </div>
   <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
   {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
