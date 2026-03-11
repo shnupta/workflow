@@ -3721,3 +3721,90 @@ input[type="date"] {
   white-space: nowrap;
   margin-left: auto;
 }
+
+/* ─── Sprint goal bar ──────────────────────────────────────────────────────── */
+.sprint-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 1rem 10px;
+  padding: 7px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 36px;
+}
+.sprint-bar-empty {
+  gap: 8px;
+}
+.sprint-bar-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.sprint-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sprint-bar-count {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.sprint-bar-done {
+  font-size: 0.78rem;
+  color: #9ece6a;
+  white-space: nowrap;
+}
+.sprint-bar-track {
+  flex: 1;
+  height: 6px;
+  background: var(--surface-2, rgba(255,255,255,0.07));
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 80px;
+}
+.sprint-bar-fill {
+  height: 100%;
+  background: var(--accent, #7aa2f7);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+.sprint-bar-complete {
+  background: #9ece6a;
+}
+.sprint-bar-clear {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: opacity 0.1s;
+}
+.sprint-bar-clear:hover { opacity: 1; }
+.sprint-set-btn {
+  background: none;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.sprint-set-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.sprint-set-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

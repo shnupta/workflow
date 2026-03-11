@@ -3,6 +3,7 @@ package db
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -2390,5 +2391,38 @@ func TestListActivityFeed_BasicEvents(t *testing.T) {
 	}
 	if !kinds["comment"] {
 		t.Error("expected comment event")
+	}
+}
+
+func TestCountDoneThisWeek(t *testing.T) {
+	d, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Start with zero
+	n, err := d.CountDoneThisWeek()
+	if err != nil {
+		t.Fatalf("CountDoneThisWeek: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("expected 0, got %d", n)
+	}
+
+	// Create and mark done two tasks
+	for i := 0; i < 2; i++ {
+		task := &models.Task{Title: "sprint task " + strconv.Itoa(i), WorkType: "coding", Tier: "today"}
+		if err := d.CreateTask(task); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := d.MarkDone(task.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	n, err = d.CountDoneThisWeek()
+	if err != nil {
+		t.Fatalf("CountDoneThisWeek after done: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("expected 2, got %d", n)
 	}
 }

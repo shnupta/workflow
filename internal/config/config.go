@@ -48,6 +48,10 @@ type Config struct {
 	// If empty, webhook signature verification is skipped (not recommended for production).
 	WebhookSecret string `json:"webhook_secret"`
 
+	// SprintGoal is the number of tasks the user wants to complete this week.
+	// 0 means no goal is set (progress bar hidden). Resets manually or via UI.
+	SprintGoal int `json:"sprint_goal,omitempty"`
+
 	// Board config
 	WorkTypes []WorkType `json:"work_types"`
 	Tiers     []Tier     `json:"tiers"`
@@ -179,4 +183,30 @@ func (w *Watcher) writeDefaults() error {
 		return err
 	}
 	return os.WriteFile(w.path, b, 0644)
+}
+
+// Patch applies a mutating function to the current config and writes it back
+// to disk atomically. The hot-reload loop will pick it up within 2s.
+func (w *Watcher) Patch(fn func(*Config)) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	// clone
+	b, err := json.Marshal(w.current)
+	if err != nil {
+		return err
+	}
+	var cfg Config
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return err
+	}
+	fn(&cfg)
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(w.path, out, 0644); err != nil {
+		return err
+	}
+	w.current = &cfg
+	return nil
 }

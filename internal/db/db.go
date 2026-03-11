@@ -2403,3 +2403,21 @@ func (d *DB) ListActivityFeed(numDays, limit int) ([]*ActivityEvent, error) {
 	}
 	return events, rows.Err()
 }
+
+// CountDoneThisWeek returns the number of tasks completed since the most
+// recent Monday 00:00 UTC.
+func (d *DB) CountDoneThisWeek() (int, error) {
+	now := time.Now().UTC()
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday = 7 in ISO
+	}
+	monday := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, time.UTC)
+
+	var n int
+	err := d.conn.QueryRow(
+		`SELECT COUNT(*) FROM tasks WHERE done=1 AND done_at >= ?`,
+		monday.Format(time.RFC3339),
+	).Scan(&n)
+	return n, err
+}

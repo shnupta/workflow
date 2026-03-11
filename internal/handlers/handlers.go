@@ -202,6 +202,16 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return t.Format("Jan 2")
 		},
+		"sprintPct": func(done, goal int) int {
+			if goal <= 0 {
+				return 0
+			}
+			pct := done * 100 / goal
+			if pct > 100 {
+				return 100
+			}
+			return pct
+		},
 		"activityDayOptions": func() []int { return []int{1, 3, 7, 14, 30} },
 		"activityDateLabel": func(t time.Time) string {
 			now := time.Now()
@@ -310,6 +320,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
 	mux.HandleFunc("GET /activity", h.activityFeed)
+	mux.HandleFunc("GET /api/sprint-goal", h.apiSprintGoal)
+	mux.HandleFunc("PATCH /api/sprint-goal", h.apiSprintGoal)
 	h.registerSessionRoutes(mux)
 	h.registerWebhookRoutes(mux)
 	h.registerNoteRoutes(mux)
@@ -477,8 +489,10 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	allTags, _ := h.db.ListAllTags() // nil on error → empty in template
+	allTags, _ := h.db.ListAllTags()     // nil on error → empty in template
 	recentDone, _ := h.db.RecentlyDone(8) // last 8 tasks done in past 24h
+	doneThisWeek, _ := h.db.CountDoneThisWeek()
+	sprintGoal := h.cfg().SprintGoal
 
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":           tiers,
@@ -487,6 +501,8 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		"RecurringCloned": r.URL.Query().Get("recurring_cloned") == "1",
 		"AllTags":         allTags,
 		"RecentDone":      recentDone,
+		"SprintGoal":      sprintGoal,
+		"DoneThisWeek":    doneThisWeek,
 	})
 }
 
@@ -1419,5 +1435,44 @@ func (h *Handler) activityFeed(w http.ResponseWriter, r *http.Request) {
 		"Events": events,
 		"Days":   days,
 		"Nav":    "activity",
+	})
+}
+
+// apiSprintGoal handles GET/PATCH /api/sprint-goal.
+//
+//	GET  → returns {"goal": N, "done": M}
+//	PATCH → body {"goal": N} updates sprint_goal in workflow.json
+func (h *Handler) apiSprintGoal(w http.ResponseWriter, r *http.Request) {
+	done, _ := h.db.CountDoneThisWeek()
+
+	if r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]int{
+			"goal": h.cfg().SprintGoal,
+			"done": done,
+		})
+		return
+	}
+
+	// PATCH
+	var body struct {
+		Goal int `json:"goal"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", 400)
+		return
+	}
+	if body.Goal < 0 {
+		http.Error(w, "goal must be >= 0", 400)
+		return
+	}
+	if err := h.watcher.Patch(func(c *config.Config) { c.SprintGoal = body.Goal }); err != nil {
+		http.Error(w, "failed to save config: "+err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]int{
+		"goal": body.Goal,
+		"done": done,
 	})
 }

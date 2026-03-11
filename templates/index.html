@@ -61,6 +61,27 @@
       <div class="filter-sep"></div>
       <button class="filter-chip swimlane-toggle" id="swimlane-btn" onclick="toggleSwimlanes(this)" title="Group by tag">⋮ Lanes</button>
     </div>
+    {{if .SprintGoal}}
+    {{$pct := sprintPct .DoneThisWeek .SprintGoal}}
+    <div class="sprint-bar" id="sprint-bar">
+      <div class="sprint-bar-label">
+        <span class="sprint-bar-title">Week goal</span>
+        <span class="sprint-bar-count">{{.DoneThisWeek}} / {{.SprintGoal}}</span>
+        {{if ge .DoneThisWeek .SprintGoal}}<span class="sprint-bar-done">🎯 Done!</span>{{end}}
+      </div>
+      <div class="sprint-bar-track">
+        <div class="sprint-bar-fill {{if ge .DoneThisWeek .SprintGoal}}sprint-bar-complete{{end}}"
+             style="width: {{$pct}}%"></div>
+      </div>
+      <button class="sprint-bar-clear" onclick="clearSprintGoal()" title="Clear goal">✕</button>
+    </div>
+    {{else}}
+    <div class="sprint-bar sprint-bar-empty" id="sprint-bar">
+      <button class="sprint-set-btn" onclick="openSprintSetter()">+ Set week goal</button>
+      <span class="sprint-set-hint">{{.DoneThisWeek}} done this week</span>
+    </div>
+    {{end}}
+
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
       {{range .Tiers}}
       <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}">
@@ -574,6 +595,26 @@
   });
 
   // ── Board filtering ────────────────────────────────────────────────────────
+
+  // ── Sprint goal ───────────────────────────────────────────────────────────
+  function openSprintSetter() {
+    const n = parseInt(prompt('Set weekly task goal (e.g. 5):', ''), 10);
+    if (!n || isNaN(n) || n <= 0) return;
+    fetch('/api/sprint-goal', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({goal: n})
+    }).then(r => r.ok && location.reload());
+  }
+
+  function clearSprintGoal() {
+    if (!confirm('Clear weekly goal?')) return;
+    fetch('/api/sprint-goal', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({goal: 0})
+    }).then(r => r.ok && location.reload());
+  }
 
   // Done strip collapse state
   function toggleDoneStrip(btn) {
