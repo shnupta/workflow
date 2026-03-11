@@ -132,6 +132,19 @@
     </div>
     {{end}}
 
+  <!-- Quick-comment popover (single shared instance, repositioned by JS) -->
+  <div id="quick-comment-popover" class="quick-comment-popover hidden" role="dialog" aria-modal="true">
+    <div class="qcp-header">
+      <span class="qcp-title" id="qcp-title"></span>
+      <button class="qcp-close" onclick="closeQuickComment()" title="Close">✕</button>
+    </div>
+    <textarea id="qcp-body" class="qcp-body" placeholder="Add a comment…" rows="3"></textarea>
+    <div class="qcp-footer">
+      <button class="btn btn-primary btn-sm" id="qcp-submit" onclick="submitQuickComment()">Save</button>
+      <span class="qcp-status" id="qcp-status"></span>
+    </div>
+  </div>
+
   </main>
 <script>
   let dragging = null;
@@ -595,6 +608,87 @@
   });
 
   // ── Board filtering ────────────────────────────────────────────────────────
+
+  // ── Quick comment ──────────────────────────────────────────────────────────
+  let _qcpTaskId = null;
+
+  function openQuickComment(e, taskId, taskTitle) {
+    e.preventDefault();
+    e.stopPropagation();
+    _qcpTaskId = taskId;
+
+    const pop = document.getElementById('quick-comment-popover');
+    document.getElementById('qcp-title').textContent = taskTitle;
+    document.getElementById('qcp-body').value = '';
+    document.getElementById('qcp-status').textContent = '';
+
+    // Position near the button
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const scrollY = window.scrollY || document.documentElement.scrollTop;
+    const scrollX = window.scrollX || document.documentElement.scrollLeft;
+
+    pop.classList.remove('hidden');
+    // Default: below-right of button; adjust if near viewport edge
+    let top = rect.bottom + scrollY + 6;
+    let left = rect.left + scrollX;
+    if (left + 260 > window.innerWidth) left = rect.right + scrollX - 260;
+    if (top + 160 > window.innerHeight + scrollY) top = rect.top + scrollY - 160;
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+
+    setTimeout(() => document.getElementById('qcp-body').focus(), 50);
+  }
+
+  function closeQuickComment() {
+    document.getElementById('quick-comment-popover').classList.add('hidden');
+    _qcpTaskId = null;
+  }
+
+  function submitQuickComment() {
+    const body = document.getElementById('qcp-body').value.trim();
+    if (!body || !_qcpTaskId) return;
+    const btn = document.getElementById('qcp-submit');
+    const status = document.getElementById('qcp-status');
+    btn.disabled = true;
+    status.textContent = 'Saving…';
+
+    fetch(`/api/tasks/${_qcpTaskId}/comments`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({body})
+    }).then(r => {
+      if (r.ok) {
+        status.textContent = '✓ Saved';
+        setTimeout(closeQuickComment, 700);
+      } else {
+        status.textContent = 'Error — try again';
+        btn.disabled = false;
+      }
+    }).catch(() => {
+      status.textContent = 'Network error';
+      btn.disabled = false;
+    });
+  }
+
+  // Close on Escape or click-outside
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const pop = document.getElementById('quick-comment-popover');
+      if (!pop.classList.contains('hidden')) { closeQuickComment(); e.stopPropagation(); }
+    }
+  });
+  document.addEventListener('mousedown', e => {
+    const pop = document.getElementById('quick-comment-popover');
+    if (!pop.classList.contains('hidden') && !pop.contains(e.target) &&
+        !e.target.closest('.btn-quick-comment')) {
+      closeQuickComment();
+    }
+  });
+  // Ctrl/Cmd+Enter to submit
+  document.getElementById('qcp-body').addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submitQuickComment(); }
+  });
 
   // ── Sprint goal ───────────────────────────────────────────────────────────
   function openSprintSetter() {
@@ -1103,6 +1197,8 @@
     {{end}}
     <span class="task-age {{.AgeClass}}">{{.AgeLabel}}</span>
     <div class="task-actions">
+      <button class="btn-quick-comment" title="Quick comment"
+              onclick="openQuickComment(event, '{{.ID}}', {{jsonEscape .Title}})">💬</button>
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">
         <button type="submit" class="btn-done" title="Mark done">✓</button>
       </form>
