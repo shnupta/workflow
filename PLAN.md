@@ -622,11 +622,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Sprint goal / weekly target**
-  - Set a numeric target for tasks to complete this week (e.g. "5 tasks")
-  - Progress bar on board (X / N done this week)
-  - Stored in config or a simple DB setting; reset each Monday
-  - Zero backend complexity — just a number + weekly done count
+- [x] **Sprint goal / weekly target** ✅ 2026-03-11
+  - Config.SprintGoal int, Watcher.Patch() for atomic config write-back
+  - CountDoneThisWeek() DB method (tasks done since Monday 00:00 UTC)
+  - GET/PATCH /api/sprint-goal; board progress bar (fill + green on complete, "🎯 Done!")
+  - "Set week goal" dashed button when no goal; clear button when active
+  - 1 test; 244 total
 
 - [ ] **Dependency graph view**
   - Visual graph of blocked_by relationships (D3 or plain SVG)
