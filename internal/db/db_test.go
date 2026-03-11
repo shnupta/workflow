@@ -2426,3 +2426,37 @@ func TestCountDoneThisWeek(t *testing.T) {
 		t.Errorf("expected 2, got %d", n)
 	}
 }
+
+func TestListDepGraph_BasicChain(t *testing.T) {
+	d, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create A, B, C where B is blocked by A, C is blocked by B
+	a := &models.Task{Title: "Task A (blocker)", WorkType: "coding", Tier: "today"}
+	b := &models.Task{Title: "Task B (blocked by A)", WorkType: "coding", Tier: "today"}
+	c := &models.Task{Title: "Task C (blocked by B)", WorkType: "coding", Tier: "backlog"}
+	for _, task := range []*models.Task{a, b, c} {
+		if err := d.CreateTask(task); err != nil {
+			t.Fatalf("create: %v", err)
+		}
+	}
+	if err := d.SetBlockedBy(b.ID, a.ID); err != nil {
+		t.Fatalf("SetBlockedBy b→a: %v", err)
+	}
+	if err := d.SetBlockedBy(c.ID, b.ID); err != nil {
+		t.Fatalf("SetBlockedBy c→b: %v", err)
+	}
+
+	nodes, edges, err := d.ListDepGraph()
+	if err != nil {
+		t.Fatalf("ListDepGraph: %v", err)
+	}
+
+	// Should have 3 nodes and 2 edges
+	if len(nodes) != 3 {
+		t.Errorf("expected 3 nodes, got %d", len(nodes))
+	}
+	if len(edges) != 2 {
+		t.Errorf("expected 2 edges, got %d", len(edges))
+	}
+}

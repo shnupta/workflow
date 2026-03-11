@@ -1,0 +1,313 @@
+{{define "dep_graph.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Dependency Graph</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .dep-graph-page { display: flex; flex-direction: column; height: calc(100vh - 56px); }
+    .dep-graph-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .dep-graph-header h1 { margin: 0; font-size: 1.1rem; }
+    .dep-graph-meta { font-size: 0.8rem; color: var(--text-muted); }
+    .dep-graph-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px; color: var(--text-muted);
+    }
+    .dep-graph-empty p { font-size: 0.9rem; }
+    #dep-canvas { flex: 1; width: 100%; display: block; cursor: grab; }
+    #dep-canvas:active { cursor: grabbing; }
+    .dep-tooltip {
+      position: fixed; z-index: 900; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 12px; font-size: 0.8rem; pointer-events: none;
+      max-width: 220px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: none;
+    }
+    .dep-tooltip-title { font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .dep-tooltip-meta { color: var(--text-muted); }
+    .dep-legend {
+      display: flex; gap: 12px; align-items: center; flex-shrink: 0;
+      padding: 6px 16px; border-top: 1px solid var(--border);
+      font-size: 0.75rem; color: var(--text-muted);
+    }
+    .dep-legend-item { display: flex; align-items: center; gap: 5px; }
+    .dep-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  {{template "nav" .}}
+  <div class="dep-graph-page">
+    <div class="dep-graph-header">
+      <h1>Dependency Graph</h1>
+      {{if gt .EdgeCount 0}}
+      <span class="dep-graph-meta">{{.NodeCount}} tasks · {{.EdgeCount}} blocking relationships</span>
+      <span class="dep-graph-meta" style="margin-left:auto;font-size:0.75rem">Drag to pan · scroll to zoom · click node to open</span>
+      {{end}}
+    </div>
+
+    {{if eq .EdgeCount 0}}
+    <div class="dep-graph-empty">
+      <span style="font-size:2rem">✓</span>
+      <p>No blocking dependencies right now.</p>
+      <p style="font-size:0.8rem">Set a task's "Blocked by" field to see the graph here.</p>
+    </div>
+    {{else}}
+    <canvas id="dep-canvas"></canvas>
+    <div class="dep-legend">
+      <span>Node colour:</span>
+      <span class="dep-legend-item"><span class="dep-legend-dot" style="background:#f7768e"></span>P1</span>
+      <span class="dep-legend-item"><span class="dep-legend-dot" style="background:#e0af68"></span>P2 / unset blocker</span>
+      <span class="dep-legend-item"><span class="dep-legend-dot" style="background:#9ece6a"></span>P3</span>
+      <span class="dep-legend-item"><span class="dep-legend-dot" style="background:#7aa2f7"></span>Normal</span>
+      <span class="dep-legend-item"><span class="dep-legend-dot" style="background:#565f89"></span>Done</span>
+      <span style="margin-left:8px">Arrow: A → B means A is blocking B</span>
+    </div>
+    <div class="dep-tooltip" id="dep-tooltip">
+      <div class="dep-tooltip-title" id="dep-tt-title"></div>
+      <div class="dep-tooltip-meta" id="dep-tt-meta"></div>
+    </div>
+    {{end}}
+  </div>
+
+  <script>
+  const NODES = {{.NodesJSON}};
+  const EDGES = {{.EdgesJSON}};
+
+  if (NODES.length === 0) { /* empty state already shown */ }
+  else {
+    const canvas = document.getElementById('dep-canvas');
+    const ctx = canvas.getContext('2d');
+    const tooltip = document.getElementById('dep-tooltip');
+
+    // ── Layout ─────────────────────────────────────────────────────────────
+    // Simple layered layout: compute "depth" = longest path from any root
+    const nodeMap = {};
+    NODES.forEach(n => { nodeMap[n.id] = n; n._x = 0; n._y = 0; n._vx = 0; n._vy = 0; });
+
+    // BFS to assign layers (depth = max distance from a source node)
+    const outEdges = {}; // id -> [id] (blocked by me)
+    const inEdges  = {}; // id -> [id] (I am blocked by)
+    NODES.forEach(n => { outEdges[n.id] = []; inEdges[n.id] = []; });
+    EDGES.forEach(e => {
+      (outEdges[e.from] = outEdges[e.from] || []).push(e.to);
+      (inEdges[e.to]   = inEdges[e.to]   || []).push(e.from);
+    });
+
+    // Compute layer = max hops from any node with no incoming edges
+    const layers = {};
+    function getLayer(id) {
+      if (layers[id] !== undefined) return layers[id];
+      const preds = inEdges[id] || [];
+      if (preds.length === 0) { layers[id] = 0; return 0; }
+      layers[id] = 1 + Math.max(...preds.map(p => getLayer(p)));
+      return layers[id];
+    }
+    NODES.forEach(n => getLayer(n.id));
+
+    const maxLayer = Math.max(...NODES.map(n => layers[n.id] || 0));
+    const layerGroups = {};
+    NODES.forEach(n => {
+      const l = layers[n.id] || 0;
+      (layerGroups[l] = layerGroups[l] || []).push(n);
+    });
+
+    // Assign initial positions (left = root = blocker, right = leaf = blocked)
+    const PAD = 80, NODE_W = 160, NODE_H = 40, LAYER_GAP = 220, ROW_GAP = 70;
+    function layoutNodes() {
+      const h = canvas.height;
+      for (let l = 0; l <= maxLayer; l++) {
+        const group = layerGroups[l] || [];
+        const totalH = group.length * ROW_GAP;
+        group.forEach((n, i) => {
+          n._x = PAD + l * LAYER_GAP;
+          n._y = h / 2 - totalH / 2 + i * ROW_GAP;
+        });
+      }
+    }
+
+    // ── Resize ─────────────────────────────────────────────────────────────
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width  = rect.width;
+      canvas.height = rect.height - 32; // minus legend
+      layoutNodes();
+      draw();
+    }
+    window.addEventListener('resize', resize);
+
+    // ── Pan / zoom ─────────────────────────────────────────────────────────
+    let panX = 0, panY = 0, zoom = 1;
+    let panning = false, lastMX = 0, lastMY = 0;
+
+    canvas.addEventListener('mousedown', e => {
+      panning = true; lastMX = e.clientX; lastMY = e.clientY;
+    });
+    canvas.addEventListener('mousemove', e => {
+      if (panning) {
+        panX += e.clientX - lastMX;
+        panY += e.clientY - lastMY;
+        lastMX = e.clientX; lastMY = e.clientY;
+        draw();
+      }
+      // Tooltip
+      const [wx, wy] = screenToWorld(e.offsetX, e.offsetY);
+      const hit = hitTest(wx, wy);
+      if (hit) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.clientX + 14) + 'px';
+        tooltip.style.top  = (e.clientY - 10) + 'px';
+        document.getElementById('dep-tt-title').textContent = hit.title;
+        const blockers = (inEdges[hit.id] || []).map(id => nodeMap[id] ? nodeMap[id].title : '?');
+        const blocking = (outEdges[hit.id] || []).map(id => nodeMap[id] ? nodeMap[id].title : '?');
+        let meta = hit.workType + ' · ' + hit.tier;
+        if (blockers.length) meta += '\nBlocked by: ' + blockers.join(', ');
+        if (blocking.length) meta += '\nBlocking: ' + blocking.join(', ');
+        document.getElementById('dep-tt-meta').textContent = meta;
+      } else {
+        tooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('mouseup', () => { panning = false; });
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      zoom = Math.max(0.2, Math.min(4, zoom * factor));
+      draw();
+    }, { passive: false });
+
+    canvas.addEventListener('click', e => {
+      const [wx, wy] = screenToWorld(e.offsetX, e.offsetY);
+      const hit = hitTest(wx, wy);
+      if (hit) window.location.href = '/tasks/' + hit.id;
+    });
+
+    function screenToWorld(sx, sy) {
+      return [(sx - panX) / zoom, (sy - panY) / zoom];
+    }
+    function worldToScreen(wx, wy) {
+      return [wx * zoom + panX, wy * zoom + panY];
+    }
+    function hitTest(wx, wy) {
+      for (const n of NODES) {
+        if (wx >= n._x - NODE_W/2 && wx <= n._x + NODE_W/2 &&
+            wy >= n._y - NODE_H/2 && wy <= n._y + NODE_H/2) return n;
+      }
+      return null;
+    }
+
+    // ── Colour ─────────────────────────────────────────────────────────────
+    function nodeColor(n) {
+      if (n.done) return '#565f89';
+      if (n.priority === 'p1') return '#f7768e';
+      if (n.priority === 'p2') return '#e0af68';
+      if (n.priority === 'p3') return '#9ece6a';
+      // Is this node a blocker (has outgoing edges)? Amber.
+      if ((outEdges[n.id] || []).length > 0 && (inEdges[n.id] || []).length === 0) return '#e0af68';
+      return '#7aa2f7';
+    }
+
+    // ── Draw ───────────────────────────────────────────────────────────────
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(panX, panY);
+      ctx.scale(zoom, zoom);
+
+      // Edges
+      EDGES.forEach(e => {
+        const from = nodeMap[e.from], to = nodeMap[e.to];
+        if (!from || !to) return;
+        ctx.beginPath();
+        const x1 = from._x + NODE_W/2, y1 = from._y;
+        const x2 = to._x - NODE_W/2,   y2 = to._y;
+        const cx = (x1 + x2) / 2;
+        ctx.moveTo(x1, y1);
+        ctx.bezierCurveTo(cx, y1, cx, y2, x2, y2);
+        ctx.strokeStyle = 'rgba(122, 162, 247, 0.35)';
+        ctx.lineWidth = 1.5 / zoom;
+        ctx.stroke();
+        // Arrow head
+        const angle = Math.atan2(y2 - (y1 + y2)/2 * 0.1, x2 - cx);
+        const aw = 8 / zoom;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - aw * Math.cos(angle - 0.4), y2 - aw * Math.sin(angle - 0.4));
+        ctx.lineTo(x2 - aw * Math.cos(angle + 0.4), y2 - aw * Math.sin(angle + 0.4));
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(122, 162, 247, 0.5)';
+        ctx.fill();
+      });
+
+      // Nodes
+      NODES.forEach(n => {
+        const x = n._x - NODE_W/2, y = n._y - NODE_H/2;
+        const r = 6;
+        const col = nodeColor(n);
+
+        // Shadow
+        ctx.shadowColor = col + '55';
+        ctx.shadowBlur = 12 / zoom;
+
+        // Rounded rect
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + NODE_W - r, y);
+        ctx.arcTo(x + NODE_W, y, x + NODE_W, y + r, r);
+        ctx.lineTo(x + NODE_W, y + NODE_H - r);
+        ctx.arcTo(x + NODE_W, y + NODE_H, x + NODE_W - r, y + NODE_H, r);
+        ctx.lineTo(x + r, y + NODE_H);
+        ctx.arcTo(x, y + NODE_H, x, y + NODE_H - r, r);
+        ctx.lineTo(x, y + r);
+        ctx.arcTo(x, y, x + r, y, r);
+        ctx.closePath();
+        ctx.fillStyle = '#1a1b26';
+        ctx.fill();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.5 / zoom;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Text
+        ctx.fillStyle = n.done ? '#565f89' : '#cdd6f4';
+        ctx.font = `${Math.max(9, 12 / zoom)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const maxW = NODE_W - 16;
+        let label = n.title;
+        if (ctx.measureText(label).width > maxW) {
+          while (ctx.measureText(label + '…').width > maxW && label.length > 0) label = label.slice(0,-1);
+          label += '…';
+        }
+        ctx.fillText(label, n._x, n._y);
+      });
+
+      ctx.restore();
+    }
+
+    // Init
+    requestAnimationFrame(() => {
+      resize();
+      // Centre the graph
+      const minX = Math.min(...NODES.map(n => n._x));
+      const maxX = Math.max(...NODES.map(n => n._x));
+      const minY = Math.min(...NODES.map(n => n._y));
+      const maxY = Math.max(...NODES.map(n => n._y));
+      const gw = maxX - minX + NODE_W + PAD * 2;
+      const gh = maxY - minY + NODE_H + PAD * 2;
+      zoom = Math.min(1.2, canvas.width / gw, canvas.height / gh);
+      panX = canvas.width  / 2 - ((minX + maxX) / 2) * zoom;
+      panY = canvas.height / 2 - ((minY + maxY) / 2) * zoom;
+      draw();
+    });
+  }
+  </script>
+</body>
+</html>
+{{end}}

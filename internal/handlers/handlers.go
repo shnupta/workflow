@@ -320,6 +320,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
 	mux.HandleFunc("GET /activity", h.activityFeed)
+	mux.HandleFunc("GET /dep-graph", h.depGraph)
 	mux.HandleFunc("GET /api/sprint-goal", h.apiSprintGoal)
 	mux.HandleFunc("PATCH /api/sprint-goal", h.apiSprintGoal)
 	h.registerSessionRoutes(mux)
@@ -1474,5 +1475,48 @@ func (h *Handler) apiSprintGoal(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]int{
 		"goal": body.Goal,
 		"done": done,
+	})
+}
+
+// depGraph renders /dep-graph — a visual dependency graph of blocked tasks.
+func (h *Handler) depGraph(w http.ResponseWriter, r *http.Request) {
+	nodes, edges, err := h.db.ListDepGraph()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	// Serialise to JSON for the JS layout engine
+	type jsonNode struct {
+		ID       string `json:"id"`
+		Title    string `json:"title"`
+		WorkType string `json:"workType"`
+		Tier     string `json:"tier"`
+		Done     bool   `json:"done"`
+		Priority string `json:"priority"`
+	}
+	type jsonEdge struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+
+	jnodes := make([]jsonNode, len(nodes))
+	for i, n := range nodes {
+		jnodes[i] = jsonNode{n.ID, n.Title, n.WorkType, n.Tier, n.Done, n.Priority}
+	}
+	jedges := make([]jsonEdge, len(edges))
+	for i, e := range edges {
+		jedges[i] = jsonEdge{e.Blocker, e.Blocked}
+	}
+
+	nodesJSON, _ := json.Marshal(jnodes)
+	edgesJSON, _ := json.Marshal(jedges)
+
+	h.render(w, "dep_graph.html", map[string]interface{}{
+		"Nav":       "tasks",
+		"NodesJSON": template.JS(nodesJSON),
+		"EdgesJSON": template.JS(edgesJSON),
+		"NodeCount": len(nodes),
+		"EdgeCount": len(edges),
 	})
 }

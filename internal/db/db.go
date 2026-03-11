@@ -2421,3 +2421,90 @@ func (d *DB) CountDoneThisWeek() (int, error) {
 	).Scan(&n)
 	return n, err
 }
+
+// ── Dependency graph ──────────────────────────────────────────────────────────
+
+// DepNode represents a task node in the dependency graph.
+type DepNode struct {
+	ID       string
+	Title    string
+	WorkType string
+	Tier     string
+	Done     bool
+	Starred  bool
+	Priority string
+}
+
+// DepEdge represents a blocking relationship: Blocker blocks Blocked.
+type DepEdge struct {
+	Blocker string // task ID of the blocking task
+	Blocked string // task ID of the blocked task
+}
+
+// ListDepGraph returns all active (not done) tasks that have a blocked_by
+// relationship, plus the tasks that block them, deduplicated.
+func (d *DB) ListDepGraph() ([]*DepNode, []*DepEdge, error) {
+	// Get all tasks involved in any blocking relationship (either side)
+	rows, err := d.conn.Query(`
+		SELECT id, title, work_type, tier, done, COALESCE(starred,0), priority
+		FROM tasks
+		WHERE done=0 AND (
+			blocked_by IS NOT NULL AND blocked_by != ''
+			OR id IN (
+				SELECT DISTINCT blocked_by FROM tasks
+				WHERE blocked_by IS NOT NULL AND blocked_by != '' AND done=0
+			)
+		)
+		ORDER BY tier, position
+	`)
+	if err != nil {
+		return nil, nil, fmt.Errorf("dep graph nodes: %w", err)
+	}
+	defer rows.Close()
+
+	nodeMap := map[string]*DepNode{}
+	var nodes []*DepNode
+	for rows.Next() {
+		var n DepNode
+		if err := rows.Scan(&n.ID, &n.Title, &n.WorkType, &n.Tier, &n.Done, &n.Starred, &n.Priority); err != nil {
+			return nil, nil, err
+		}
+		if nodeMap[n.ID] == nil {
+			nodeMap[n.ID] = &n
+			nodes = append(nodes, &n)
+		}
+	}
+
+	// Get edges
+	erows, err := d.conn.Query(`
+		SELECT blocked_by, id FROM tasks
+		WHERE done=0 AND blocked_by IS NOT NULL AND blocked_by != ''
+	`)
+	if err != nil {
+		return nil, nil, fmt.Errorf("dep graph edges: %w", err)
+	}
+	defer erows.Close()
+
+	var edges []*DepEdge
+	for erows.Next() {
+		var e DepEdge
+		if err := erows.Scan(&e.Blocker, &e.Blocked); err != nil {
+			return nil, nil, err
+		}
+		edges = append(edges, &e)
+		// Ensure both endpoints exist in nodeMap; if blocker is done, add it too
+		if nodeMap[e.Blocker] == nil {
+			var n DepNode
+			err := d.conn.QueryRow(
+				`SELECT id, title, work_type, tier, done, COALESCE(starred,0), priority FROM tasks WHERE id=?`,
+				e.Blocker,
+			).Scan(&n.ID, &n.Title, &n.WorkType, &n.Tier, &n.Done, &n.Starred, &n.Priority)
+			if err == nil {
+				nodeMap[n.ID] = &n
+				nodes = append(nodes, &n)
+			}
+		}
+	}
+
+	return nodes, edges, nil
+}
