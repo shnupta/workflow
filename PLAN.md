@@ -607,3 +607,43 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `DB.StarTask()` toggle, `DB.ListStarredTasks()`
   - `PATCH /api/tasks/{id}/star` returns `{"starred": bool}`
   - ☆/★ button on task page; amber border + badge on board cards
+
+## New features (proposed 2026-03-11 nudge)
+
+### High priority
+
+- [x] **Global activity feed** ✅ 2026-03-11
+  - `/activity` page — reverse-chronological stream of all events across tasks, sessions, and comments
+  - SQL UNION: tasks created, tasks completed, sessions started, sessions done, task comments
+  - Day-grouped timeline with icon-coded event types (＋ created / ✓ done / ▶ session started / ■ done / 💬 comment)
+  - `?days=1/3/7/14/30` filter (default 7); Activity tab in nav
+  - `ListActivityFeed(numDays, limit)` DB method; `relTimeVal` template func
+  - 1 test; 243 total
+
+### Medium priority
+
+- [ ] **Sprint goal / weekly target**
+  - Set a numeric target for tasks to complete this week (e.g. "5 tasks")
+  - Progress bar on board (X / N done this week)
+  - Stored in config or a simple DB setting; reset each Monday
+  - Zero backend complexity — just a number + weekly done count
+
+- [ ] **Dependency graph view**
+  - Visual graph of blocked_by relationships (D3 or plain SVG)
+  - Show blocked chains: which tasks are bottlenecked waiting on others
+  - Accessible from Digest or as a panel on the board
+
+- [ ] **Task comments from board card (quick comment)**
+  - Right-click or hover → "Add comment" option on board card
+  - Small popover with textarea, submits without navigating to task page
+  - Reduces friction for quick status notes
+
+### Lower priority
+
+- [ ] **Activity feed filtering by event type**
+  - Checkbox filters: show only completions, only sessions, only comments
+  - Pure JS client-side filtering (events already in DOM)
+
+- [ ] **Activity RSS/JSON feed**
+  - `GET /activity.json` — machine-readable activity for external tools
+  - Useful for building a changelog, team digest, or Slack integration
