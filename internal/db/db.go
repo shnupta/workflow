@@ -2293,3 +2293,29 @@ func (d *DB) ListStarredTasks() ([]*models.Task, error) {
 	}
 	return tasks, rows.Err()
 }
+
+// RecentlyDone returns the most recently completed tasks (up to limit), for the "done today" strip.
+func (d *DB) RecentlyDone(limit int) ([]*models.Task, error) {
+	cutoff := time.Now().UTC().AddDate(0, 0, -1).Format(time.RFC3339)
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
+		FROM tasks
+		WHERE done=1 AND done_at >= ?
+		ORDER BY done_at DESC
+		LIMIT ?
+	`, cutoff, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, nil
+}

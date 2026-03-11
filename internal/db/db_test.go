@@ -2309,3 +2309,37 @@ func TestWeeklyDigest_CycleTime(t *testing.T) {
 		t.Errorf("expected work_type pr_review, got %s", dw.CycleByType[0].WorkType)
 	}
 }
+
+func TestRecentlyDone_ReturnsCompletedInPast24h(t *testing.T) {
+	d, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create two tasks, mark both done — one recent, one old
+	t1 := &models.Task{Title: "Recent done", WorkType: "coding", Tier: "today"}
+	t2 := &models.Task{Title: "Old done", WorkType: "pr_review", Tier: "today"}
+	if err := d.CreateTask(t1); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.CreateTask(t2); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	recentDone := now.Add(-30 * time.Minute).Format(time.RFC3339)
+	oldDone := now.Add(-48 * time.Hour).Format(time.RFC3339)
+
+	d.conn.Exec(`UPDATE tasks SET done=1, done_at=? WHERE id=?`, recentDone, t1.ID)
+	d.conn.Exec(`UPDATE tasks SET done=1, done_at=? WHERE id=?`, oldDone, t2.ID)
+
+	results, err := d.RecentlyDone(10)
+	if err != nil {
+		t.Fatalf("RecentlyDone: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("expected 1 recent done task, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].Title != "Recent done" {
+		t.Errorf("expected 'Recent done', got %q", results[0].Title)
+	}
+}

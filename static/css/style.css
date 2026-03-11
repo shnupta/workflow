@@ -3556,3 +3556,79 @@ input[type="date"] {
 .filter-chip-p1.active { background: rgba(239,68,68,0.15) !important; border-color: #f87171 !important; }
 .filter-chip-star { color: #f59e0b !important; }
 .filter-chip-star.active { background: rgba(245,158,11,0.15) !important; border-color: #f59e0b !important; }
+
+/* ─── Done-recently strip ────────────────────────────────────────────────── */
+.done-strip {
+  margin: 0 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.done-strip-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: left;
+}
+.done-strip-toggle:hover { background: var(--surface-2); }
+.done-strip-label { font-weight: 600; color: var(--text); }
+.done-strip-count {
+  background: var(--success, #9ece6a);
+  color: #1a1b26;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.done-strip-chevron { margin-left: auto; font-size: 0.9rem; transition: transform 0.15s; }
+.done-strip.collapsed .done-strip-chevron { transform: rotate(-90deg); }
+.done-strip-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+}
+.done-strip.collapsed .done-strip-cards { display: none; }
+.done-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.78rem;
+  transition: background 0.1s;
+  max-width: 260px;
+}
+.done-chip:hover { background: var(--surface-3, var(--border)); }
+.done-chip-type {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.done-chip-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.done-chip-time {
+  font-size: 0.7rem;
+  color: var(--success, #9ece6a);
+  white-space: nowrap;
+  flex-shrink: 0;
+}

@@ -175,6 +175,20 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 				return ""
 			}
 		},
+		"relTime": func(t *time.Time) string {
+			if t == nil {
+				return ""
+			}
+			d := time.Since(*t)
+			if d < time.Minute {
+				return "just now"
+			} else if d < time.Hour {
+				return fmt.Sprintf("%dm ago", int(d.Minutes()))
+			} else if d < 24*time.Hour {
+				return fmt.Sprintf("%dh ago", int(d.Hours()))
+			}
+			return t.Format("Jan 2")
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -387,6 +401,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	allTags, _ := h.db.ListAllTags() // nil on error → empty in template
+	recentDone, _ := h.db.RecentlyDone(8) // last 8 tasks done in past 24h
 
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":           tiers,
@@ -394,6 +409,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		"Nav":             "tasks",
 		"RecurringCloned": r.URL.Query().Get("recurring_cloned") == "1",
 		"AllTags":         allTags,
+		"RecentDone":      recentDone,
 	})
 }
 

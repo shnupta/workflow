@@ -91,6 +91,26 @@
       </div>
       {{end}}
     </div>
+
+    {{if .RecentDone}}
+    <div class="done-strip" id="done-strip">
+      <button class="done-strip-toggle" onclick="toggleDoneStrip(this)" title="Toggle recently done">
+        <span class="done-strip-label">✓ Done recently</span>
+        <span class="done-strip-count">{{len .RecentDone}}</span>
+        <span class="done-strip-chevron">▾</span>
+      </button>
+      <div class="done-strip-cards" id="done-strip-cards">
+        {{range .RecentDone}}
+        <a href="/tasks/{{.ID}}" class="done-chip" title="{{.Title}}">
+          {{if .WorkType}}<span class="done-chip-type">{{workTypeLabel .WorkType}}</span>{{end}}
+          <span class="done-chip-title">{{.Title}}</span>
+          {{if .DoneAt}}<span class="done-chip-time">{{relTime .DoneAt}}</span>{{end}}
+        </a>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
   </main>
 <script>
   let dragging = null;
@@ -554,6 +574,21 @@
   });
 
   // ── Board filtering ────────────────────────────────────────────────────────
+
+  // Done strip collapse state
+  function toggleDoneStrip(btn) {
+    const strip = document.getElementById('done-strip');
+    if (!strip) return;
+    const collapsed = strip.classList.toggle('collapsed');
+    localStorage.setItem('done-strip-collapsed', collapsed ? '1' : '0');
+  }
+  // Restore done strip state
+  (function() {
+    const strip = document.getElementById('done-strip');
+    if (strip && localStorage.getItem('done-strip-collapsed') === '1') {
+      strip.classList.add('collapsed');
+    }
+  })();
 
   let currentFilter = localStorage.getItem('board-filter') || 'all';
 
