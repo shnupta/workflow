@@ -634,10 +634,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Show blocked chains: which tasks are bottlenecked waiting on others
   - Accessible from Digest or as a panel on the board
 
-- [ ] **Task comments from board card (quick comment)**
-  - Right-click or hover → "Add comment" option on board card
-  - Small popover with textarea, submits without navigating to task page
-  - Reduces friction for quick status notes
+- [x] **Task comments from board card (quick comment)** ✅ 2026-03-11
+  - 💬 button in card actions (opacity 0 → visible on hover/focus)
+  - Single shared popover — repositioned to button anchor, click-outside/Esc to dismiss
+  - POST /api/tasks/{id}/comments (existing endpoint, zero new backend)
+  - Ctrl/Cmd+Enter to submit; "✓ Saved" then auto-close; error states handled
+  - 244 tests (no regression)
 
 ### Lower priority
 
