@@ -28,6 +28,8 @@
       </div>
       <button class="btn btn-ghost btn-sm bulk-btn" id="bulk-done-btn"
               onclick="bulkMarkDone()">Mark done</button>
+      <button class="btn btn-ghost btn-sm bulk-btn" id="bulk-star-btn"
+              onclick="bulkStar()" title="Star selected tasks">★ Star</button>
       <button class="btn btn-ghost btn-sm bulk-clear-btn"
               onclick="bulkClearSelection()" title="Clear selection">✕ Clear</button>
     </div>
@@ -49,6 +51,7 @@
       <button class="filter-chip" data-filter="blocked_on_me" onclick="setFilter('blocked_on_me', this)">On me</button>
       <button class="filter-chip" data-filter="blocked_on_them" onclick="setFilter('blocked_on_them', this)">Waiting</button>
       <button class="filter-chip filter-chip-p1" data-filter="priority:p1" onclick="setFilter('priority:p1', this)">P1</button>
+      <button class="filter-chip filter-chip-star" data-filter="starred" onclick="setFilter('starred', this)">★ Starred</button>
       {{if .AllTags}}
       <div class="filter-sep"></div>
       {{range .AllTags}}
@@ -391,6 +394,32 @@
       }
     }
 
+    async function toggleStarCard(card) {
+      const taskID = card.dataset.id;
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/star`, { method: 'PATCH' });
+        if (!res.ok) { console.error('star failed', res.status); return; }
+        const data = await res.json();
+        card.dataset.starred = data.starred ? '1' : '0';
+        card.classList.toggle('starred', data.starred);
+        // Update or remove the badge
+        let badge = card.querySelector('.card-star-badge');
+        if (data.starred) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'card-star-badge';
+            badge.title = 'Starred';
+            badge.textContent = '★';
+            card.querySelector('.task-card-header').appendChild(badge);
+          }
+        } else if (badge) {
+          badge.remove();
+        }
+        // Re-apply filter in case we're on starred filter
+        applyFilter();
+      } catch (err) { console.error('star error', err); }
+    }
+
     // ── Keyboard event handler ────────────────────────────────────────────────
 
     document.addEventListener('keydown', e => {
@@ -426,6 +455,12 @@
           if (focusedCard && !overlayOpen()) {
             e.preventDefault();
             moveFocusedCard();
+          }
+          return;
+        case '*':
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            toggleStarCard(focusedCard);
           }
           return;
         case 'Escape':
@@ -493,6 +528,7 @@
           <kbd>← →</kbd><span>Move focus between columns</span>
           <kbd>Enter</kbd><span>Open focused task</span>
           <kbd>m</kbd><span>Move focused task to next column</span>
+          <kbd>*</kbd><span>Star / unstar focused task</span>
           <kbd>Esc</kbd><span>Clear focus / close overlay</span>
           <kbd>n</kbd><span>New task (full form)</span>
           <kbd>q</kbd><span>Quick-add to first column</span>
@@ -558,6 +594,8 @@
       } else if (currentFilter.startsWith('priority:')) {
         const pri = currentFilter.slice(9);
         show = card.dataset.priority === pri;
+      } else if (currentFilter === 'starred') {
+        show = card.dataset.starred === '1';
       } else {
         show = card.dataset.type === currentFilter;
       }
@@ -885,6 +923,17 @@
     btn.disabled = false;
     btn.textContent = 'Mark done';
     bulkClearSelection();
+  }
+
+  async function bulkStar() {
+    if (_selected.size === 0) return;
+    const btn = document.getElementById('bulk-star-btn');
+    btn.disabled = true;
+    for (const id of [..._selected]) {
+      const card = document.querySelector(`.task-card[data-id="${id}"]`);
+      if (card) await toggleStarCard(card);
+    }
+    btn.disabled = false;
   }
 
   // ── Tab title badge (P1 + overdue count) ─────────────────────────────────

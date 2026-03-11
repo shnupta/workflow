@@ -3550,3 +3550,5 @@ input[type="date"] {
 .tag-effort-xl      { background: rgba(236,72,153,0.12); color: #f9a8d4; border: 1px solid rgba(236,72,153,0.3); }
 .filter-chip-p1 { color: #f87171 !important; }
 .filter-chip-p1.active { background: rgba(239,68,68,0.15) !important; border-color: #f87171 !important; }
+.filter-chip-star { color: #f59e0b !important; }
+.filter-chip-star.active { background: rgba(245,158,11,0.15) !important; border-color: #f59e0b !important; }

@@ -601,3 +601,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Velocity comparison in digest stats** ✅ 2026-03-10
   - DigestWeek.DoneLastWeek + TimeDeltaPct populated from prior-week query
   - Completed stat shows ↑/↓/→ arrow with "N last wk" label when prior data available
+
+- [x] **Starred tasks** ✅ 2026-03-11
+  - `starred INTEGER` column + idempotent migration
+  - `DB.StarTask()` toggle, `DB.ListStarredTasks()`
+  - `PATCH /api/tasks/{id}/star` returns `{"starred": bool}`
+  - ☆/★ button on task page; amber border + badge on board cards
