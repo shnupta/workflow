@@ -2267,3 +2267,45 @@ func TestSearchNotes_FTS5(t *testing.T) {
 		t.Errorf("expected 0 results for 'kubernetes', got %d", len(none))
 	}
 }
+
+func TestWeeklyDigest_CycleTime(t *testing.T) {
+	d, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create a task and mark it done within the current week
+	task := &models.Task{
+		Title:    "Fix bug",
+		WorkType: "pr_review",
+		Tier:     "today",
+	}
+	if err := d.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	now := time.Now().UTC()
+	weekStart := now.AddDate(0, 0, -int(now.Weekday()-time.Monday))
+	weekStart = time.Date(weekStart.Year(), weekStart.Month(), weekStart.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Manually set created_at to 2 days ago and done_at to today
+	createdAt := now.AddDate(0, 0, -2).Format(time.RFC3339)
+	doneAt := now.Format(time.RFC3339)
+	if _, execErr := d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, created_at=? WHERE id=?`,
+		doneAt, createdAt, task.ID); execErr != nil {
+		t.Fatalf("update task: %v", execErr)
+	}
+
+	dw, digestErr := d.WeeklyDigest(weekStart)
+	if digestErr != nil {
+		t.Fatalf("weekly digest: %v", digestErr)
+	}
+
+	// Should have ~2 day cycle time
+	if dw.AvgCycleDays < 1.9 || dw.AvgCycleDays > 2.1 {
+		t.Errorf("expected AvgCycleDays ~2.0, got %.2f", dw.AvgCycleDays)
+	}
+	if len(dw.CycleByType) == 0 {
+		t.Error("expected CycleByType to be populated")
+	}
+	if dw.CycleByType[0].WorkType != "pr_review" {
+		t.Errorf("expected work_type pr_review, got %s", dw.CycleByType[0].WorkType)
+	}
+}

@@ -1509,6 +1509,15 @@ type DigestWeek struct {
 	WorkTypeBreakdown []WorkTypeTime // sorted by seconds desc, only types with time > 0
 	DoneLastWeek     int    // count of tasks completed in the prior week (for velocity comparison)
 	TimeDeltaPct     int    // % change in total time vs last week (+/-); 0 if no prior data
+	AvgCycleDays     float64           // average days from created_at → done_at for tasks done this week
+	CycleByType      []CycleTimeEntry  // per-work-type cycle time, sorted by avg days desc
+}
+
+// CycleTimeEntry holds cycle-time data for one work type.
+type CycleTimeEntry struct {
+	WorkType string
+	AvgDays  float64
+	Count    int
 }
 
 func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
@@ -1682,6 +1691,34 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	dw.DoneLastWeek = prevDoneCount
 	if prevTimeSecs > 0 && dw.TotalTimeSecs > 0 {
 		dw.TimeDeltaPct = int(float64(dw.TotalTimeSecs-prevTimeSecs) / float64(prevTimeSecs) * 100)
+	}
+
+	// ── Cycle time: average days creation → done, for tasks completed this week ──
+	ctRows, err := d.conn.Query(`
+		SELECT work_type,
+		       AVG(CAST((julianday(done_at) - julianday(created_at)) AS REAL)) as avg_days,
+		       COUNT(*) as cnt
+		FROM tasks
+		WHERE done=1 AND done_at >= ? AND done_at < ?
+		  AND created_at IS NOT NULL AND done_at IS NOT NULL
+		GROUP BY work_type
+		ORDER BY avg_days DESC
+	`, weekStart.Format(time.RFC3339), weekEnd.Format(time.RFC3339))
+	if err == nil {
+		defer ctRows.Close()
+		var totalDays float64
+		var totalCount int
+		for ctRows.Next() {
+			var entry CycleTimeEntry
+			if err := ctRows.Scan(&entry.WorkType, &entry.AvgDays, &entry.Count); err == nil {
+				dw.CycleByType = append(dw.CycleByType, entry)
+				totalDays += entry.AvgDays * float64(entry.Count)
+				totalCount += entry.Count
+			}
+		}
+		if totalCount > 0 {
+			dw.AvgCycleDays = totalDays / float64(totalCount)
+		}
 	}
 
 	return dw, nil

@@ -71,6 +71,24 @@
       </div>
       {{end}}
 
+      {{if .Digest.CycleByType}}
+      <div class="digest-breakdown">
+        <span class="digest-breakdown-label">Cycle time:</span>
+        {{range .Digest.CycleByType}}
+        <span class="digest-breakdown-chip">
+          <span class="breakdown-type">{{workTypeLabel .WorkType}}</span>
+          <span class="breakdown-time">{{printf "%.1f" .AvgDays}}d avg</span>
+        </span>
+        {{end}}
+        {{if gt .Digest.AvgCycleDays 0.0}}
+        <span class="digest-breakdown-chip digest-breakdown-chip--muted">
+          <span class="breakdown-type">overall</span>
+          <span class="breakdown-time">{{printf "%.1f" .Digest.AvgCycleDays}}d avg</span>
+        </span>
+        {{end}}
+      </div>
+      {{end}}
+
       <!-- Completed tasks -->
       <section class="digest-section">
         <h2 class="digest-section-title">Completed</h2>
