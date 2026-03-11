@@ -629,10 +629,14 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - "Set week goal" dashed button when no goal; clear button when active
   - 1 test; 244 total
 
-- [ ] **Dependency graph view**
-  - Visual graph of blocked_by relationships (D3 or plain SVG)
-  - Show blocked chains: which tasks are bottlenecked waiting on others
-  - Accessible from Digest or as a panel on the board
+- [x] **Dependency graph view** ✅ 2026-03-11
+  - GET /dep-graph — pure Canvas 2D (no D3/external deps)
+  - ListDepGraph() DB method: nodes + edges for all active blocking relationships
+  - Layered left→right layout (layer = longest BFS depth from source)
+  - Pan, zoom, hover tooltip, click to open task
+  - Node colours: P1=red, P2=amber, P3=green, blocker=amber, normal=blue, done=muted
+  - Bezier edge curves with arrowheads; empty state when no deps exist
+  - Link from Digest footer; 1 test; 245 total
 
 - [x] **Task comments from board card (quick comment)** ✅ 2026-03-11
   - 💬 button in card actions (opacity 0 → visible on hover/focus)
