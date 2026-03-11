@@ -2366,6 +2366,12 @@ input[type="date"] {
 .digest-task-row--chase { border-left: 2px solid rgba(245,158,11,0.4); }
 .digest-task-chase-icon { color: var(--amber, #f59e0b); }
 .digest-task-age { font-size: 11px; color: var(--amber, #f59e0b); white-space: nowrap; }
+/* Velocity arrows in digest stats */
+.digest-velocity { font-size: 13px; margin-left: 2px; font-weight: 700; }
+.digest-velocity--up   { color: #4ade80; }
+.digest-velocity--down { color: #f87171; }
+.digest-velocity--flat { color: var(--text-muted); }
+.digest-vs-label { font-size: 10px; color: var(--text-muted); font-weight: 400; }
 
 .digest-task-check {
   font-size: 14px;

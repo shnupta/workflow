@@ -31,8 +31,16 @@
       <!-- Stats bar -->
       <div class="digest-stats">
         <div class="digest-stat">
-          <div class="digest-stat-value">{{len .Digest.Done}}</div>
-          <div class="digest-stat-label">completed</div>
+          <div class="digest-stat-value">
+            {{len .Digest.Done}}
+            {{if gt .Digest.DoneLastWeek 0}}
+              {{$done := len .Digest.Done}}
+              {{if gt $done .Digest.DoneLastWeek}}<span class="digest-velocity digest-velocity--up" title="vs {{.Digest.DoneLastWeek}} last week">↑</span>
+              {{else if lt $done .Digest.DoneLastWeek}}<span class="digest-velocity digest-velocity--down" title="vs {{.Digest.DoneLastWeek}} last week">↓</span>
+              {{else}}<span class="digest-velocity digest-velocity--flat" title="same as last week">→</span>{{end}}
+            {{end}}
+          </div>
+          <div class="digest-stat-label">completed{{if gt .Digest.DoneLastWeek 0}} <span class="digest-vs-label">({{.Digest.DoneLastWeek}} last wk)</span>{{end}}</div>
         </div>
         <div class="digest-stat">
           <div class="digest-stat-value">{{len .Digest.InProgress}}</div>
@@ -73,6 +81,8 @@
             <span class="digest-task-check">✓</span>
             <span class="digest-task-title">{{.Title}}</span>
             <span class="digest-task-meta">
+              {{if .Priority}}<span class="card-tag tag-priority tag-priority-{{.Priority}}">{{.Priority | upper}}</span>{{end}}
+              {{if .Effort}}<span class="card-tag tag-effort tag-effort-{{.Effort}}">{{.Effort | upper}}</span>{{end}}
               {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
               {{if gt .ElapsedSeconds 0}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
               {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
@@ -96,6 +106,8 @@
             <span class="digest-task-check digest-task-check--open">○</span>
             <span class="digest-task-title">{{.Title}}</span>
             <span class="digest-task-meta">
+              {{if .Priority}}<span class="card-tag tag-priority tag-priority-{{.Priority}}">{{.Priority | upper}}</span>{{end}}
+              {{if .Effort}}<span class="card-tag tag-effort tag-effort-{{.Effort}}">{{.Effort | upper}}</span>{{end}}
               {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
               {{if gt .ElapsedSeconds 0}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
               {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}

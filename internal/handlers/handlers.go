@@ -123,6 +123,8 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return fmt.Sprintf("%dm", m)
 		},
+		"lower":           strings.ToLower,
+		"upper":           strings.ToUpper,
 		"recurrenceLabel": recurrenceLabel,
 		"jsonStr":         jsonStr,
 		// jsonArr encodes a []string as a JSON array string safe for use in

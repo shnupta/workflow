@@ -1350,6 +1350,9 @@ type DigestTask struct {
 	TimerTotal   int
 	TimerStarted *time.Time
 	SessionCount int
+	Priority     string // P1, P2, P3, or ""
+	Effort       string // XS, S, M, L, XL, or ""
+	DaysInColumn int    // only set for WaitingOnOthers
 }
 
 func (t *DigestTask) ElapsedSeconds() int {
@@ -1385,14 +1388,16 @@ type WorkTypeTime struct {
 }
 
 type DigestWeek struct {
-	WeekStart   time.Time // Monday 00:00 UTC
-	WeekEnd     time.Time // Sunday 23:59 UTC
-	Done        []*DigestTask
-	InProgress  []*DigestTask
-	WaitingOnOthers []*DigestTask // direction='blocked_on_them', not done, age >= 2 days
-	TotalTimeSecs  int
-	SessionCount   int
+	WeekStart        time.Time // Monday 00:00 UTC
+	WeekEnd          time.Time // Sunday 23:59 UTC
+	Done             []*DigestTask
+	InProgress       []*DigestTask
+	WaitingOnOthers  []*DigestTask // direction='blocked_on_them', not done, age >= 2 days
+	TotalTimeSecs    int
+	SessionCount     int
 	WorkTypeBreakdown []WorkTypeTime // sorted by seconds desc, only types with time > 0
+	DoneLastWeek     int    // count of tasks completed in the prior week (for velocity comparison)
+	TimeDeltaPct     int    // % change in total time vs last week (+/-); 0 if no prior data
 }
 
 func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
@@ -1402,7 +1407,9 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	rows, err := d.conn.Query(`
 		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
 		       t.timer_total, t.timer_started,
-		       COUNT(s.id) AS session_count
+		       COUNT(s.id) AS session_count,
+		       COALESCE(t.priority, '') AS priority,
+		       COALESCE(t.effort, '') AS effort
 		FROM tasks t
 		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
 		WHERE t.done = 1 AND t.done_at >= ? AND t.done_at < ?
@@ -1419,7 +1426,8 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 		var dt DigestTask
 		var doneAt, createdAt, timerStarted sql.NullString
 		if err := rows.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
-			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount); err != nil {
+			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount,
+			&dt.Priority, &dt.Effort); err != nil {
 			return nil, err
 		}
 		if doneAt.Valid {
@@ -1440,12 +1448,16 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	rows2, err := d.conn.Query(`
 		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
 		       t.timer_total, t.timer_started,
-		       COUNT(s.id) AS session_count
+		       COUNT(s.id) AS session_count,
+		       COALESCE(t.priority, '') AS priority,
+		       COALESCE(t.effort, '') AS effort
 		FROM tasks t
 		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
 		WHERE t.done = 0 AND (t.created_at >= ? OR t.updated_at >= ?)
 		GROUP BY t.id
-		ORDER BY t.updated_at DESC
+		ORDER BY
+		  CASE t.priority WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 WHEN 'P3' THEN 3 ELSE 4 END,
+		  t.updated_at DESC
 		LIMIT 20
 	`, weekStart.Format(time.RFC3339), weekStart.Format(time.RFC3339))
 	if err != nil {
@@ -1456,7 +1468,8 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 		var dt DigestTask
 		var doneAt, createdAt, timerStarted sql.NullString
 		if err := rows2.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
-			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount); err != nil {
+			&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount,
+			&dt.Priority, &dt.Effort); err != nil {
 			return nil, err
 		}
 		if timerStarted.Valid {
@@ -1514,7 +1527,9 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	waitRows, err := d.conn.Query(`
 		SELECT t.id, t.title, t.work_type, t.tier, t.done, t.done_at, t.created_at,
 		       t.timer_total, t.timer_started,
-		       COUNT(s.id) AS session_count
+		       COUNT(s.id) AS session_count,
+		       COALESCE(t.priority, '') AS priority,
+		       COALESCE(t.effort, '') AS effort
 		FROM tasks t
 		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
 		WHERE t.done = 0 AND t.direction = 'blocked_on_them' AND t.created_at <= ?
@@ -1528,10 +1543,12 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 			var doneAt, createdAt *string
 			var timerStarted *string
 			if waitRows.Scan(&dt.ID, &dt.Title, &dt.WorkType, &dt.Tier, &dt.Done,
-				&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount) == nil {
+				&doneAt, &createdAt, &dt.TimerTotal, &timerStarted, &dt.SessionCount,
+				&dt.Priority, &dt.Effort) == nil {
 				if createdAt != nil {
 					if t, err := time.Parse(time.RFC3339, *createdAt); err == nil {
 						dt.CreatedAt = t
+						dt.DaysInColumn = int(time.Since(t).Hours() / 24)
 					}
 				}
 				if timerStarted != nil {
@@ -1542,6 +1559,18 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 				dw.WaitingOnOthers = append(dw.WaitingOnOthers, &dt)
 			}
 		}
+	}
+
+	// Velocity: count tasks done + total time in prior week for comparison
+	prevStart := weekStart.AddDate(0, 0, -7)
+	prevEnd := weekStart
+	var prevDoneCount int
+	var prevTimeSecs int
+	d.conn.QueryRow(`SELECT COUNT(*), COALESCE(SUM(timer_total),0) FROM tasks WHERE done=1 AND done_at >= ? AND done_at < ?`,
+		prevStart.Format(time.RFC3339), prevEnd.Format(time.RFC3339)).Scan(&prevDoneCount, &prevTimeSecs)
+	dw.DoneLastWeek = prevDoneCount
+	if prevTimeSecs > 0 && dw.TotalTimeSecs > 0 {
+		dw.TimeDeltaPct = int(float64(dw.TotalTimeSecs-prevTimeSecs) / float64(prevTimeSecs) * 100)
 	}
 
 	return dw, nil
