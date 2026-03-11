@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -189,6 +190,81 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return t.Format("Jan 2")
 		},
+		// relTimeVal is like relTime but takes a value (not pointer) — used by activity feed.
+		"relTimeVal": func(t time.Time) string {
+			d := time.Since(t)
+			if d < time.Minute {
+				return "just now"
+			} else if d < time.Hour {
+				return fmt.Sprintf("%dm ago", int(d.Minutes()))
+			} else if d < 24*time.Hour {
+				return fmt.Sprintf("%dh ago", int(d.Hours()))
+			}
+			return t.Format("Jan 2")
+		},
+		"activityDayOptions": func() []int { return []int{1, 3, 7, 14, 30} },
+		"activityDateLabel": func(t time.Time) string {
+			now := time.Now()
+			today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+			day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, now.Location())
+			diff := int(today.Sub(day).Hours() / 24)
+			switch diff {
+			case 0:
+				return "Today"
+			case 1:
+				return "Yesterday"
+			default:
+				return t.Format("Mon Jan 2")
+			}
+		},
+		"activityIcon": func(kind string) string {
+			switch kind {
+			case "task_created":
+				return "＋"
+			case "task_done":
+				return "✓"
+			case "task_moved":
+				return "→"
+			case "session_started":
+				return "▶"
+			case "session_done":
+				return "■"
+			case "comment":
+				return "💬"
+			default:
+				return "•"
+			}
+		},
+		"activityDetail": func(kind, detail string) string {
+			switch kind {
+			case "task_created":
+				// detail is "work_type|tier"
+				parts := strings.SplitN(detail, "|", 2)
+				if len(parts) == 2 {
+					return "created in " + parts[1]
+				}
+				return "created"
+			case "task_done":
+				return "completed"
+			case "session_started":
+				if detail != "" {
+					return "session started: " + detail
+				}
+				return "session started"
+			case "session_done":
+				if detail != "" {
+					return "session done: " + detail
+				}
+				return "session done"
+			case "comment":
+				if len(detail) > 60 {
+					return detail[:60] + "…"
+				}
+				return detail
+			default:
+				return detail
+			}
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)
@@ -233,6 +309,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /search/notes", h.searchNotes)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
+	mux.HandleFunc("GET /activity", h.activityFeed)
 	h.registerSessionRoutes(mux)
 	h.registerWebhookRoutes(mux)
 	h.registerNoteRoutes(mux)
@@ -1322,4 +1399,25 @@ func (h *Handler) apiPatchTask(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, `{"title":%s,"description":%s}`, jsonStr(t.Title), jsonStr(t.Description))
+}
+
+// activityFeed renders the /activity page — a reverse-chronological stream of
+// all recent events across tasks, sessions, and comments.
+func (h *Handler) activityFeed(w http.ResponseWriter, r *http.Request) {
+	days := 7
+	if d := r.URL.Query().Get("days"); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 && n <= 90 {
+			days = n
+		}
+	}
+	events, err := h.db.ListActivityFeed(days, 200)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	h.render(w, "activity.html", map[string]interface{}{
+		"Events": events,
+		"Days":   days,
+		"Nav":    "activity",
+	})
 }

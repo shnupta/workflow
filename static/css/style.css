@@ -3632,3 +3632,92 @@ input[type="date"] {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* ─── Activity feed ──────────────────────────────────────────────────────────── */
+.activity-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+.activity-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.activity-header h1 { margin: 0; }
+.activity-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.activity-day-divider {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1rem 0 0.4rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.activity-event {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+.activity-event:hover { background: var(--surface); }
+.activity-icon {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.event-task_created .activity-icon { color: #9ece6a; }
+.event-task_done    .activity-icon { color: #9ece6a; font-weight: 700; }
+.event-session_started .activity-icon { color: #7dcfff; }
+.event-session_done    .activity-icon { color: #bb9af7; }
+.event-comment         .activity-icon { color: #e0af68; }
+.activity-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.activity-task-link {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+.activity-task-link:hover { color: var(--accent); }
+.activity-detail {
+  color: var(--text-muted);
+  font-size: 0.83rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+.activity-time {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: auto;
+}

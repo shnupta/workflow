@@ -1,0 +1,51 @@
+{{define "activity.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Activity</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="activity-page">
+      <div class="activity-header">
+        <h1 class="digest-title">Activity</h1>
+        <div class="activity-filter-bar">
+          {{range $d := activityDayOptions}}
+          <a href="/activity?days={{$d}}" class="filter-chip{{if eq $d $.Days}} active{{end}}">{{$d}}d</a>
+          {{end}}
+        </div>
+      </div>
+
+      {{if not .Events}}
+      <p class="empty" style="padding: 2rem 0;">No activity in the last {{.Days}} days.</p>
+      {{else}}
+      <div class="activity-feed">
+        {{$prevDate := ""}}
+        {{range .Events}}
+        {{$dateLabel := activityDateLabel .Time}}
+        {{if ne $dateLabel $prevDate}}
+        <div class="activity-day-divider">{{$dateLabel}}</div>
+        {{$prevDate = $dateLabel}}
+        {{end}}
+        <div class="activity-event event-{{.Kind}}">
+          <span class="activity-icon">{{activityIcon .Kind}}</span>
+          <div class="activity-body">
+            <a href="/tasks/{{.TaskID}}" class="activity-task-link">{{.TaskTitle}}</a>
+            <span class="activity-detail">{{activityDetail .Kind .Detail}}</span>
+          </div>
+          <span class="activity-time">{{relTimeVal .Time}}</span>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

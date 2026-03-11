@@ -2319,3 +2319,87 @@ func (d *DB) RecentlyDone(limit int) ([]*models.Task, error) {
 	}
 	return tasks, nil
 }
+
+// ── Activity feed ─────────────────────────────────────────────────────────────
+
+// ActivityEvent represents a single item in the global activity feed.
+type ActivityEvent struct {
+	Time     time.Time
+	Kind     string // "task_created", "task_done", "task_moved", "session_started", "session_done", "comment"
+	TaskID   string
+	TaskTitle string
+	Detail   string // extra context (tier name, session name, comment snippet, etc.)
+}
+
+// ListActivityFeed returns up to limit events ordered newest-first, covering
+// the past numDays days. It unions across:
+//   - tasks created
+//   - tasks completed
+//   - sessions created (started)
+//   - sessions with status=done (completed)
+//   - task comments
+func (d *DB) ListActivityFeed(numDays, limit int) ([]*ActivityEvent, error) {
+	since := time.Now().UTC().AddDate(0, 0, -numDays).Format(time.RFC3339)
+
+	q := fmt.Sprintf(`
+		SELECT ts, kind, task_id, task_title, detail FROM (
+			-- tasks created
+			SELECT created_at AS ts, 'task_created' AS kind, id AS task_id, title AS task_title,
+			       work_type || '|' || tier AS detail
+			FROM tasks
+			WHERE created_at >= %q
+
+			UNION ALL
+
+			-- tasks done
+			SELECT done_at AS ts, 'task_done' AS kind, id AS task_id, title AS task_title,
+			       work_type AS detail
+			FROM tasks
+			WHERE done=1 AND done_at IS NOT NULL AND done_at >= %q
+
+			UNION ALL
+
+			-- sessions created
+			SELECT s.created_at AS ts, 'session_started' AS kind, s.task_id, t.title AS task_title,
+			       s.name AS detail
+			FROM sessions s JOIN tasks t ON t.id = s.task_id
+			WHERE s.name != '[brief]' AND s.created_at >= %q
+
+			UNION ALL
+
+			-- sessions completed
+			SELECT s.updated_at AS ts, 'session_done' AS kind, s.task_id, t.title AS task_title,
+			       s.name AS detail
+			FROM sessions s JOIN tasks t ON t.id = s.task_id
+			WHERE s.name != '[brief]' AND s.status='done' AND s.updated_at >= %q
+
+			UNION ALL
+
+			-- comments
+			SELECT c.created_at AS ts, 'comment' AS kind, c.task_id, t.title AS task_title,
+			       c.body AS detail
+			FROM task_comments c JOIN tasks t ON t.id = c.task_id
+			WHERE c.created_at >= %q
+		)
+		ORDER BY ts DESC
+		LIMIT %d
+	`, since, since, since, since, since, limit)
+
+	rows, err := d.conn.Query(q)
+	if err != nil {
+		return nil, fmt.Errorf("activity feed: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*ActivityEvent
+	for rows.Next() {
+		var e ActivityEvent
+		var ts string
+		if err := rows.Scan(&ts, &e.Kind, &e.TaskID, &e.TaskTitle, &e.Detail); err != nil {
+			return nil, err
+		}
+		e.Time, _ = time.Parse(time.RFC3339, ts)
+		events = append(events, &e)
+	}
+	return events, rows.Err()
+}

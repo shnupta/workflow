@@ -2343,3 +2343,52 @@ func TestRecentlyDone_ReturnsCompletedInPast24h(t *testing.T) {
 		t.Errorf("expected 'Recent done', got %q", results[0].Title)
 	}
 }
+
+func TestListActivityFeed_BasicEvents(t *testing.T) {
+	d, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create a task
+	task := &models.Task{Title: "Activity test task", WorkType: "coding", Tier: "today"}
+	if err := d.CreateTask(task); err != nil {
+		t.Fatal(err)
+	}
+	taskID := task.ID
+
+	// Add a comment
+	if _, err := d.CreateComment(taskID, "This is a test comment"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mark done
+	if _, err := d.MarkDone(taskID); err != nil {
+		t.Fatal(err)
+	}
+
+	events, err := d.ListActivityFeed(7, 50)
+	if err != nil {
+		t.Fatalf("ListActivityFeed: %v", err)
+	}
+
+	if len(events) == 0 {
+		t.Fatal("expected at least one activity event, got 0")
+	}
+
+	kinds := map[string]bool{}
+	for _, e := range events {
+		kinds[e.Kind] = true
+		if e.TaskTitle == "" {
+			t.Errorf("event %q has empty TaskTitle", e.Kind)
+		}
+	}
+
+	if !kinds["task_created"] {
+		t.Error("expected task_created event")
+	}
+	if !kinds["task_done"] {
+		t.Error("expected task_done event")
+	}
+	if !kinds["comment"] {
+		t.Error("expected comment event")
+	}
+}
