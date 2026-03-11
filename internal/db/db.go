@@ -285,6 +285,40 @@ func (d *DB) migrate() error {
 			INSERT INTO tasks_fts(rowid, title, description, scratchpad)
 			SELECT rowid, title, description, scratchpad FROM tasks
 		`)
+
+		// ── notes_fts: FTS5 index over note title and content ──────────────
+		_, _ = d.conn.Exec(`
+			CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+				title,
+				content,
+				content='notes',
+				content_rowid='rowid'
+			)
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS notes_fts_insert AFTER INSERT ON notes BEGIN
+				INSERT INTO notes_fts(rowid, title, content)
+				VALUES (new.rowid, new.title, new.content);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS notes_fts_delete AFTER DELETE ON notes BEGIN
+				INSERT INTO notes_fts(notes_fts, rowid, title, content)
+				VALUES ('delete', old.rowid, old.title, old.content);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			CREATE TRIGGER IF NOT EXISTS notes_fts_update AFTER UPDATE ON notes BEGIN
+				INSERT INTO notes_fts(notes_fts, rowid, title, content)
+				VALUES ('delete', old.rowid, old.title, old.content);
+				INSERT INTO notes_fts(rowid, title, content)
+				VALUES (new.rowid, new.title, new.content);
+			END
+		`)
+		_, _ = d.conn.Exec(`
+			INSERT OR IGNORE INTO notes_fts(rowid, title, content)
+			SELECT rowid, title, content FROM notes
+		`)
 	}
 
 	return nil
@@ -1232,6 +1266,67 @@ func (d *DB) ListNotes(taskID string) ([]*models.Note, error) {
 func (d *DB) DeleteNote(id string) error {
 	_, err := d.conn.Exec(`DELETE FROM notes WHERE id=?`, id)
 	return err
+}
+
+// NoteSearchResult is a note hit from full-text search.
+type NoteSearchResult struct {
+	models.Note
+	Snippet string `json:"snippet"`
+}
+
+// SearchNotes searches notes by full-text query. Falls back to LIKE on title/content.
+func (d *DB) SearchNotes(query string) ([]*NoteSearchResult, error) {
+	if query == "" {
+		return nil, nil
+	}
+	var results []*NoteSearchResult
+	if d.fts5 {
+		rows, err := d.conn.Query(`
+			SELECT n.id, n.task_id, n.title, n.content, n.created_at, n.updated_at,
+			       snippet(notes_fts, 1, '<mark>', '</mark>', '…', 20) AS snip
+			FROM notes_fts
+			JOIN notes n ON notes_fts.rowid = n.rowid
+			WHERE notes_fts MATCH ?
+			ORDER BY rank
+			LIMIT 50
+		`, query+"*")
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var r NoteSearchResult
+				var createdAt, updatedAt string
+				if err := rows.Scan(&r.ID, &r.TaskID, &r.Title, &r.Content, &createdAt, &updatedAt, &r.Snippet); err != nil {
+					continue
+				}
+				r.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+				r.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+				results = append(results, &r)
+			}
+			return results, nil
+		}
+	}
+	// LIKE fallback
+	like := "%" + query + "%"
+	rows, err := d.conn.Query(`
+		SELECT id, task_id, title, content, created_at, updated_at
+		FROM notes WHERE title LIKE ? OR content LIKE ?
+		ORDER BY updated_at DESC LIMIT 50
+	`, like, like)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r NoteSearchResult
+		var createdAt, updatedAt string
+		if err := rows.Scan(&r.ID, &r.TaskID, &r.Title, &r.Content, &createdAt, &updatedAt); err != nil {
+			continue
+		}
+		r.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+		r.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+		results = append(results, &r)
+	}
+	return results, nil
 }
 
 type noteScanner interface {

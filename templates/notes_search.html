@@ -1,10 +1,10 @@
-{{define "task_search.html"}}
+{{define "notes_search.html"}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>workflow — Task search{{if .Query}} · {{.Query}}{{end}}</title>
+  <title>workflow — Notes search{{if .Query}} · {{.Query}}{{end}}</title>
   <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="stylesheet" href="/static/css/style.css">
@@ -19,18 +19,18 @@
 
       <!-- Tab bar -->
       <div class="search-tabs">
-        <a class="search-tab search-tab-active" href="/search/tasks{{if .Query}}?q={{.Query}}{{end}}">Tasks</a>
+        <a class="search-tab" href="/search/tasks{{if .Query}}?q={{.Query}}{{end}}">Tasks</a>
         <a class="search-tab" href="/search{{if .Query}}?q={{.Query}}{{end}}">Sessions</a>
-        <a class="search-tab" href="/search/notes{{if .Query}}?q={{.Query}}{{end}}">Notes</a>
+        <a class="search-tab search-tab-active" href="/search/notes{{if .Query}}?q={{.Query}}{{end}}">Notes</a>
       </div>
 
-      <form class="search-form" action="/search/tasks" method="get">
+      <form class="search-form" action="/search/notes" method="get">
         <div class="search-input-wrap">
           <input
             type="search"
             name="q"
             value="{{.Query}}"
-            placeholder="Search task titles, descriptions, scratchpad…"
+            placeholder="Search note titles and content…"
             class="search-input"
             autofocus
             autocomplete="off"
@@ -39,42 +39,34 @@
         </div>
       </form>
 
-      {{if .SearchErr}}
-        <div class="search-unavailable">
-          <p>Search is unavailable — FTS5 not compiled in.</p>
-          <p>Rebuild with: <code>go build -tags fts5 ./cmd/workflow/</code></p>
-        </div>
-      {{else if .Query}}
+      {{if .Query}}
         {{if .Results}}
           <div class="search-results">
             <p class="search-count">
-              {{len .Results}} task{{if gt (len .Results) 1}}s{{end}} matched
+              {{len .Results}} note{{if gt (len .Results) 1}}s{{end}} matched
             </p>
             {{range .Results}}
-            <a href="/tasks/{{.Task.ID}}" class="search-result-row">
+            <a href="/notes#{{.ID}}" class="search-result-row">
               <div class="search-result-meta">
-                <span class="tag tag-type">{{workTypeLabel .Task.WorkType}}</span>
-                <span class="tag tag-tier">{{tierLabel .Task.Tier}}</span>
-                <span class="search-result-title">{{.Task.Title}}</span>
-                <span class="task-age {{.Task.AgeClass}} search-result-age">{{.Task.AgeLabel}}</span>
+                <span class="tag tag-type">Note</span>
+                {{if .TaskID}}<span class="tag tag-tier">task-attached</span>{{else}}<span class="tag tag-tier">global</span>{{end}}
+                <span class="search-result-title">{{.DisplayTitle}}</span>
               </div>
               {{if .Snippet}}
               <div class="search-result-snippet">{{.Snippet}}</div>
               {{end}}
-              <div class="search-result-time">Added {{timeAgo .Task.CreatedAt}}</div>
+              <div class="search-result-time">Updated {{timeAgo .UpdatedAt}}</div>
             </a>
             {{end}}
           </div>
         {{else}}
-          <p class="empty-state">No tasks found for "{{.Query}}"</p>
+          <p class="empty-state">No notes found for "{{.Query}}"</p>
         {{end}}
       {{end}}
     </div>
   </main>
 
   <script>
-    // Re-submit the form when the user clears the input and presses Enter,
-    // so they can return to the blank state without clicking the button.
     document.querySelector('.search-input').addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         this.value = '';

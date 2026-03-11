@@ -2234,3 +2234,36 @@ func TestListTasksWithDueDates_TagsPopulated(t *testing.T) {
 		t.Errorf("expected 2 tags populated, got %d: %v", len(tasks[0].Tags), tasks[0].Tags)
 	}
 }
+
+func TestSearchNotes_FTS5(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	n1 := &models.Note{Content: "# Deployment checklist\nRemember to flush the cache before deploy."}
+	n1.Title = "Deployment checklist"
+	if err := db.CreateNote(n1); err != nil {
+		t.Fatalf("CreateNote: %v", err)
+	}
+	n2 := &models.Note{Content: "# Architecture notes\nWe use a microservice pattern."}
+	n2.Title = "Architecture notes"
+	if err := db.CreateNote(n2); err != nil {
+		t.Fatalf("CreateNote: %v", err)
+	}
+
+	results, err := db.SearchNotes("checklist")
+	if err != nil {
+		t.Fatalf("SearchNotes: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Title != "Deployment checklist" {
+		t.Errorf("unexpected result: %q", results[0].Title)
+	}
+
+	// No results for unrelated query
+	none, _ := db.SearchNotes("kubernetes")
+	if len(none) != 0 {
+		t.Errorf("expected 0 results for 'kubernetes', got %d", len(none))
+	}
+}
