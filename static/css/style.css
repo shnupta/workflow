@@ -2575,10 +2575,10 @@ input[type="date"] {
   border-color: var(--accent-dim);
 }
 .blocker-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
+  /* position:fixed so it escapes any overflow:hidden ancestor (e.g.
+     .dependencies-panel). Left/top/width are set in JS via
+     getBoundingClientRect() each time the dropdown is shown. */
+  position: fixed;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -2586,7 +2586,7 @@ input[type="date"] {
   list-style: none;
   margin: 0;
   padding: 4px 0;
-  z-index: 100;
+  z-index: 2100;
   max-height: 220px;
   overflow-y: auto;
 }

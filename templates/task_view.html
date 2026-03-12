@@ -905,6 +905,16 @@
       }
     }
 
+    // Position the fixed dropdown directly below the search input.
+    // Must be called whenever the dropdown becomes visible (and on
+    // scroll/resize so it tracks the input if the page moves).
+    function positionDropdown() {
+      const rect = searchInput.getBoundingClientRect();
+      dropdown.style.top   = (rect.bottom + 4) + 'px';
+      dropdown.style.left  = rect.left + 'px';
+      dropdown.style.width = rect.width + 'px';
+    }
+
     function renderDropdown(tasks) {
       dropdown.innerHTML = '';
       // Exclude the current task (shouldn't come back from API, but be safe)
@@ -924,6 +934,7 @@
           dropdown.appendChild(li);
         });
       }
+      positionDropdown();
       dropdown.style.display = 'block';
     }
 
@@ -931,6 +942,14 @@
       dropdown.style.display = 'none';
       dropdown.innerHTML = '';
     }
+
+    // Keep the dropdown aligned if the user scrolls or resizes while it is open.
+    window.addEventListener('scroll', () => {
+      if (dropdown.style.display !== 'none') positionDropdown();
+    }, { passive: true });
+    window.addEventListener('resize', () => {
+      if (dropdown.style.display !== 'none') positionDropdown();
+    }, { passive: true });
 
     async function selectBlocker(blockerID, blockerTitle) {
       hideDropdown();
