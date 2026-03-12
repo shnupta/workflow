@@ -30,6 +30,7 @@
               onblur="saveSessionName(this)">{{.Session.Name}}</h1>
           <span class="session-status status-{{.Session.Status}}" id="session-status">{{.Session.Status}}</span>
           <span class="session-provider">{{.Session.AgentProvider}}</span>
+          {{if gt .WordCount 0}}<span class="session-wordcount" title="~{{.WordCount}} words in assistant messages">~{{.WordCount}} words · {{.ReadMins}} min read</span>{{end}}
           {{if .Session.Archived}}<span class="tag tag-archived">archived</span>{{end}}
         </div>
         <div class="session-header-actions">

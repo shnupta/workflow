@@ -214,11 +214,28 @@ func (h *Handler) viewSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	// Compute word count from assistant messages for reading-time display.
+	wordCount := 0
+	for _, m := range messages {
+		if m.Role == models.MessageRoleAssistant {
+			wordCount += len(strings.Fields(m.Content))
+		}
+	}
+	readMins := 0
+	if wordCount > 0 {
+		readMins = (wordCount + 199) / 200 // 200 wpm, round up
+		if readMins < 1 {
+			readMins = 1
+		}
+	}
+
 	h.render(w, "session.html", map[string]interface{}{
-		"Task":     task,
-		"Session":  sess,
-		"Messages": messages,
-		"Nav":      "sessions",
+		"Task":      task,
+		"Session":   sess,
+		"Messages":  messages,
+		"WordCount": wordCount,
+		"ReadMins":  readMins,
+		"Nav":       "sessions",
 	})
 }
 
