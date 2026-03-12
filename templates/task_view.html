@@ -710,6 +710,7 @@
 
   let focusInterval = null;
   let focusSecsLeft = 0;
+  let focusStartedMins = 0; // track duration for time log auto-entry
   const FOCUS_KEY = `workflow_focus_${taskID}`;
 
   function focusFmt(s) {
@@ -730,6 +731,7 @@
     if (focusInterval) clearInterval(focusInterval);
 
     focusSecsLeft = mins * 60;
+    focusStartedMins = mins; // remember for auto-log on completion
     const endMs = Date.now() + focusSecsLeft * 1000;
     localStorage.setItem(FOCUS_KEY, JSON.stringify({ endMs, taskID, taskTitle: document.title }));
 
@@ -781,6 +783,8 @@
     // Visual flash
     document.getElementById('focus-btn').textContent = '✓ Done!';
     setTimeout(() => { document.getElementById('focus-btn').textContent = '⏱ Focus'; }, 3000);
+    // Auto-log the completed focus session to time log
+    if (focusStartedMins > 0) autoLogFocusTime(focusStartedMins);
   }
 
   // Restore focus session if same tab/page reload during active session
