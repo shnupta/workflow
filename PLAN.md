@@ -703,11 +703,11 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - autoLogFocusTime() JS hook ready for Pomodoro auto-log
   - 5 new tests; 249 total
 
-- [ ] **Bulk status update from digest page**
-  - On the /digest page, inline "Mark done" checkboxes next to In Progress tasks
-  - Quick way to close out tasks while reviewing the weekly digest
-  - POST /api/tasks/{id}/done via htmx swap — no page reload
-  - 1 test
+- [x] **Bulk status update from digest page** ✅ 2026-03-12
+  - POST /api/tasks/{id}/done JSON endpoint (returns {cloned: bool})
+  - Digest InProgress rows get a ○ button; click marks done in-place with fade-out
+  - Empty-list notice when all tasks cleared; recurring tasks auto-clone
+  - 2 tests; 251 total
 
 - [ ] **Task templates: auto-apply on creation**
   - When creating a task, if a template matches the work type, offer one-click "Use template"
