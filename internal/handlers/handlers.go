@@ -424,11 +424,12 @@ func (h *Handler) weeklyDigest(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
 	tag := r.URL.Query().Get("tag")
+	sortBy := r.URL.Query().Get("sort") // "" = by updated_at, "tag" = grouped by tag
 	var notes []*models.Note
 	if tag != "" {
 		notes, _ = h.db.ListNotesByTag(tag)
 	} else {
-		notes, _ = h.db.ListNotes("")
+		notes, _ = h.db.ListNotesSorted("", sortBy)
 	}
 	allTags, _ := h.db.NoteTags()
 	h.render(w, "notes.html", map[string]interface{}{
@@ -436,6 +437,7 @@ func (h *Handler) notesPage(w http.ResponseWriter, r *http.Request) {
 		"Notes":      notes,
 		"AllTags":    allTags,
 		"ActiveTag":  tag,
+		"SortBy":     sortBy,
 	})
 }
 

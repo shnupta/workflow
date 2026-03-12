@@ -4132,6 +4132,22 @@ input[type="date"] {
 .notes-tag-chip:hover { background: var(--bg-active); color: var(--fg); }
 .notes-tag-chip--active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+.notes-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 16px 8px;
+  font-size: 11px;
+}
+.notes-sort-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.notes-sort-link:hover { color: var(--text); }
+.notes-sort-link--active { color: var(--accent); font-weight: 600; }
+
 /* ── Note list item meta / tag badges ──────────────────────────────────────── */
 .note-list-meta {
   display: flex;

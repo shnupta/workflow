@@ -31,6 +31,15 @@
           {{end}}
         </div>
         {{end}}
+        <div class="notes-sort-bar">
+          {{if eq .SortBy "tag"}}
+            <a href="/notes{{if .ActiveTag}}?tag={{.ActiveTag}}{{end}}" class="notes-sort-link notes-sort-link--active">↕ Tag</a>
+            <a href="/notes{{if .ActiveTag}}?tag={{.ActiveTag}}{{end}}" class="notes-sort-link">Recent</a>
+          {{else}}
+            <a href="/notes?sort=tag{{if .ActiveTag}}&tag={{.ActiveTag}}{{end}}" class="notes-sort-link">↕ Tag</a>
+            <span class="notes-sort-link notes-sort-link--active">Recent</span>
+          {{end}}
+        </div>
         <div class="notes-list" id="notes-list">
           {{if .Notes}}
             {{range .Notes}}

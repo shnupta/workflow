@@ -1259,12 +1259,24 @@ func (d *DB) GetNote(id string) (*models.Note, error) {
 }
 
 func (d *DB) ListNotes(taskID string) ([]*models.Note, error) {
+	return d.ListNotesSorted(taskID, "")
+}
+
+// ListNotesSorted returns notes for a task (or global if taskID==""), sorted
+// either by updated_at DESC (sortBy=="") or by tags ASC, updated_at DESC (sortBy=="tag").
+func (d *DB) ListNotesSorted(taskID, sortBy string) ([]*models.Note, error) {
+	orderClause := "updated_at DESC"
+	if sortBy == "tag" {
+		orderClause = "tags ASC, updated_at DESC"
+	}
 	var rows *sql.Rows
 	var err error
 	if taskID == "" {
-		rows, err = d.conn.Query(`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id='' ORDER BY updated_at DESC`)
+		rows, err = d.conn.Query(
+			`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id='' ORDER BY `+orderClause)
 	} else {
-		rows, err = d.conn.Query(`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id=? ORDER BY updated_at DESC`, taskID)
+		rows, err = d.conn.Query(
+			`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id=? ORDER BY `+orderClause, taskID)
 	}
 	if err != nil {
 		return nil, err
