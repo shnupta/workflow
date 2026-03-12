@@ -574,6 +574,12 @@
             toggleStarCard(focusedCard);
           }
           return;
+        case 'e':
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            openScratchpadOverlay(focusedCard.dataset.id, focusedCard.querySelector('.task-title')?.textContent?.trim() || 'Task');
+          }
+          return;
         case 'Escape':
           if (overlayOpen()) return; // let the overlay handler deal with it
           if (focusedCard) { e.preventDefault(); clearFocus(); return; }
@@ -640,6 +646,7 @@
           <kbd>Enter</kbd><span>Open focused task</span>
           <kbd>m</kbd><span>Move focused task to next column</span>
           <kbd>*</kbd><span>Star / unstar focused task</span>
+          <kbd>e</kbd><span>Edit scratchpad for focused task</span>
           <kbd>Esc</kbd><span>Clear focus / close overlay</span>
           <kbd>n</kbd><span>New task (full form)</span>
           <kbd>q</kbd><span>Quick-add to first column</span>
@@ -655,6 +662,8 @@
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      const spOverlay = document.getElementById('scratchpad-overlay');
+      if (spOverlay) { spOverlay.remove(); e.preventDefault(); return; }
       const overlay = document.getElementById('shortcuts-overlay');
       if (overlay) { overlay.remove(); e.preventDefault(); return; }
       // Clear filter on Esc if one is active and no card is focused
@@ -1229,6 +1238,79 @@
     } else if (empty) {
       empty.style.display = 'none';
     }
+  }
+
+  // ── Scratchpad overlay (e key) ───────────────────────────────────────────────
+  let _scratchpadDebounce = null;
+
+  function openScratchpadOverlay(taskId, taskTitle) {
+    // Remove any existing overlay
+    const existing = document.getElementById('scratchpad-overlay');
+    if (existing) { existing.remove(); return; }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'scratchpad-overlay';
+    overlay.className = 'scratchpad-overlay';
+    overlay.innerHTML = `
+      <div class="scratchpad-box">
+        <div class="scratchpad-header">
+          <span class="scratchpad-title">📝 ${taskTitle}</span>
+          <span class="scratchpad-status" id="sp-status"></span>
+          <button class="scratchpad-close" onclick="document.getElementById('scratchpad-overlay').remove()">✕</button>
+        </div>
+        <textarea class="scratchpad-textarea" id="sp-textarea" placeholder="Quick notes, context, links…"></textarea>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const textarea = overlay.querySelector('#sp-textarea');
+    const status = overlay.querySelector('#sp-status');
+
+    // Load existing content
+    fetch(`/api/tasks/${taskId}/scratchpad`)
+      .then(r => r.json())
+      .then(d => {
+        textarea.value = d.content || '';
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+      });
+
+    // Auto-save with debounce
+    textarea.addEventListener('input', () => {
+      status.textContent = 'saving…';
+      clearTimeout(_scratchpadDebounce);
+      _scratchpadDebounce = setTimeout(() => {
+        fetch(`/api/tasks/${taskId}/scratchpad`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: textarea.value}),
+        }).then(r => {
+          status.textContent = r.ok ? 'saved' : 'error';
+          if (r.ok) setTimeout(() => { status.textContent = ''; }, 2000);
+        });
+      }, 600);
+    });
+
+    // Ctrl/Cmd+S to force-save
+    textarea.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        clearTimeout(_scratchpadDebounce);
+        fetch(`/api/tasks/${taskId}/scratchpad`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: textarea.value}),
+        }).then(r => {
+          status.textContent = r.ok ? 'saved' : 'error';
+          if (r.ok) setTimeout(() => { status.textContent = ''; }, 1500);
+        });
+      }
+    });
+
+    // Click outside to close
+    overlay.addEventListener('mousedown', e => {
+      if (e.target === overlay) overlay.remove();
+    });
   }
 
   // ── Inline card title editing ────────────────────────────────────────────────

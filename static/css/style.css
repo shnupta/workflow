@@ -4278,3 +4278,71 @@ input[type="date"] {
   padding-bottom: 1px;
   word-break: break-word;
 }
+
+/* ── Scratchpad overlay (e key from board) ───────────────────────────────── */
+.scratchpad-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+.scratchpad-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+.scratchpad-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.scratchpad-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scratchpad-status {
+  font-size: 11px;
+  color: var(--fg-muted);
+  min-width: 40px;
+  text-align: right;
+}
+.scratchpad-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 15px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.scratchpad-close:hover { color: var(--fg); }
+.scratchpad-textarea {
+  width: 100%;
+  min-height: 240px;
+  max-height: 60vh;
+  resize: vertical;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  line-height: 1.6;
+  box-sizing: border-box;
+  border-radius: 0 0 10px 10px;
+}
