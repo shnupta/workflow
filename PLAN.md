@@ -739,11 +739,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - "Show archived" toggle on board (like sessions); archive button on task page
   - Useful for long-running boards with hundreds of done tasks
 
-- [ ] **Weekly velocity sparkline in digest**
-  - Mini sparkline chart (pure SVG, no deps) showing tasks-completed per week, last 8 weeks
-  - Rendered in the digest stats bar alongside the ↑↓→ velocity arrow
-  - DB: `RecentWeeklyVelocity(n int)` — COUNT(done_at grouped by ISO week)
-  - SVG: 8 bars, last one highlighted, baseline 0, fixed height 24px
+- [x] **Weekly velocity sparkline in digest** ✅ 2026-03-12
+  - RecentWeeklyVelocity(8) DB method; VelocitySparkline on DigestWeek
+  - sparklineSVG template func: 80×20px SVG; past weeks muted, current week accented
+  - Rendered inline in digest 'completed' stat label; 224 tests passing
 
 - [ ] **Task "waiting since" nudge in daily standup**
   - In the standup generator (`/standup`), highlight tasks that have been in WaitingOnOthers for 3+ days
