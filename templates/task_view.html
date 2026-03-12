@@ -211,6 +211,39 @@
         </form>
       </div>
 
+      <!-- Time Log -->
+      <div class="timelog-panel" id="timelog-panel">
+        <h2 class="timelog-title">Time Log</h2>
+
+        <div class="timelog-list" id="timelog-list">
+          {{if .TimeLogs}}
+            {{range .TimeLogs}}
+            <div class="timelog-item" data-log-id="{{.ID}}">
+              <span class="timelog-duration">{{.DurationMins}} min</span>
+              {{if .Note}}<span class="timelog-note">{{.Note}}</span>{{end}}
+              <div class="timelog-meta">
+                <span class="timelog-time">{{.FormattedTime}}</span>
+                <button class="timelog-delete" title="Delete entry"
+                  onclick="deleteTimeLog('{{.ID}}', this)">×</button>
+              </div>
+            </div>
+            {{end}}
+          {{else}}
+            <p class="timelog-empty" id="timelog-empty">No time logged yet.</p>
+          {{end}}
+        </div>
+
+        <form class="timelog-form" id="timelog-form" onsubmit="submitTimeLog(event)">
+          <div class="timelog-form-row">
+            <input type="number" class="timelog-mins-input" id="timelog-mins" min="1" max="600"
+              placeholder="mins" required />
+            <input type="text" class="timelog-note-input" id="timelog-note"
+              placeholder="Optional note…" />
+            <button type="submit" class="btn btn-ghost">Log time</button>
+          </div>
+        </form>
+      </div>
+
       <!-- Reminders -->
       <div class="reminders-panel" id="reminders-panel">
         <h2 class="reminders-title">Reminders</h2>
@@ -1111,6 +1144,86 @@
           `onclick="deleteComment(${c.id}, this)">×</button>` +
       `</div>`;
     return div;
+  }
+
+  // ── Time Log ────────────────────────────────────────────────────────────────
+
+  async function submitTimeLog(e) {
+    e.preventDefault();
+    const minsEl = document.getElementById('timelog-mins');
+    const noteEl = document.getElementById('timelog-note');
+    const mins = parseInt(minsEl.value, 10);
+    if (!mins || mins <= 0) return;
+
+    try {
+      const resp = await fetch('/api/tasks/{{.Task.ID}}/time-logs', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({duration_mins: mins, note: noteEl.value.trim()}),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const log = await resp.json();
+
+      const empty = document.getElementById('timelog-empty');
+      if (empty) empty.remove();
+
+      const list = document.getElementById('timelog-list');
+      list.appendChild(buildTimeLogEl(log));
+      minsEl.value = '';
+      noteEl.value = '';
+    } catch (err) {
+      alert('Failed to log time: ' + err.message);
+    }
+  }
+
+  async function deleteTimeLog(id, btn) {
+    if (!confirm('Delete this time entry?')) return;
+    try {
+      const resp = await fetch('/api/time-logs/' + id, {method: 'DELETE'});
+      if (!resp.ok) throw new Error(await resp.text());
+      btn.closest('.timelog-item').remove();
+      const list = document.getElementById('timelog-list');
+      if (list.querySelectorAll('.timelog-item').length === 0) {
+        const p = document.createElement('p');
+        p.className = 'timelog-empty';
+        p.id = 'timelog-empty';
+        p.textContent = 'No time logged yet.';
+        list.appendChild(p);
+      }
+    } catch (err) {
+      alert('Failed to delete time entry: ' + err.message);
+    }
+  }
+
+  function buildTimeLogEl(l) {
+    const div = document.createElement('div');
+    div.className = 'timelog-item';
+    div.dataset.logId = l.id;
+    div.innerHTML =
+      `<span class="timelog-duration">${l.duration_mins} min</span>` +
+      (l.note ? `<span class="timelog-note">${escapeHTML(l.note)}</span>` : '') +
+      `<div class="timelog-meta">` +
+        `<span class="timelog-time">${escapeHTML(l.formatted_time)}</span>` +
+        `<button class="timelog-delete" title="Delete entry" ` +
+          `onclick="deleteTimeLog('${l.id}', this)">×</button>` +
+      `</div>`;
+    return div;
+  }
+
+  // Auto-log time when a Pomodoro/Focus timer completes.
+  // focusDoneMins is set by the focus timer JS when it fires the done notification.
+  function autoLogFocusTime(mins) {
+    fetch('/api/tasks/{{.Task.ID}}/time-logs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({duration_mins: mins, note: 'Focus timer'}),
+    }).then(r => r.ok ? r.json() : null).then(log => {
+      if (!log) return;
+      const empty = document.getElementById('timelog-empty');
+      if (empty) empty.remove();
+      const list = document.getElementById('timelog-list');
+      if (list) list.appendChild(buildTimeLogEl(log));
+    }).catch(() => {});
   }
 
   // ── Tags ────────────────────────────────────────────────────────────────────

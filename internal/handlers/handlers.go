@@ -340,6 +340,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.registerCommentRoutes(mux)
 	h.registerTagRoutes(mux)
 	h.registerReminderRoutes(mux)
+	h.registerTimeLogRoutes(mux)
 	h.registerExportRoutes(mux)
 	h.registerCalendarRoutes(mux)
 	h.registerStandupRoutes(mux)
@@ -643,6 +644,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	blocker, _ := h.db.GetBlockerTask(t.ID)
 	comments, _ := h.db.ListComments(t.ID)
 	reminders, _ := h.db.ListRemindersForTask(t.ID)
+	timeLogs, _ := h.db.ListTimeLogs(t.ID)
 
 	// Split sessions into pinned / unpinned for prominent display.
 	var pinnedSessions, unpinnedSessions []*models.Session
@@ -663,6 +665,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		"Blocker":          blocker,
 		"Comments":         comments,
 		"Reminders":        reminders,
+		"TimeLogs":         timeLogs,
 		"Nav":           "tasks",
 	})
 }

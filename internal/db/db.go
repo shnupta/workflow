@@ -150,6 +150,17 @@ func (d *DB) migrate() error {
 		)
 	`)
 
+	// Time logs table — records of time spent on a task
+	_, _ = d.conn.Exec(`
+		CREATE TABLE IF NOT EXISTS time_logs (
+			id            TEXT PRIMARY KEY,
+			task_id       TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			logged_at     TEXT    NOT NULL,
+			duration_mins INTEGER NOT NULL DEFAULT 0,
+			note          TEXT    NOT NULL DEFAULT ''
+		)
+	`)
+
 	// Session migrations
 	for _, col := range []string{
 		`ALTER TABLE sessions ADD COLUMN archived  INTEGER NOT NULL DEFAULT 0`,
@@ -2606,4 +2617,64 @@ func (d *DB) ListDepGraph() ([]*DepNode, []*DepEdge, error) {
 	}
 
 	return nodes, edges, nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Time Logs
+// ─────────────────────────────────────────────────────────────────────────────
+
+// LogTime creates a new time log entry for a task.
+func (d *DB) LogTime(taskID string, durationMins int, note string) (*models.TimeLog, error) {
+	id := uuid.New().String()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.conn.Exec(
+		`INSERT INTO time_logs (id, task_id, logged_at, duration_mins, note) VALUES (?, ?, ?, ?, ?)`,
+		id, taskID, now, durationMins, note,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return d.getTimeLog(id)
+}
+
+func (d *DB) getTimeLog(id string) (*models.TimeLog, error) {
+	var l models.TimeLog
+	var loggedAt string
+	err := d.conn.QueryRow(
+		`SELECT id, task_id, logged_at, duration_mins, note FROM time_logs WHERE id=?`, id,
+	).Scan(&l.ID, &l.TaskID, &loggedAt, &l.DurationMins, &l.Note)
+	if err != nil {
+		return nil, err
+	}
+	l.LoggedAt, _ = time.Parse(time.RFC3339, loggedAt)
+	return &l, nil
+}
+
+// ListTimeLogs returns all time log entries for a task, oldest first.
+func (d *DB) ListTimeLogs(taskID string) ([]*models.TimeLog, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, task_id, logged_at, duration_mins, note FROM time_logs WHERE task_id=? ORDER BY logged_at ASC`,
+		taskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var logs []*models.TimeLog
+	for rows.Next() {
+		var l models.TimeLog
+		var loggedAt string
+		if err := rows.Scan(&l.ID, &l.TaskID, &loggedAt, &l.DurationMins, &l.Note); err != nil {
+			return nil, err
+		}
+		l.LoggedAt, _ = time.Parse(time.RFC3339, loggedAt)
+		logs = append(logs, &l)
+	}
+	return logs, rows.Err()
+}
+
+// DeleteTimeLog removes a time log entry by ID.
+func (d *DB) DeleteTimeLog(id string) error {
+	_, err := d.conn.Exec(`DELETE FROM time_logs WHERE id=?`, id)
+	return err
 }

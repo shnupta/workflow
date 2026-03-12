@@ -1203,6 +1203,110 @@ input[type="date"] {
   justify-content: flex-end;
 }
 
+/* ── Time Log panel ── */
+.timelog-panel {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.timelog-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.timelog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.timelog-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.timelog-duration {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+  min-width: 52px;
+}
+.timelog-note {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timelog-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.timelog-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.timelog-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s, color 0.15s;
+}
+.timelog-delete:hover { opacity: 1; color: var(--red); }
+.timelog-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 4px 0 12px;
+}
+.timelog-form { margin-top: 4px; }
+.timelog-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.timelog-mins-input {
+  width: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.timelog-mins-input::placeholder { color: var(--text-muted); }
+.timelog-mins-input:focus { outline: none; border-color: var(--accent); }
+.timelog-note-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.timelog-note-input::placeholder { color: var(--text-muted); }
+.timelog-note-input:focus { outline: none; border-color: var(--accent); }
+
 /* ── Reminders panel ── */
 .reminders-panel {
   margin-top: 32px;
