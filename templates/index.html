@@ -747,34 +747,39 @@
     setFilter(filterVal, chip || document.querySelector('[data-filter="all"]'));
   }
 
+  function cardMatchesFilter(card) {
+    if (currentFilter === 'all') return true;
+    if (currentFilter === 'blocked_on_me' || currentFilter === 'blocked_on_them')
+      return card.dataset.direction === currentFilter;
+    if (currentFilter.startsWith('tag:')) {
+      const tag = currentFilter.slice(4);
+      try { return JSON.parse(card.dataset.tags || '[]').includes(tag); }
+      catch (_) { return false; }
+    }
+    if (currentFilter.startsWith('priority:'))
+      return card.dataset.priority === currentFilter.slice(9);
+    if (currentFilter === 'starred')
+      return card.dataset.starred === '1';
+    return card.dataset.type === currentFilter;
+  }
+
   function applyFilter() {
-    const cards = document.querySelectorAll('.task-card');
-    cards.forEach(card => {
-      let show = true;
-      if (currentFilter === 'all') {
-        show = true;
-      } else if (currentFilter === 'blocked_on_me' || currentFilter === 'blocked_on_them') {
-        show = card.dataset.direction === currentFilter;
-      } else if (currentFilter.startsWith('tag:')) {
-        const tag = currentFilter.slice(4);
-        try {
-          const tags = JSON.parse(card.dataset.tags || '[]');
-          show = tags.includes(tag);
-        } catch (_) { show = false; }
-      } else if (currentFilter.startsWith('priority:')) {
-        const pri = currentFilter.slice(9);
-        show = card.dataset.priority === pri;
-      } else if (currentFilter === 'starred') {
-        show = card.dataset.starred === '1';
-      } else {
-        show = card.dataset.type === currentFilter;
-      }
-      card.style.display = show ? '' : 'none';
+    // 1. Show/hide every card according to the current filter.
+    document.querySelectorAll('.task-card').forEach(card => {
+      card.style.display = cardMatchesFilter(card) ? '' : 'none';
     });
 
-    // Update empty state messages per column
+    // 2. If swimlanes are active, rebuild the lane groupings so that hidden
+    //    cards are excluded from lanes and counts update correctly.
+    if (swimelanesActive) {
+      buildSwimlanes();
+      return; // buildSwimlanes handles empty-state for swimlane mode
+    }
+
+    // 3. Update the per-column empty-state message (flat / non-swimlane mode).
     document.querySelectorAll('.tier-col').forEach(col => {
       const list = col.querySelector('.task-list');
+      // Cards may be direct children or nested inside .swimlane-cards wrappers.
       const visible = [...list.querySelectorAll('.task-card')].filter(c => c.style.display !== 'none');
       let empty = list.querySelector('.empty');
       if (visible.length === 0) {
@@ -826,11 +831,12 @@
       const list = col.querySelector('.task-list');
       if (!list) return;
 
-      // Collect visible cards
-      const cards = [...list.querySelectorAll('.task-card')];
-      if (cards.length === 0) return;
+      // Collect ALL cards (including those currently inside lane wrappers)
+      // but exclude cards hidden by the active filter.
+      const allCards = [...list.querySelectorAll('.task-card')];
+      const cards = allCards.filter(c => c.style.display !== 'none');
 
-      // Group by first tag
+      // Group visible cards by their first tag.
       const laneMap = new Map(); // tag → [card, ...]
       cards.forEach(card => {
         let tags = [];
@@ -847,7 +853,10 @@
         return a.localeCompare(b);
       });
 
-      // Rebuild list content with lane headers
+      // Rebuild list content with lane headers + visible cards.
+      // Hidden (filtered-out) cards are re-appended after the lanes so they
+      // stay in the DOM but remain invisible, ready to reappear when the
+      // filter is cleared.
       list.innerHTML = '';
       sortedKeys.forEach(tag => {
         const header = document.createElement('div');
@@ -865,6 +874,24 @@
         laneMap.get(tag).forEach(c => wrapper.appendChild(c));
         list.appendChild(wrapper);
       });
+
+      // Park hidden cards at the end of the list (outside all lane wrappers).
+      const hidden = allCards.filter(c => c.style.display === 'none');
+      hidden.forEach(c => list.appendChild(c));
+
+      // Empty state for this column (swimlane mode).
+      let empty = list.querySelector('.empty');
+      if (cards.length === 0) {
+        if (!empty) {
+          empty = document.createElement('p');
+          empty.className = 'empty filter-empty';
+          list.appendChild(empty);
+        }
+        empty.textContent = currentFilter === 'all' ? 'Nothing here' : 'No matching tasks';
+        empty.style.display = '';
+      } else if (empty) {
+        empty.style.display = 'none';
+      }
     });
   }
 
