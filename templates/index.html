@@ -736,6 +736,7 @@
     btn.classList.add('active');
 
     applyFilter();
+    updateTabTitle();
   }
 
   // Called when a tag chip on a board card is clicked.
@@ -1148,11 +1149,6 @@
 
   // Call on load and after filter changes.
   updateTabTitle();
-  // Patch applyFilter to also refresh the title.
-  const _origApplyFilter = applyFilter;
-  // (Already called at load via restoreFilter — hook into setFilter)
-  const _origSetFilter = setFilter;
-  function setFilter(val, chip) { _origSetFilter(val, chip); updateTabTitle(); }
 
   // ── Column count badge helper ──────────────────────────────────────────────
 
