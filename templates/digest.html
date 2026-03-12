@@ -44,7 +44,7 @@
         </div>
         <div class="digest-stat">
           <div class="digest-stat-value">{{len .Digest.InProgress}}</div>
-          <div class="digest-stat-label">in progress</div>
+          <div class="digest-stat-label">in progress{{if gt .Digest.AvgAgeDays 0.0}} <span class="digest-vs-label" title="Average age of in-progress tasks">(avg {{avgAgeDaysLabel .Digest.AvgAgeDays}})</span>{{end}}</div>
         </div>
         <div class="digest-stat">
           <div class="digest-stat-value">{{.Digest.SessionCount}}</div>

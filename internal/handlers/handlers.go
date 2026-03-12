@@ -202,6 +202,15 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return t.Format("Jan 2")
 		},
+		"avgAgeDaysLabel": func(days float64) string {
+			if days < 1.0 {
+				return "< 1d"
+			}
+			if days < 7 {
+				return fmt.Sprintf("%.0fd", days)
+			}
+			return fmt.Sprintf("%.1fw", days/7)
+		},
 		"sprintPct": func(done, goal int) int {
 			if goal <= 0 {
 				return 0

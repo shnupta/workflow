@@ -1511,6 +1511,7 @@ type DigestWeek struct {
 	TimeDeltaPct     int    // % change in total time vs last week (+/-); 0 if no prior data
 	AvgCycleDays     float64           // average days from created_at → done_at for tasks done this week
 	CycleByType      []CycleTimeEntry  // per-work-type cycle time, sorted by avg days desc
+	AvgAgeDays       float64           // average age (days since created_at) of current in-progress tasks
 }
 
 // CycleTimeEntry holds cycle-time data for one work type.
@@ -1599,6 +1600,15 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 		dt.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)
 		dw.InProgress = append(dw.InProgress, &dt)
 		dw.TotalTimeSecs += dt.ElapsedSeconds()
+	}
+
+	// Compute average age of in-progress tasks (days since created_at)
+	if len(dw.InProgress) > 0 {
+		var totalAge float64
+		for _, t := range dw.InProgress {
+			totalAge += float64(time.Since(t.CreatedAt).Hours()) / 24.0
+		}
+		dw.AvgAgeDays = totalAge / float64(len(dw.InProgress))
 	}
 
 	// Session count for the week
