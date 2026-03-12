@@ -23,12 +23,23 @@
           <span class="notes-sidebar-title">Notes</span>
           <button class="btn btn-primary btn-sm" onclick="newNote()">+ New</button>
         </div>
+        {{if .AllTags}}
+        <div class="notes-tag-filters">
+          <a href="/notes" class="notes-tag-chip{{if not .ActiveTag}} notes-tag-chip--active{{end}}">All</a>
+          {{range .AllTags}}
+          <a href="/notes?tag={{.}}" class="notes-tag-chip{{if eq . $.ActiveTag}} notes-tag-chip--active{{end}}">{{.}}</a>
+          {{end}}
+        </div>
+        {{end}}
         <div class="notes-list" id="notes-list">
           {{if .Notes}}
             {{range .Notes}}
             <div class="note-list-item" data-id="{{.ID}}" onclick="loadNote('{{.ID}}')">
               <div class="note-list-title">{{.DisplayTitle}}</div>
-              <div class="note-list-time">{{timeAgo .UpdatedAt}}</div>
+              <div class="note-list-meta">
+                <span class="note-list-time">{{timeAgo .UpdatedAt}}</span>
+                {{range .Tags}}<span class="note-tag-badge">{{.}}</span>{{end}}
+              </div>
             </div>
             {{end}}
           {{else}}
@@ -41,6 +52,9 @@
       <div class="notes-editor-pane" id="notes-editor-pane">
         <div class="notes-editor-toolbar" id="notes-toolbar" style="display:none">
           <span class="notes-save-status" id="notes-save-status"></span>
+          <div class="notes-toolbar-tags">
+            <input type="text" id="notes-tags-input" class="notes-tags-field" placeholder="tags (comma-separated)" oninput="onTagsInput()">
+          </div>
           <div class="notes-toolbar-right">
             <button class="btn btn-ghost btn-sm" id="notes-preview-btn" onclick="togglePreview()">Preview</button>
             <button class="btn btn-ghost btn-sm" onclick="deleteNote()" title="Delete note">Delete</button>
@@ -132,6 +146,12 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNote, 800);
     if (previewing) renderPreview(document.getElementById('notes-editor').value);
+  }
+
+  function onTagsInput() {
+    setSaveStatus('Unsaved');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNote, 1000);
   }
 
   async function saveNote() {

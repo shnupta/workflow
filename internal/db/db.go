@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"time"
 
@@ -94,10 +95,13 @@ func (d *DB) migrate() error {
 			task_id    TEXT NOT NULL DEFAULT '',
 			title      TEXT NOT NULL DEFAULT '',
 			content    TEXT NOT NULL DEFAULT '',
+			tags       TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)
 	`)
+	// Migrate: add tags column to notes for existing DBs that pre-date this column
+	_, _ = d.conn.Exec(`ALTER TABLE notes ADD COLUMN tags TEXT NOT NULL DEFAULT ''`)
 
 	// Task templates table
 	_, _ = d.conn.Exec(`
@@ -1239,7 +1243,7 @@ func (d *DB) UpdateNote(n *models.Note) error {
 }
 
 func (d *DB) GetNote(id string) (*models.Note, error) {
-	row := d.conn.QueryRow(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE id=?`, id)
+	row := d.conn.QueryRow(`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE id=?`, id)
 	return scanNote(row)
 }
 
@@ -1247,9 +1251,9 @@ func (d *DB) ListNotes(taskID string) ([]*models.Note, error) {
 	var rows *sql.Rows
 	var err error
 	if taskID == "" {
-		rows, err = d.conn.Query(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE task_id='' ORDER BY updated_at DESC`)
+		rows, err = d.conn.Query(`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id='' ORDER BY updated_at DESC`)
 	} else {
-		rows, err = d.conn.Query(`SELECT id, task_id, title, content, created_at, updated_at FROM notes WHERE task_id=? ORDER BY updated_at DESC`, taskID)
+		rows, err = d.conn.Query(`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes WHERE task_id=? ORDER BY updated_at DESC`, taskID)
 	}
 	if err != nil {
 		return nil, err
@@ -1264,6 +1268,55 @@ func (d *DB) ListNotes(taskID string) ([]*models.Note, error) {
 		out = append(out, n)
 	}
 	return out, rows.Err()
+}
+
+// ListNotesByTag returns global notes containing the given tag.
+func (d *DB) ListNotesByTag(tag string) ([]*models.Note, error) {
+	rows, err := d.conn.Query(
+		`SELECT id, task_id, title, content, tags, created_at, updated_at FROM notes
+		 WHERE task_id='' AND (tags=? OR tags LIKE ? OR tags LIKE ? OR tags LIKE ?)
+		 ORDER BY updated_at DESC`,
+		tag, tag+",%", "%,"+tag, "%,"+tag+",%",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Note
+	for rows.Next() {
+		n, err := scanNote(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// NoteTags returns a deduplicated sorted list of all tags used in global notes.
+func (d *DB) NoteTags() ([]string, error) {
+	rows, err := d.conn.Query(`SELECT DISTINCT tags FROM notes WHERE task_id='' AND tags != '' ORDER BY tags`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	seen := map[string]bool{}
+	var all []string
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		for _, t := range strings.Split(raw, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" && !seen[t] {
+				seen[t] = true
+				all = append(all, t)
+			}
+		}
+	}
+	sort.Strings(all)
+	return all, rows.Err()
 }
 
 func (d *DB) DeleteNote(id string) error {
@@ -1339,7 +1392,7 @@ type noteScanner interface {
 func scanNote(row noteScanner) (*models.Note, error) {
 	var n models.Note
 	var createdAt, updatedAt string
-	err := row.Scan(&n.ID, &n.TaskID, &n.Title, &n.Content, &createdAt, &updatedAt)
+	err := row.Scan(&n.ID, &n.TaskID, &n.Title, &n.Content, &n.TagsRaw, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,7 @@ func (h *Handler) apiCreateNote(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TaskID  string `json:"task_id"`
 		Content string `json:"content"`
+		Tags    string `json:"tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request", 400)
@@ -43,6 +44,7 @@ func (h *Handler) apiCreateNote(w http.ResponseWriter, r *http.Request) {
 		TaskID:  body.TaskID,
 		Content: body.Content,
 		Title:   deriveTitleFromContent(body.Content),
+		TagsRaw: normaliseTags(body.Tags),
 	}
 	if err := h.db.CreateNote(n); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -71,6 +73,7 @@ func (h *Handler) apiUpdateNote(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Content string `json:"content"`
+		Tags    string `json:"tags"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad request", 400)
@@ -78,6 +81,9 @@ func (h *Handler) apiUpdateNote(w http.ResponseWriter, r *http.Request) {
 	}
 	n.Content = body.Content
 	n.Title = deriveTitleFromContent(body.Content)
+	if body.Tags != "" || r.ContentLength > 0 {
+		n.TagsRaw = normaliseTags(body.Tags)
+	}
 	if err := h.db.UpdateNote(n); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -92,6 +98,20 @@ func (h *Handler) apiDeleteNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// normaliseTags normalises a comma-separated tag string: lowercase, trimmed, deduped.
+func normaliseTags(raw string) string {
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range strings.Split(raw, ",") {
+		t = strings.ToLower(strings.TrimSpace(t))
+		if t != "" && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 // deriveTitleFromContent extracts the first non-empty line (stripped of # heading markers).

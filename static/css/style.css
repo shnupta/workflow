@@ -3942,3 +3942,63 @@ input[type="date"] {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* ── Notes tag filters ─────────────────────────────────────────────────────── */
+.notes-tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.notes-tag-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  transition: background 0.15s, color 0.15s;
+}
+.notes-tag-chip:hover { background: var(--bg-active); color: var(--fg); }
+.notes-tag-chip--active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Note list item meta / tag badges ──────────────────────────────────────── */
+.note-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.note-list-time { font-size: 11px; color: var(--fg-muted); }
+.note-tag-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+}
+
+/* ── Notes toolbar tags input ──────────────────────────────────────────────── */
+.notes-toolbar-tags {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+.notes-tags-field {
+  width: 100%;
+  max-width: 300px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  outline: none;
+}
+.notes-tags-field::placeholder { color: var(--fg-muted); opacity: 0.6; }
+.notes-tags-field:focus { border-bottom-color: var(--accent); color: var(--fg); }
