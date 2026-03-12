@@ -52,6 +52,11 @@ type Config struct {
 	// 0 means no goal is set (progress bar hidden). Resets manually or via UI.
 	SprintGoal int `json:"sprint_goal,omitempty"`
 
+	// WIPLimit is the maximum number of tasks allowed in the "Today" column.
+	// When exceeded, an amber warning banner is shown on the board.
+	// 0 means no limit (no warning shown). Defaults to 5.
+	WIPLimit int `json:"wip_limit,omitempty"`
+
 	// Board config
 	WorkTypes []WorkType `json:"work_types"`
 	Tiers     []Tier     `json:"tiers"`

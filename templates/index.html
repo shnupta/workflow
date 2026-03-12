@@ -82,7 +82,13 @@
     </div>
     {{end}}
 
-    <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)">
+    <div id="wip-warning" class="wip-warning" style="display:none">
+      ⚠ WIP limit reached — <span id="wip-count"></span> tasks in Today (limit: <span id="wip-limit"></span>). Consider finishing something before starting more.
+      <button class="wip-dismiss" onclick="document.getElementById('wip-warning').style.display='none'">✕</button>
+    </div>
+
+    <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)"
+         data-wip-limit="{{.WIPLimit}}">
       {{range .Tiers}}
       <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}">
         <h2 class="tier-heading">{{.Label}} <span class="count">{{len .Tasks}}</span></h2>
@@ -1224,6 +1230,39 @@
       empty.style.display = 'none';
     }
   }
+
+  // ── WIP limit warning ──────────────────────────────────────────────────────
+  function checkWIPLimit() {
+    const board = document.querySelector('.board');
+    if (!board) return;
+    const wipLimit = parseInt(board.dataset.wipLimit || '5', 10);
+    if (wipLimit <= 0) return;
+
+    const todayCol = board.querySelector('.tier-col[data-tier="today"]');
+    if (!todayCol) return;
+    const visibleCards = todayCol.querySelectorAll('.task-card:not([style*="display: none"]):not([style*="display:none"])');
+    const count = visibleCards.length;
+
+    const warning = document.getElementById('wip-warning');
+    if (!warning) return;
+    if (count > wipLimit) {
+      document.getElementById('wip-count').textContent = count;
+      document.getElementById('wip-limit').textContent = wipLimit;
+      warning.style.display = '';
+    } else {
+      warning.style.display = 'none';
+    }
+  }
+
+  // Check on load and after filter changes
+  checkWIPLimit();
+  document.addEventListener('board-updated', checkWIPLimit);
+  // Re-check after drag-drop (MutationObserver on the today column)
+  (() => {
+    const todayCol = document.querySelector('.tier-col[data-tier="today"] .task-list');
+    if (!todayCol) return;
+    new MutationObserver(checkWIPLimit).observe(todayCol, { childList: true, subtree: true });
+  })();
 </script>
 </body>
 </html>

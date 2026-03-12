@@ -569,6 +569,10 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	recentDone, _ := h.db.RecentlyDone(8) // last 8 tasks done in past 24h
 	doneThisWeek, _ := h.db.CountDoneThisWeek()
 	sprintGoal := h.cfg().SprintGoal
+	wipLimit := h.cfg().WIPLimit
+	if wipLimit == 0 {
+		wipLimit = 5
+	}
 
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":           tiers,
@@ -579,6 +583,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		"RecentDone":      recentDone,
 		"SprintGoal":      sprintGoal,
 		"DoneThisWeek":    doneThisWeek,
+		"WIPLimit":        wipLimit,
 	})
 }
 
