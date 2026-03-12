@@ -647,10 +647,11 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Activity feed filtering by event type**
-  - Checkbox filters: show only completions, only sessions, only comments
-  - Pure JS client-side filtering (events already in DOM)
+- [x] **Activity feed filtering by event type** ✅ 2026-03-11
+  - 5 filter chips: All / ✓ Done / ＋ Created / ▶ Sessions / 💬 Comments
+  - Pure JS: hides events by data-kind; day dividers hidden when empty
+  - Filter persisted in localStorage
 
-- [ ] **Activity RSS/JSON feed**
-  - `GET /activity.json` — machine-readable activity for external tools
-  - Useful for building a changelog, team digest, or Slack integration
+- [x] **Activity JSON feed** ✅ 2026-03-11
+  - GET /activity.json?days=N — {days, count, events[]}
+  - RFC3339 timestamps; task_url for linking; { } button in activity header
