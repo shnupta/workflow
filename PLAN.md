@@ -751,9 +751,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Session message count badge on task page**
-  - On the task sessions list, show message count per session (already fetched in ListSessions?)
-  - Small numeric badge next to session duration/status
+- [x] **Session message count badge on task page** ✅ 2026-03-12
+  - Session.MessageCount field; ListSessions LEFT JOIN messages COUNT
+  - "N msg" badge on unpinned session cards when N > 0; CSS pill style
 
 - [x] **Pomodoro auto-log integration** ✅ 2026-03-12
   - focusStartedMins tracks duration; focusDone() calls autoLogFocusTime(focusStartedMins)
