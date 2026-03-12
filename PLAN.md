@@ -798,3 +798,15 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Draggable disabled on card during edit, restored on finish
   - No backend change needed (endpoint already existed)
   - 226 tests green
+
+---
+
+## New features (proposed 2026-03-12 nudge 6)
+
+### Medium priority
+
+- [x] **Scratchpad overlay from board (e key)** ✅ 2026-03-12
+  - Press 'e' on focused board card → modal overlay with textarea
+  - Loads GET /api/tasks/{id}/scratchpad; auto-saves on 600ms debounce
+  - Ctrl/Cmd+S force-save; Esc/click-outside to close; saving.../saved status
+  - Keyboard cheatsheet updated; monospace textarea; 226 tests green
