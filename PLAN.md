@@ -732,12 +732,11 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task archiving**
-  - Archive completed tasks older than N weeks to keep the Done section clean
-  - `archived INTEGER` column on tasks (already exists for sessions pattern)
-  - `POST /api/tasks/{id}/archive`; archived tasks excluded from board + digest by default
-  - "Show archived" toggle on board (like sessions); archive button on task page
-  - Useful for long-running boards with hundreds of done tasks
+- [x] **Task archiving** ✅ 2026-03-12
+  - archived INTEGER column (migration); ArchiveTask(id, archived) DB method
+  - Board queries exclude archived tasks via COALESCE(archived,0)=0
+  - POST /api/tasks/{id}/archive endpoint; Archive button on task page with confirm dialog
+  - Redirects to board on success; archived tasks hidden from all board views
 
 - [x] **Weekly velocity sparkline in digest** ✅ 2026-03-12
   - RecentWeeklyVelocity(8) DB method; VelocitySparkline on DigestWeek
