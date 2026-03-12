@@ -744,10 +744,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - sparklineSVG template func: 80×20px SVG; past weeks muted, current week accented
   - Rendered inline in digest 'completed' stat label; 224 tests passing
 
-- [ ] **Task "waiting since" nudge in daily standup**
-  - In the standup generator (`/standup`), highlight tasks that have been in WaitingOnOthers for 3+ days
-  - Adds a "⏰ Chase needed" section to the standup output
-  - Pure query on existing data — no new schema
+- [x] **"Chase needed" section in daily standup** ✅ 2026-03-12
+  - WaitingStandupTasks() DB method: direction='blocked_on_them', not done, 3+ days old
+  - Standup page shows "⏰ Chase needed" amber section when waiting items exist
+  - Also appended to standup text for copy-paste; today-only (not historical days)
 
 ### Lower priority
 
