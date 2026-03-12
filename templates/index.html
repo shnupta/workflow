@@ -1231,6 +1231,89 @@
     }
   }
 
+  // ── Inline card title editing ────────────────────────────────────────────────
+  function inlineEditCardTitle(e, anchor) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const taskId = anchor.dataset.id;
+    const originalTitle = anchor.textContent.trim();
+    const originalHref = anchor.href;
+
+    // Replace anchor with a contenteditable span
+    const input = document.createElement('span');
+    input.className = 'task-title task-title-editing';
+    input.contentEditable = 'true';
+    input.textContent = originalTitle;
+    anchor.replaceWith(input);
+    input.focus();
+
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(input);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    let saved = false;
+
+    function save() {
+      if (saved) return;
+      saved = true;
+      const newTitle = input.textContent.trim();
+      // Restore the anchor
+      const a = document.createElement('a');
+      a.href = originalHref;
+      a.className = 'task-title';
+      a.dataset.id = taskId;
+      a.setAttribute('ondblclick', 'inlineEditCardTitle(event, this)');
+      a.setAttribute('title', 'Double-click to edit title');
+      a.textContent = newTitle || originalTitle;
+      input.replaceWith(a);
+
+      if (!newTitle || newTitle === originalTitle) return;
+
+      fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: newTitle}),
+      }).then(r => {
+        if (!r.ok) {
+          // Revert on error
+          a.textContent = originalTitle;
+        }
+      }).catch(() => { a.textContent = originalTitle; });
+    }
+
+    function cancel() {
+      if (saved) return;
+      saved = true;
+      const a = document.createElement('a');
+      a.href = originalHref;
+      a.className = 'task-title';
+      a.dataset.id = taskId;
+      a.setAttribute('ondblclick', 'inlineEditCardTitle(event, this)');
+      a.setAttribute('title', 'Double-click to edit title');
+      a.textContent = originalTitle;
+      input.replaceWith(a);
+    }
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', save);
+
+    // Disable drag on the parent card while editing
+    const card = input.closest('.task-card');
+    if (card) card.draggable = false;
+    const restoreDrag = () => { if (card) card.draggable = true; };
+    input.addEventListener('blur', restoreDrag, {once: true});
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === 'Escape') restoreDrag();
+    });
+  }
+
   // ── WIP limit warning ──────────────────────────────────────────────────────
   function checkWIPLimit() {
     const board = document.querySelector('.board');
@@ -1293,7 +1376,7 @@
     {{if .IsRecurring}}<span class="tag tag-recurring" title="Recurring task">↻</span>{{end}}
     {{if .Starred}}<span class="card-star-badge" title="Starred">★</span>{{end}}
   </div>
-  <a href="/tasks/{{.ID}}" class="task-title">{{.Title}}</a>
+  <a href="/tasks/{{.ID}}" class="task-title" data-id="{{.ID}}" ondblclick="inlineEditCardTitle(event, this)" title="Double-click to edit title">{{.Title}}</a>
   {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
   {{if .Tags}}
   <div class="card-tags">

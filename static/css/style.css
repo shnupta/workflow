@@ -4263,3 +4263,18 @@ input[type="date"] {
   flex-shrink: 0;
 }
 .wip-dismiss:hover { color: var(--fg); }
+
+/* ── Inline card title editing ───────────────────────────────────────────── */
+.task-title-editing {
+  display: block;
+  width: 100%;
+  outline: none;
+  border-bottom: 1px solid var(--accent);
+  cursor: text;
+  color: var(--fg);
+  font-size: inherit;
+  font-weight: 500;
+  line-height: 1.4;
+  padding-bottom: 1px;
+  word-break: break-word;
+}
