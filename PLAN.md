@@ -773,3 +773,15 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - ListArchivedTasks() DB method; archive-page CSS; Archive nav link after Activity
   - 2 new handler tests; 226 total green
 
+
+---
+
+## New features (proposed 2026-03-12 nudge 4)
+
+### Medium priority
+
+- [x] **WIP limit warning** ✅ 2026-03-12
+  - Config.WIPLimit (default 5); passes to board template via data-wip-limit attr
+  - Amber warning banner when Today column has > N visible cards
+  - MutationObserver re-checks on drag-drop; dismiss button; board-updated event hook
+  - Zero backend; CSS consistent with overdue palette; 226 tests green
