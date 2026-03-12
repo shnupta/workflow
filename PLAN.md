@@ -670,20 +670,15 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task "link" field surfaced on board card**
-  - Tasks have a `link` field (often PR URL) but it's only visible on task detail page
-  - Small "↗" icon on board cards when link is set; click opens in new tab
-  - Zero backend — data-link attribute on card, JS handler
+- [x] **Task "link" field surfaced on board card** ✅ 2026-03-12
+  - ↗ anchor in card actions; opens in new tab; only renders when link set
 
-- [ ] **Digest: show P1/overdue count as headline warning**
-  - If there are P1 tasks or overdue tasks not done this week, show a red/amber
-    callout at top of digest: "3 overdue · 1 P1 still open"
-  - Helps the weekly review not miss urgent items
+- [x] **Digest: P1/overdue callout** ✅ 2026-03-12
+  - DigestWeek.OpenP1Count + OverdueCount; amber/red callout above stats bar
 
-- [ ] **Board: show task comment count badge on card**
-  - Small grey badge (e.g. "💬 3") on cards that have comments
-  - Requires joining task_comments count into ListTasks query
-  - DB: add CommentCount to Task model via LEFT JOIN
+- [x] **Board: comment count badge on card** ✅ 2026-03-12
+  - CommentCount on Task model; populateCommentCounts() single GROUP BY query
+  - '💬 N' badge on card when N > 0
 
 ### Lower priority
 
