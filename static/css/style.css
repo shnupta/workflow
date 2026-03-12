@@ -2516,6 +2516,7 @@ input[type="date"] {
 .digest-velocity--down { color: #f87171; }
 .digest-velocity--flat { color: var(--text-muted); }
 .digest-vs-label { font-size: 10px; color: var(--text-muted); font-weight: 400; }
+.digest-sparkline { display: inline-block; margin-left: 6px; opacity: 0.85; vertical-align: middle; }
 
 .digest-task-check {
   font-size: 14px;

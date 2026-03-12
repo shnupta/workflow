@@ -284,6 +284,45 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 				return detail
 			}
 		},
+		// sparklineSVG renders a mini bar-chart SVG from a []int slice (weekly counts).
+		// The last bar is highlighted in accent colour; others are dimmed.
+		"sparklineSVG": func(counts []int) template.HTML {
+			if len(counts) == 0 {
+				return ""
+			}
+			// Find max for scaling
+			maxVal := 1
+			for _, c := range counts {
+				if c > maxVal {
+					maxVal = c
+				}
+			}
+			n := len(counts)
+			w, h := 80, 20
+			barW := w / n
+			gap := 1
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" style="display:inline-block;vertical-align:middle">`, w, h))
+			for i, c := range counts {
+				barH := 1
+				if c > 0 {
+					barH = c * (h - 2) / maxVal
+					if barH < 2 {
+						barH = 2
+					}
+				}
+				x := i * barW + gap
+				y := h - barH
+				colour := "#4b5563" // muted for past weeks
+				if i == n-1 {
+					colour = "#6366f1" // accent for current week
+				}
+				sb.WriteString(fmt.Sprintf(`<rect x="%d" y="%d" width="%d" height="%d" rx="1" fill="%s"/>`,
+					x, y, barW-gap*2, barH, colour))
+			}
+			sb.WriteString(`</svg>`)
+			return template.HTML(sb.String())
+		},
 	}
 
 	tmpl, err := template.New("").Funcs(funcMap).ParseGlob(tmplGlob)

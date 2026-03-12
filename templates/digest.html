@@ -47,7 +47,7 @@
               {{else}}<span class="digest-velocity digest-velocity--flat" title="same as last week">→</span>{{end}}
             {{end}}
           </div>
-          <div class="digest-stat-label">completed{{if gt .Digest.DoneLastWeek 0}} <span class="digest-vs-label">({{.Digest.DoneLastWeek}} last wk)</span>{{end}}</div>
+          <div class="digest-stat-label">completed{{if gt .Digest.DoneLastWeek 0}} <span class="digest-vs-label">({{.Digest.DoneLastWeek}} last wk)</span>{{end}}{{if .Digest.VelocitySparkline}}<span class="digest-sparkline" title="Weekly velocity, last 8 weeks">{{sparklineSVG .Digest.VelocitySparkline}}</span>{{end}}</div>
         </div>
         <div class="digest-stat">
           <div class="digest-stat-value">{{len .Digest.InProgress}}</div>

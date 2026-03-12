@@ -1591,8 +1591,9 @@ type DigestWeek struct {
 	AvgCycleDays     float64           // average days from created_at → done_at for tasks done this week
 	CycleByType      []CycleTimeEntry  // per-work-type cycle time, sorted by avg days desc
 	AvgAgeDays       float64           // average age (days since created_at) of current in-progress tasks
-	OpenP1Count      int               // open tasks with priority=P1
-	OverdueCount     int               // open tasks that are overdue (due_date < today, not done)
+	OpenP1Count          int               // open tasks with priority=P1
+	OverdueCount         int               // open tasks that are overdue (due_date < today, not done)
+	VelocitySparkline    []int             // tasks completed per week, last 8 weeks (oldest first)
 }
 
 // CycleTimeEntry holds cycle-time data for one work type.
@@ -1815,6 +1816,11 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 		if totalCount > 0 {
 			dw.AvgCycleDays = totalDays / float64(totalCount)
 		}
+	}
+
+	// Velocity sparkline for last 8 weeks
+	if sparkline, err := d.RecentWeeklyVelocity(8); err == nil {
+		dw.VelocitySparkline = sparkline
 	}
 
 	return dw, nil
@@ -2689,4 +2695,30 @@ func (d *DB) ListTimeLogs(taskID string) ([]*models.TimeLog, error) {
 func (d *DB) DeleteTimeLog(id string) error {
 	_, err := d.conn.Exec(`DELETE FROM time_logs WHERE id=?`, id)
 	return err
+}
+
+// RecentWeeklyVelocity returns the count of tasks completed in each of the last
+// n weeks (oldest first). Weeks are Mon–Sun UTC. The current week is included.
+func (d *DB) RecentWeeklyVelocity(n int) ([]int, error) {
+	// Compute the Monday of the current week
+	now := time.Now().UTC()
+	wd := int(now.Weekday())
+	if wd == 0 {
+		wd = 7
+	}
+	monday := time.Date(now.Year(), now.Month(), now.Day()-wd+1, 0, 0, 0, 0, time.UTC)
+
+	counts := make([]int, n)
+	for i := n - 1; i >= 0; i-- {
+		wStart := monday.AddDate(0, 0, -i*7)
+		wEnd := wStart.AddDate(0, 0, 7)
+		row := d.conn.QueryRow(
+			`SELECT COUNT(*) FROM tasks WHERE done=1 AND done_at >= ? AND done_at < ?`,
+			wStart.Format(time.RFC3339), wEnd.Format(time.RFC3339),
+		)
+		var c int
+		row.Scan(&c)
+		counts[n-1-i] = c
+	}
+	return counts, nil
 }
