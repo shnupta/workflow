@@ -28,7 +28,13 @@ func (h *Handler) standupPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	text := buildStandupText(day, done, inProgress)
+	// Only show chase-needed on today's standup
+	var waiting []*db.StandupTask
+	if day.Format("2006-01-02") == time.Now().UTC().Format("2006-01-02") {
+		waiting, _ = h.db.WaitingStandupTasks()
+	}
+
+	text := buildStandupText(day, done, inProgress, waiting)
 
 	prevDay := day.AddDate(0, 0, -1).Format("2006-01-02")
 	nextDay := day.AddDate(0, 0, 1).Format("2006-01-02")
@@ -44,6 +50,7 @@ func (h *Handler) standupPage(w http.ResponseWriter, r *http.Request) {
 		"NextDay":    nextDay,
 		"Done":       done,
 		"InProgress": inProgress,
+		"Waiting":    waiting,
 		"Text":       text,
 	})
 }
@@ -62,7 +69,7 @@ func (h *Handler) standupAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	text := buildStandupText(day, done, inProgress)
+	text := buildStandupText(day, done, inProgress, nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -74,7 +81,7 @@ func (h *Handler) standupAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildStandupText formats a plain-text standup message from tasks.
-func buildStandupText(day time.Time, done, inProgress []*db.StandupTask) string {
+func buildStandupText(day time.Time, done, inProgress, waiting []*db.StandupTask) string {
 	var sb strings.Builder
 
 	if len(done) == 0 && len(inProgress) == 0 {
@@ -109,5 +116,13 @@ func buildStandupText(day time.Time, done, inProgress []*db.StandupTask) string 
 	}
 
 	sb.WriteString("Blockers: none")
+
+	if len(waiting) > 0 {
+		sb.WriteString("\n\n⏰ Chase needed (waiting 3+ days):\n")
+		for _, t := range waiting {
+			sb.WriteString("  ⌛ " + t.Title + "\n")
+		}
+	}
+
 	return sb.String()
 }

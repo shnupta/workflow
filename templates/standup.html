@@ -79,6 +79,24 @@
       </section>
       {{end}}
 
+      <!-- Chase needed: waiting on others 3+ days -->
+      {{if .Waiting}}
+      <section class="digest-section">
+        <h2 class="digest-section-title" style="color:var(--amber,#f59e0b)">⏰ Chase needed <span style="font-weight:400;font-size:12px;color:var(--text-muted)">(waiting 3+ days)</span></h2>
+        <div class="digest-task-list">
+          {{range .Waiting}}
+          <a href="/tasks/{{.ID}}" class="digest-task-row digest-task-row--chase">
+            <span class="digest-task-check digest-task-chase-icon">⌛</span>
+            <span class="digest-task-title">{{.Title}}</span>
+            <span class="digest-task-meta">
+              {{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}
+            </span>
+          </a>
+          {{end}}
+        </div>
+      </section>
+      {{end}}
+
     </div>
   </main>
 

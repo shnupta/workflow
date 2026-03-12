@@ -1935,6 +1935,46 @@ func (d *DB) DailyStandup(day time.Time) (done []*StandupTask, inProgress []*Sta
 	return done, inProgress, nil
 }
 
+// WaitingStandupTasks returns tasks waiting on others for 3+ days.
+// Used by the standup generator to surface chase-needed items.
+func (d *DB) WaitingStandupTasks() ([]*StandupTask, error) {
+	cutoff := time.Now().UTC().AddDate(0, 0, -3).Format(time.RFC3339)
+	rows, err := d.conn.Query(`
+		SELECT t.id, t.title, t.work_type, t.done, t.done_at,
+		       t.timer_total, t.timer_started,
+		       COUNT(s.id) AS session_count
+		FROM tasks t
+		LEFT JOIN sessions s ON s.task_id = t.id AND s.archived = 0
+		WHERE t.done = 0 AND t.direction = 'blocked_on_them' AND t.created_at <= ?
+		GROUP BY t.id
+		ORDER BY t.created_at ASC`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*StandupTask
+	for rows.Next() {
+		var st StandupTask
+		var doneAt, timerStarted *string
+		if err := rows.Scan(&st.ID, &st.Title, &st.WorkType, &st.Done, &doneAt,
+			&st.TimerTotal, &timerStarted, &st.SessionCount); err != nil {
+			return nil, err
+		}
+		if doneAt != nil {
+			if t, err2 := time.Parse(time.RFC3339, *doneAt); err2 == nil {
+				st.DoneAt = &t
+			}
+		}
+		if timerStarted != nil {
+			if t, err2 := time.Parse(time.RFC3339, *timerStarted); err2 == nil {
+				st.TimerStarted = &t
+			}
+		}
+		out = append(out, &st)
+	}
+	return out, rows.Err()
+}
+
 // ─────────────────────────────────────────────────────────
 // Task comments
 // ─────────────────────────────────────────────────────────
