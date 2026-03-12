@@ -682,7 +682,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Notes page: folder/tag organisation**
-  - Notes currently flat list; add optional tag/folder field
-  - Sidebar shows tag groups; click filters to that tag
-  - DB: notes_tags table or tags TEXT column on notes
+- [x] **Notes page: tag organisation** ✅ 2026-03-12
+  - tags TEXT column (comma-separated) on notes; ALTER TABLE migration for existing DBs
+  - Tag filter chips above note list (All + each tag); /notes?tag=foo
+  - Note list items show tag badges; toolbar tags input with auto-save
+  - ListNotesByTag(), NoteTags() DB methods; normaliseTags() in handler
+  - 245 tests passing
