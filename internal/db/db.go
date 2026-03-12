@@ -985,20 +985,40 @@ func (d *DB) GetSession(id string) (*models.Session, error) {
 
 func (d *DB) ListSessions(taskID string) ([]*models.Session, error) {
 	rows, err := d.conn.Query(`
-		SELECT id, task_id, parent_id, name, mode, status, agent_provider, agent_session_id, error_message, archived, pinned, feedback, created_at, updated_at
-		FROM sessions WHERE task_id=? AND name != '[brief]' AND archived=0
-		ORDER BY pinned DESC, updated_at DESC`, taskID)
+		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status, s.agent_provider,
+		       s.agent_session_id, s.error_message, s.archived, s.pinned, s.feedback,
+		       s.created_at, s.updated_at,
+		       COUNT(m.id) AS message_count
+		FROM sessions s
+		LEFT JOIN messages m ON m.session_id = s.id
+		WHERE s.task_id=? AND s.name != '[brief]' AND s.archived=0
+		GROUP BY s.id
+		ORDER BY s.pinned DESC, s.updated_at DESC`, taskID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []*models.Session
 	for rows.Next() {
-		s, err := scanSession(rows)
-		if err != nil {
+		var s models.Session
+		var parentID, agentSessionID sql.NullString
+		var createdAt, updatedAt string
+		if err := rows.Scan(
+			&s.ID, &s.TaskID, &parentID, &s.Name, &s.Mode, &s.Status,
+			&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &s.Pinned, &s.Feedback,
+			&createdAt, &updatedAt, &s.MessageCount,
+		); err != nil {
 			return nil, err
 		}
-		out = append(out, s)
+		if parentID.Valid {
+			s.ParentID = &parentID.String
+		}
+		if agentSessionID.Valid {
+			s.AgentSessionID = &agentSessionID.String
+		}
+		s.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		out = append(out, &s)
 	}
 	return out, rows.Err()
 }

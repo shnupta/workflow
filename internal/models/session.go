@@ -37,6 +37,7 @@ type Session struct {
 	Feedback       string        `db:"feedback"        json:"feedback"` // "up", "down", or ""
 	CreatedAt      time.Time     `db:"created_at"      json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at"      json:"updated_at"`
+	MessageCount   int           `db:"-"               json:"message_count"` // populated by ListSessions
 }
 
 // MessageRole is the sender role for a message.

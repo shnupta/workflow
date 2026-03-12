@@ -318,6 +318,7 @@
             <div class="session-card-main">
               <span class="session-card-name">{{if .Name}}{{.Name}}{{else}}Session{{end}}</span>
               <span class="session-status status-{{.Status}}">{{.Status}}</span>
+              {{if gt .MessageCount 0}}<span class="session-msg-count" title="{{.MessageCount}} messages">{{.MessageCount}} msg</span>{{end}}
             </div>
             <div class="session-card-meta">{{.AgentProvider}} · {{timeAgo .UpdatedAt}}</div>
           </a>
