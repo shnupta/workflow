@@ -725,3 +725,40 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - ListNotesSorted(taskID, sortBy) DB method; sortBy="tag" → tags ASC, updated_at DESC
   - /notes?sort=tag; sort bar in sidebar (Recent | ↕ Tag); sort preserved with tag filter
 
+
+---
+
+## New features (proposed 2026-03-12 nudge 2)
+
+### Medium priority
+
+- [ ] **Task archiving**
+  - Archive completed tasks older than N weeks to keep the Done section clean
+  - `archived INTEGER` column on tasks (already exists for sessions pattern)
+  - `POST /api/tasks/{id}/archive`; archived tasks excluded from board + digest by default
+  - "Show archived" toggle on board (like sessions); archive button on task page
+  - Useful for long-running boards with hundreds of done tasks
+
+- [ ] **Weekly velocity sparkline in digest**
+  - Mini sparkline chart (pure SVG, no deps) showing tasks-completed per week, last 8 weeks
+  - Rendered in the digest stats bar alongside the ↑↓→ velocity arrow
+  - DB: `RecentWeeklyVelocity(n int)` — COUNT(done_at grouped by ISO week)
+  - SVG: 8 bars, last one highlighted, baseline 0, fixed height 24px
+
+- [ ] **Task "waiting since" nudge in daily standup**
+  - In the standup generator (`/standup`), highlight tasks that have been in WaitingOnOthers for 3+ days
+  - Adds a "⏰ Chase needed" section to the standup output
+  - Pure query on existing data — no new schema
+
+### Lower priority
+
+- [ ] **Session message count badge on task page**
+  - On the task sessions list, show message count per session (already fetched in ListSessions?)
+  - Small numeric badge next to session duration/status
+
+- [ ] **Pomodoro auto-log integration**
+  - When a Pomodoro timer completes, call `autoLogFocusTime(mins)` (already defined in task_view.html)
+  - Currently the Focus timer JS fires a browser notification but doesn't call autoLogFocusTime
+  - Wire: in the focus timer done handler, call `autoLogFocusTime(focusDuration/60)`
+  - Zero backend change
+
