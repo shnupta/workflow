@@ -125,11 +125,11 @@
       {{if .Digest.InProgress}}
       <section class="digest-section">
         <h2 class="digest-section-title">In progress</h2>
-        <div class="digest-task-list">
+        <div class="digest-task-list" id="digest-inprogress-list">
           {{range .Digest.InProgress}}
-          <a href="/tasks/{{.ID}}" class="digest-task-row">
-            <span class="digest-task-check digest-task-check--open">○</span>
-            <span class="digest-task-title">{{.Title}}</span>
+          <div class="digest-task-row digest-task-row--checkable" data-task-id="{{.ID}}">
+            <button class="digest-task-done-btn" title="Mark done" onclick="digestMarkDone('{{.ID}}', this)">○</button>
+            <a href="/tasks/{{.ID}}" class="digest-task-title">{{.Title}}</a>
             <span class="digest-task-meta">
               {{if .Priority}}<span class="card-tag tag-priority tag-priority-{{.Priority}}">{{.Priority | upper}}</span>{{end}}
               {{if .Effort}}<span class="card-tag tag-effort tag-effort-{{.Effort}}">{{.Effort | upper}}</span>{{end}}
@@ -137,7 +137,7 @@
               {{if gt .ElapsedSeconds 0}}<span class="digest-task-time">{{.ElapsedLabel}}</span>{{end}}
               {{if gt .SessionCount 0}}<span class="digest-task-sessions">{{.SessionCount}} session{{if gt .SessionCount 1}}s{{end}}</span>{{end}}
             </span>
-          </a>
+          </div>
           {{end}}
         </div>
       </section>
@@ -169,6 +169,42 @@
 
     </div>
   </main>
+
+<script>
+async function digestMarkDone(taskID, btn) {
+  const row = btn.closest('.digest-task-row--checkable');
+  if (!row || row.dataset.marking) return;
+  row.dataset.marking = '1';
+  btn.textContent = '…';
+  btn.disabled = true;
+
+  try {
+    const resp = await fetch('/api/tasks/' + taskID + '/done', {method: 'POST'});
+    if (!resp.ok) throw new Error(await resp.text());
+    // Animate fade-out then remove
+    row.style.transition = 'opacity 0.3s, max-height 0.3s';
+    row.style.opacity = '0';
+    row.style.maxHeight = '0';
+    row.style.overflow = 'hidden';
+    setTimeout(() => {
+      row.remove();
+      // If list is now empty, show a small notice
+      const list = document.getElementById('digest-inprogress-list');
+      if (list && list.querySelectorAll('.digest-task-row--checkable').length === 0) {
+        const p = document.createElement('p');
+        p.style.cssText = 'font-size:13px;color:var(--text-muted);padding:4px 0';
+        p.textContent = 'All clear!';
+        list.appendChild(p);
+      }
+    }, 320);
+  } catch (err) {
+    btn.textContent = '○';
+    btn.disabled = false;
+    delete row.dataset.marking;
+    alert('Could not mark done: ' + err.message);
+  }
+}
+</script>
 </body>
 </html>
 {{end}}

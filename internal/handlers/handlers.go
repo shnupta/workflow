@@ -303,6 +303,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /tasks/{id}/edit", h.editTaskForm)
 	mux.HandleFunc("POST /tasks/{id}", h.updateTask)
 	mux.HandleFunc("POST /tasks/{id}/done", h.markDone)
+	mux.HandleFunc("POST /api/tasks/{id}/done", h.apiMarkDone)
 	mux.HandleFunc("POST /tasks/{id}/move", h.moveTask)
 	mux.HandleFunc("DELETE /tasks/{id}", h.deleteTask)
 	mux.HandleFunc("POST /tasks/{id}/duplicate", h.duplicateTask)
@@ -847,6 +848,18 @@ func (h *Handler) markDone(w http.ResponseWriter, r *http.Request) {
 		target = "/?recurring_cloned=1"
 	}
 	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// apiMarkDone handles POST /api/tasks/{id}/done — marks a task done, returns JSON.
+// Used by the digest page for inline completion without a full page reload.
+func (h *Handler) apiMarkDone(w http.ResponseWriter, r *http.Request) {
+	cloned, err := h.db.MarkDone(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"cloned": cloned})
 }
 
 func (h *Handler) moveTask(w http.ResponseWriter, r *http.Request) {
