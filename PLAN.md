@@ -660,15 +660,13 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### High priority
 
-- [ ] **Session auto-naming from task context**
-  - When a new session is started, default name to task work type + date (e.g. "PR Review · Mar 12")
-  - Currently defaults to empty string — user has to rename manually every time
-  - Small UX improvement, zero DB changes needed — just update the CreateSession default
+- [x] **Session auto-naming from task context** ✅ 2026-03-12
+  - New sessions default to "WorkType · Month Day" (e.g. "PR Review · Mar 12")
+  - sessionAutoName() in sessions.go; only applied when no name provided
 
-- [ ] **Quick task move keyboard shortcut on board**
-  - `1`, `2`, `3` keys move focused card to tier 1, 2, 3 respectively (Today/This Week/Backlog)
-  - Currently only `m` cycles forward — direct tier assignment is faster
-  - Pure JS; reuses existing PATCH /tasks/{id}/move endpoint
+- [x] **Quick task move keyboard shortcut on board** ✅ 2026-03-12
+  - 1/2/3 keys move focused card directly to Today/This Week/Backlog
+  - moveCardToTier() reuses POST /tasks/{id}/move; updates empty state + col counts
 
 ### Medium priority
 
