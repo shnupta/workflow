@@ -759,3 +759,29 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Auto-creates time log entry "Focus timer" with correct duration on completion
   - Zero backend change; pure JS wiring
 
+
+---
+
+## New features (proposed 2026-03-12 nudge 3)
+
+### Medium priority
+
+- [x] **Archive page + unarchive** ✅ 2026-03-12
+  - GET /archive — lists all archived tasks in a table (title/tags, type chip, priority badge, last updated)
+  - Restore button: POST /api/tasks/{id}/archive {archived:false}, fades row out in-place
+  - Delete button: DELETE /tasks/{id} with confirm, fades row out in-place
+  - ListArchivedTasks() DB method; archive-page CSS; Archive nav link after Activity
+  - 2 new handler tests; 226 total green
+
+---
+
+## New features (proposed 2026-03-12 nudge 3)
+
+### Medium priority
+
+- [x] **Archive page + unarchive** ✅ 2026-03-12
+  - GET /archive — lists all archived tasks in a table (title/tags, type chip, priority badge, last updated)
+  - Restore button: POST /api/tasks/{id}/archive {archived:false}, fades row out in-place
+  - Delete button: DELETE /tasks/{id} with confirm, fades row out in-place
+  - ListArchivedTasks() DB method; archive-page CSS; Archive nav link after Activity
+  - 2 new handler tests; 226 total green
