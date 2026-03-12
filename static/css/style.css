@@ -3890,3 +3890,16 @@ input[type="date"] {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+.activity-json-link {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: monospace;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.activity-json-link:hover { color: var(--text); border-color: var(--text-muted); }

@@ -19,21 +19,28 @@
           {{range $d := activityDayOptions}}
           <a href="/activity?days={{$d}}" class="filter-chip{{if eq $d $.Days}} active{{end}}">{{$d}}d</a>
           {{end}}
+          <div class="filter-sep"></div>
+          <button class="filter-chip activity-kind-btn active" data-kind="all" onclick="setKindFilter('all',this)">All</button>
+          <button class="filter-chip activity-kind-btn" data-kind="task_done" onclick="setKindFilter('task_done',this)">✓ Done</button>
+          <button class="filter-chip activity-kind-btn" data-kind="task_created" onclick="setKindFilter('task_created',this)">＋ Created</button>
+          <button class="filter-chip activity-kind-btn" data-kind="session" onclick="setKindFilter('session',this)">▶ Sessions</button>
+          <button class="filter-chip activity-kind-btn" data-kind="comment" onclick="setKindFilter('comment',this)">💬 Comments</button>
         </div>
+        <a href="/activity.json?days={{.Days}}" class="activity-json-link" target="_blank" title="JSON feed">{ }</a>
       </div>
 
       {{if not .Events}}
       <p class="empty" style="padding: 2rem 0;">No activity in the last {{.Days}} days.</p>
       {{else}}
-      <div class="activity-feed">
+      <div class="activity-feed" id="activity-feed">
         {{$prevDate := ""}}
         {{range .Events}}
         {{$dateLabel := activityDateLabel .Time}}
         {{if ne $dateLabel $prevDate}}
-        <div class="activity-day-divider">{{$dateLabel}}</div>
+        <div class="activity-day-divider" data-date="{{$dateLabel}}">{{$dateLabel}}</div>
         {{$prevDate = $dateLabel}}
         {{end}}
-        <div class="activity-event event-{{.Kind}}">
+        <div class="activity-event event-{{.Kind}}" data-kind="{{.Kind}}">
           <span class="activity-icon">{{activityIcon .Kind}}</span>
           <div class="activity-body">
             <a href="/tasks/{{.TaskID}}" class="activity-task-link">{{.TaskTitle}}</a>
@@ -46,6 +53,58 @@
       {{end}}
     </div>
   </main>
+<script>
+  // Restore kind filter from localStorage
+  const STORAGE_KEY = 'activity-kind-filter';
+  let activeKind = localStorage.getItem(STORAGE_KEY) || 'all';
+
+  function setKindFilter(kind, btn) {
+    activeKind = kind;
+    localStorage.setItem(STORAGE_KEY, kind);
+    document.querySelectorAll('.activity-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const feed = document.getElementById('activity-feed');
+    if (!feed) return;
+
+    // Map filter kind → matching event-* class(es)
+    const matchKind = {
+      'all':          null,
+      'task_done':    ['task_done'],
+      'task_created': ['task_created'],
+      'session':      ['session_started', 'session_done'],
+      'comment':      ['comment'],
+    };
+    const allowed = matchKind[activeKind];
+
+    let visibleDates = new Set();
+    feed.querySelectorAll('.activity-event').forEach(el => {
+      const kind = el.dataset.kind;
+      const show = !allowed || allowed.includes(kind);
+      el.style.display = show ? '' : 'none';
+      if (show) {
+        // Find preceding day divider
+        let prev = el.previousElementSibling;
+        while (prev && !prev.classList.contains('activity-day-divider')) prev = prev.previousElementSibling;
+        if (prev) visibleDates.add(prev.dataset.date);
+      }
+    });
+
+    // Show/hide day dividers based on whether they have visible events
+    feed.querySelectorAll('.activity-day-divider').forEach(div => {
+      div.style.display = visibleDates.has(div.dataset.date) ? '' : 'none';
+    });
+  }
+
+  // Apply on load
+  (function() {
+    const btn = document.querySelector(`.activity-kind-btn[data-kind="${activeKind}"]`);
+    if (btn) { btn.classList.add('active'); document.querySelectorAll('.activity-kind-btn').forEach(b => { if (b !== btn) b.classList.remove('active'); }); }
+    applyFilter();
+  })();
+</script>
 </body>
 </html>
 {{end}}

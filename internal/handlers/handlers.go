@@ -320,6 +320,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
 	mux.HandleFunc("GET /activity", h.activityFeed)
+	mux.HandleFunc("GET /activity.json", h.activityFeedJSON)
 	mux.HandleFunc("GET /dep-graph", h.depGraph)
 	mux.HandleFunc("GET /api/sprint-goal", h.apiSprintGoal)
 	mux.HandleFunc("PATCH /api/sprint-goal", h.apiSprintGoal)
@@ -1518,5 +1519,63 @@ func (h *Handler) depGraph(w http.ResponseWriter, r *http.Request) {
 		"EdgesJSON": template.JS(edgesJSON),
 		"NodeCount": len(nodes),
 		"EdgeCount": len(edges),
+	})
+}
+
+// activityFeedJSON serves GET /activity.json — machine-readable activity feed.
+func (h *Handler) activityFeedJSON(w http.ResponseWriter, r *http.Request) {
+	days := 7
+	if d := r.URL.Query().Get("days"); d != "" {
+		if n, err := strconv.Atoi(d); err == nil && n > 0 && n <= 90 {
+			days = n
+		}
+	}
+	events, err := h.db.ListActivityFeed(days, 200)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	type jsonEvent struct {
+		Time      string `json:"time"`
+		Kind      string `json:"kind"`
+		TaskID    string `json:"task_id"`
+		TaskTitle string `json:"task_title"`
+		Detail    string `json:"detail"`
+		TaskURL   string `json:"task_url"`
+	}
+	out := make([]jsonEvent, len(events))
+	for i, e := range events {
+		detail := ""
+		switch e.Kind {
+		case "task_created":
+			parts := strings.SplitN(e.Detail, "|", 2)
+			if len(parts) == 2 { detail = "created in " + parts[1] } else { detail = "created" }
+		case "task_done":
+			detail = "completed"
+		case "session_started":
+			if e.Detail != "" { detail = "session started: " + e.Detail } else { detail = "session started" }
+		case "session_done":
+			if e.Detail != "" { detail = "session done: " + e.Detail } else { detail = "session done" }
+		case "comment":
+			detail = e.Detail
+			if len(detail) > 120 { detail = detail[:120] + "…" }
+		}
+		out[i] = jsonEvent{
+			Time:      e.Time.UTC().Format(time.RFC3339),
+			Kind:      e.Kind,
+			TaskID:    e.TaskID,
+			TaskTitle: e.TaskTitle,
+			Detail:    detail,
+			TaskURL:   "/tasks/" + e.TaskID,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"days":   days,
+		"count":  len(out),
+		"events": out,
 	})
 }
