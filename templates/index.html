@@ -385,6 +385,45 @@
 
     // ── Move card to next tier ────────────────────────────────────────────────
 
+    // Move focused card directly to a named tier (1=today, 2=this_week, 3=backlog).
+    async function moveCardToTier(card, tier) {
+      if (!card) return;
+      const taskID = card.dataset.id;
+      const destCol = document.querySelector(`.tier-col[data-tier="${tier}"]`);
+      if (!destCol) return;
+      // Already there?
+      const currentCol = card.closest('.tier-col');
+      if (currentCol && currentCol.dataset.tier === tier) return;
+      try {
+        const res = await fetch(`/tasks/${taskID}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier, before_id: '' }),
+        });
+        if (!res.ok) { console.error('move failed', res.status); return; }
+      } catch (err) { console.error('move error', err); return; }
+      // DOM: move card to destination list
+      const destList = destCol.querySelector('.task-list');
+      destList.appendChild(card);
+      // Update empty state for both columns
+      [currentCol, destCol].forEach(col => {
+        if (!col) return;
+        const list = col.querySelector('.task-list');
+        const visible = [...list.querySelectorAll('.task-card')].filter(c => c.style.display !== 'none');
+        let empty = list.querySelector('.empty');
+        if (visible.length === 0) {
+          if (!empty) { empty = document.createElement('p'); empty.className = 'empty'; list.appendChild(empty); }
+          empty.textContent = 'Nothing here';
+          empty.style.display = '';
+        } else if (empty) {
+          empty.style.display = 'none';
+        }
+      });
+      setFocus(card);
+      _updateColCount(currentCol);
+      _updateColCount(destCol);
+    }
+
     async function moveFocusedCard() {
       if (!focusedCard) return;
 
@@ -509,6 +548,18 @@
           if (focusedCard && !overlayOpen()) {
             e.preventDefault();
             moveFocusedCard();
+          }
+          return;
+        case '1':
+        case '2':
+        case '3':
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            const tierIdx = parseInt(e.key) - 1;
+            const allCols = cols();
+            if (tierIdx < allCols.length) {
+              moveCardToTier(focusedCard, allCols[tierIdx].dataset.tier);
+            }
           }
           return;
         case '*':

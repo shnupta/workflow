@@ -51,7 +51,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	name := body.Name
 	if name == "" {
-		name = sessionNameFromPrompt(body.Prompt)
+		name = sessionAutoName(task)
 	}
 
 	sess := &models.Session{
@@ -323,6 +323,25 @@ func sessionNameFromPrompt(prompt string) string {
 		name = name[:45] + "..."
 	}
 	return name
+}
+
+// sessionAutoName generates a default session name from the task's work type and today's date.
+// e.g. "PR Review · Mar 12" or "Coding · Mar 12"
+func sessionAutoName(t *models.Task) string {
+	label := t.WorkType
+	if label == "" {
+		label = "Session"
+	} else {
+		// Title-case the key (e.g. "pr_review" → "Pr_review" is wrong; use a simple capitalise)
+		words := strings.Split(label, "_")
+		for i, w := range words {
+			if len(w) > 0 {
+				words[i] = strings.ToUpper(w[:1]) + w[1:]
+			}
+		}
+		label = strings.Join(words, " ")
+	}
+	return label + " · " + time.Now().Format("Jan 2")
 }
 
 // buildTaskContext returns the task context block sent to the agent.
