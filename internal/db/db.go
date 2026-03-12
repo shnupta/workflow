@@ -1512,6 +1512,8 @@ type DigestWeek struct {
 	AvgCycleDays     float64           // average days from created_at → done_at for tasks done this week
 	CycleByType      []CycleTimeEntry  // per-work-type cycle time, sorted by avg days desc
 	AvgAgeDays       float64           // average age (days since created_at) of current in-progress tasks
+	OpenP1Count      int               // open tasks with priority=P1
+	OverdueCount     int               // open tasks that are overdue (due_date < today, not done)
 }
 
 // CycleTimeEntry holds cycle-time data for one work type.
@@ -1610,6 +1612,11 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 		}
 		dw.AvgAgeDays = totalAge / float64(len(dw.InProgress))
 	}
+
+	// P1 open count + overdue count
+	today := time.Now().UTC().Format("2006-01-02")
+	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND priority='P1'`).Scan(&dw.OpenP1Count)
+	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND due_date != '' AND due_date < ?`, today).Scan(&dw.OverdueCount)
 
 	// Session count for the week
 	var sc int

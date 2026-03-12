@@ -1239,6 +1239,7 @@
      data-priority="{{.Priority}}"
      data-effort="{{.Effort}}"
      data-starred="{{if .Starred}}1{{else}}0{{end}}"
+     data-link="{{.Link}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
   <label class="card-select-wrap" title="Select task" onclick="onCardCheckboxClick(event, this)">
@@ -1271,6 +1272,7 @@
     {{end}}
     <span class="task-age {{.AgeClass}}">{{.AgeLabel}}</span>
     <div class="task-actions">
+      {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer" class="card-link-btn" title="Open link" onclick="event.stopPropagation()">↗</a>{{end}}
       <button class="btn-quick-comment" title="Quick comment"
               onclick="openQuickComment(event, '{{.ID}}', {{jsonEscape .Title}})">💬</button>
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">
