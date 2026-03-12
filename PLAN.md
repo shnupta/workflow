@@ -709,10 +709,10 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Empty-list notice when all tasks cleared; recurring tasks auto-clone
   - 2 tests; 251 total
 
-- [ ] **Task templates: auto-apply on creation**
-  - When creating a task, if a template matches the work type, offer one-click "Use template"
-  - Pre-fills title prefix, tags, effort from template
-  - Pure frontend (no backend change): filter templates JS-side on work type select change
+- [x] **Task templates: auto-suggest on creation** ✅ 2026-03-12
+  - When work_type select changes, JS checks for matching template
+  - Suggestion banner: "✦ Template available: NAME [Use template] [✕]"
+  - Applies template (description, recurrence) or dismisses; pure frontend
 
 ### Lower priority
 
