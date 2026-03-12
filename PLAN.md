@@ -655,3 +655,41 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Activity JSON feed** ✅ 2026-03-11
   - GET /activity.json?days=N — {days, count, events[]}
   - RFC3339 timestamps; task_url for linking; { } button in activity header
+
+## New features (proposed 2026-03-11 nudge 5)
+
+### High priority
+
+- [ ] **Session auto-naming from task context**
+  - When a new session is started, default name to task work type + date (e.g. "PR Review · Mar 12")
+  - Currently defaults to empty string — user has to rename manually every time
+  - Small UX improvement, zero DB changes needed — just update the CreateSession default
+
+- [ ] **Quick task move keyboard shortcut on board**
+  - `1`, `2`, `3` keys move focused card to tier 1, 2, 3 respectively (Today/This Week/Backlog)
+  - Currently only `m` cycles forward — direct tier assignment is faster
+  - Pure JS; reuses existing PATCH /tasks/{id}/move endpoint
+
+### Medium priority
+
+- [ ] **Task "link" field surfaced on board card**
+  - Tasks have a `link` field (often PR URL) but it's only visible on task detail page
+  - Small "↗" icon on board cards when link is set; click opens in new tab
+  - Zero backend — data-link attribute on card, JS handler
+
+- [ ] **Digest: show P1/overdue count as headline warning**
+  - If there are P1 tasks or overdue tasks not done this week, show a red/amber
+    callout at top of digest: "3 overdue · 1 P1 still open"
+  - Helps the weekly review not miss urgent items
+
+- [ ] **Board: show task comment count badge on card**
+  - Small grey badge (e.g. "💬 3") on cards that have comments
+  - Requires joining task_comments count into ListTasks query
+  - DB: add CommentCount to Task model via LEFT JOIN
+
+### Lower priority
+
+- [ ] **Notes page: folder/tag organisation**
+  - Notes currently flat list; add optional tag/folder field
+  - Sidebar shows tag groups; click filters to that tag
+  - DB: notes_tags table or tags TEXT column on notes
