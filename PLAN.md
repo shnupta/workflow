@@ -756,9 +756,8 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - On the task sessions list, show message count per session (already fetched in ListSessions?)
   - Small numeric badge next to session duration/status
 
-- [ ] **Pomodoro auto-log integration**
-  - When a Pomodoro timer completes, call `autoLogFocusTime(mins)` (already defined in task_view.html)
-  - Currently the Focus timer JS fires a browser notification but doesn't call autoLogFocusTime
-  - Wire: in the focus timer done handler, call `autoLogFocusTime(focusDuration/60)`
-  - Zero backend change
+- [x] **Pomodoro auto-log integration** ✅ 2026-03-12
+  - focusStartedMins tracks duration; focusDone() calls autoLogFocusTime(focusStartedMins)
+  - Auto-creates time log entry "Focus timer" with correct duration on completion
+  - Zero backend change; pure JS wiring
 
