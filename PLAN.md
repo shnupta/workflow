@@ -716,13 +716,12 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Session transcript word count + reading time**
-  - Show "~N words · X min read" in session header alongside existing metadata
-  - Pure template: count words in all assistant messages; reading speed 200wpm
-  - Zero backend, zero DB
+- [x] **Session transcript word count + reading time** ✅ 2026-03-12
+  - viewSession computes wordCount + readMins (200wpm, round up); passes to template
+  - Session header shows "~N words · X min read" when wordCount > 0
+  - Hidden for empty/in-progress sessions
 
-- [ ] **Notes: sort by tag**
-  - Add "Sort by tag" option to notes list (currently sorted by updated_at)
-  - Notes with same tag grouped together; alphabetical within group
-  - Pure DB: ORDER BY tags, updated_at DESC
+- [x] **Notes: sort by tag** ✅ 2026-03-12
+  - ListNotesSorted(taskID, sortBy) DB method; sortBy="tag" → tags ASC, updated_at DESC
+  - /notes?sort=tag; sort bar in sidebar (Recent | ↕ Tag); sort preserved with tag filter
 
