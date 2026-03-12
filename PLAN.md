@@ -688,3 +688,41 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Note list items show tag badges; toolbar tags input with auto-save
   - ListNotesByTag(), NoteTags() DB methods; normaliseTags() in handler
   - 245 tests passing
+
+---
+
+## New features (proposed 2026-03-12 nudge)
+
+### Medium priority
+
+- [ ] **Task time log / work journal**
+  - On a task page, a chronological log of "worked N minutes at HH:MM" entries
+  - Entries auto-created when a Pomodoro timer completes (already tracked in time_tracked)
+  - Manual "Log time" button: enter minutes + optional note
+  - `time_logs` table: task_id, started_at, duration_mins, note
+  - Shown below activity feed on task; rollup in digest stays as-is
+  - Useful for understanding where time goes across a task's lifecycle
+
+- [ ] **Bulk status update from digest page**
+  - On the /digest page, inline "Mark done" checkboxes next to In Progress tasks
+  - Quick way to close out tasks while reviewing the weekly digest
+  - POST /api/tasks/{id}/done via htmx swap — no page reload
+  - 1 test
+
+- [ ] **Task templates: auto-apply on creation**
+  - When creating a task, if a template matches the work type, offer one-click "Use template"
+  - Pre-fills title prefix, tags, effort from template
+  - Pure frontend (no backend change): filter templates JS-side on work type select change
+
+### Lower priority
+
+- [ ] **Session transcript word count + reading time**
+  - Show "~N words · X min read" in session header alongside existing metadata
+  - Pure template: count words in all assistant messages; reading speed 200wpm
+  - Zero backend, zero DB
+
+- [ ] **Notes: sort by tag**
+  - Add "Sort by tag" option to notes list (currently sorted by updated_at)
+  - Notes with same tag grouped together; alphabetical within group
+  - Pure DB: ORDER BY tags, updated_at DESC
+
