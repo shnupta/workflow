@@ -472,6 +472,9 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	if err := d.populateTagsForTasks(tasks); err != nil {
 		return nil, err
 	}
+	if err := d.populateCommentCounts(tasks); err != nil {
+		return nil, err
+	}
 	return tasks, nil
 }
 
@@ -2047,6 +2050,32 @@ func (d *DB) ListAllTags() ([]string, error) {
 // populateTagsForTasks bulk-fetches tags for a slice of tasks in a single
 // query and populates t.Tags on each one. This avoids N individual queries
 // while keeping the approach simple.
+// populateCommentCounts adds the comment count to each task in the slice.
+func (d *DB) populateCommentCounts(tasks []*models.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	// Build a map of task_id → count in one query
+	rows, err := d.conn.Query(`SELECT task_id, COUNT(*) FROM task_comments GROUP BY task_id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	counts := map[string]int{}
+	for rows.Next() {
+		var tid string
+		var cnt int
+		if err := rows.Scan(&tid, &cnt); err != nil {
+			return err
+		}
+		counts[tid] = cnt
+	}
+	for _, t := range tasks {
+		t.CommentCount = counts[t.ID]
+	}
+	return rows.Err()
+}
+
 func (d *DB) populateTagsForTasks(tasks []*models.Task) error {
 	if len(tasks) == 0 {
 		return nil

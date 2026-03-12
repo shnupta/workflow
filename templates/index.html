@@ -1273,6 +1273,7 @@
     <span class="task-age {{.AgeClass}}">{{.AgeLabel}}</span>
     <div class="task-actions">
       {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer" class="card-link-btn" title="Open link" onclick="event.stopPropagation()">↗</a>{{end}}
+      {{if gt .CommentCount 0}}<span class="card-comment-count" title="{{.CommentCount}} comment{{if gt .CommentCount 1}}s{{end}}">💬 {{.CommentCount}}</span>{{end}}
       <button class="btn-quick-comment" title="Quick comment"
               onclick="openQuickComment(event, '{{.ID}}', {{jsonEscape .Title}})">💬</button>
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">

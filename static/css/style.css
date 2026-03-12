@@ -3932,3 +3932,13 @@ input[type="date"] {
   color: #ff5050;
   border: 1px solid rgba(255, 80, 80, 0.3);
 }
+
+.card-comment-count {
+  font-size: 11px;
+  color: var(--fg-muted);
+  padding: 2px 5px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  white-space: nowrap;
+  pointer-events: none;
+}
