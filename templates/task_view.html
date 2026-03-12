@@ -32,6 +32,7 @@
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
           <button class="btn btn-ghost" onclick="saveAsTemplate()" title="Save this task as a reusable template">Save as template</button>
           <button class="btn btn-ghost" onclick="duplicateTask()" title="Duplicate this task">Duplicate</button>
+          <button class="btn btn-ghost" onclick="archiveTask()" title="Archive task (removes from board)">Archive</button>
           <form method="POST" action="/tasks/{{.Task.ID}}/done" style="display:contents">
             <button type="submit" class="btn btn-primary">Mark done</button>
           </form>
@@ -1084,6 +1085,20 @@
       window.location = r.url || '/';
     } else {
       alert('Failed to duplicate task');
+    }
+  }
+
+  async function archiveTask() {
+    if (!confirm('Archive this task? It will be hidden from the board but not deleted.')) return;
+    const r = await fetch(`/api/tasks/${taskID}/archive`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({archived: true}),
+    });
+    if (r.ok) {
+      window.location = '/';
+    } else {
+      alert('Failed to archive task: ' + await r.text());
     }
   }
 

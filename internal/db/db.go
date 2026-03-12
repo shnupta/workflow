@@ -74,6 +74,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN priority     TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN effort       TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN starred      INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE tasks ADD COLUMN archived     INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -460,9 +461,9 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 	tierOrder += "ELSE 99"
 
-	where := "WHERE done=0"
+	where := "WHERE done=0 AND COALESCE(archived,0)=0"
 	if includeDone {
-		where = ""
+		where = "WHERE COALESCE(archived,0)=0"
 	}
 
 	q := fmt.Sprintf(`
@@ -2781,4 +2782,15 @@ func (d *DB) RecentWeeklyVelocity(n int) ([]int, error) {
 		counts[n-1-i] = c
 	}
 	return counts, nil
+}
+
+// ArchiveTask sets or clears the archived flag on a task.
+func (d *DB) ArchiveTask(id string, archived bool) error {
+	v := 0
+	if archived {
+		v = 1
+	}
+	_, err := d.conn.Exec(`UPDATE tasks SET archived=?, updated_at=? WHERE id=?`,
+		v, time.Now().UTC().Format(time.RFC3339), id)
+	return err
 }

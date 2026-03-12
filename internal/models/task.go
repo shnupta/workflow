@@ -17,6 +17,7 @@ type Task struct {
 	BriefStatus string     `db:"brief_status"  json:"brief_status"` // "" | "pending" | "done" | "error"
 	Link        string     `db:"link"          json:"link"`
 	Done        bool       `db:"done"          json:"done"`
+	Archived    bool       `db:"archived"      json:"archived"`
 	Position    int        `db:"position"      json:"position"`
 	CreatedAt   time.Time  `db:"created_at"    json:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"    json:"updated_at"`

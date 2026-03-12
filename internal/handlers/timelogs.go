@@ -12,6 +12,7 @@ func (h *Handler) registerTimeLogRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/time-logs", h.apiListTimeLogs)
 	mux.HandleFunc("POST /api/tasks/{id}/time-logs", h.apiCreateTimeLog)
 	mux.HandleFunc("DELETE /api/time-logs/{id}", h.apiDeleteTimeLog)
+	mux.HandleFunc("POST /api/tasks/{id}/archive", h.apiArchiveTask)
 }
 
 func (h *Handler) apiListTimeLogs(w http.ResponseWriter, r *http.Request) {
@@ -85,4 +86,23 @@ func toTimeLogResponse(l *models.TimeLog) *timeLogResponse {
 		Note:          l.Note,
 		FormattedTime: l.FormattedTime(),
 	}
+}
+
+// apiArchiveTask handles POST /api/tasks/{id}/archive — archives a task (removes from board).
+// Body: {"archived": true|false}
+func (h *Handler) apiArchiveTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	var body struct {
+		Archived bool `json:"archived"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.ArchiveTask(taskID, body.Archived); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"archived": body.Archived})
 }
