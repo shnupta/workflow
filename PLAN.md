@@ -785,3 +785,16 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Amber warning banner when Today column has > N visible cards
   - MutationObserver re-checks on drag-drop; dismiss button; board-updated event hook
   - Zero backend; CSS consistent with overdue palette; 226 tests green
+
+---
+
+## New features (proposed 2026-03-12 nudge 5)
+
+### Medium priority
+
+- [x] **Inline card title editing (double-click)** ✅ 2026-03-12
+  - Double-click task title on board → contenteditable span
+  - Enter/blur saves via PATCH /api/tasks/{id}, Escape cancels
+  - Draggable disabled on card during edit, restored on finish
+  - No backend change needed (endpoint already existed)
+  - 226 tests green
