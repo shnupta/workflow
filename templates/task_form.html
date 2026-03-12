@@ -182,6 +182,61 @@
     if (titleInput) titleInput.focus();
   }
 
+  // ── Template auto-suggest on work_type change ───────────────────────────────
+  (function() {
+    const wtSel = document.getElementById('work_type');
+    const tplSel = document.getElementById('tpl-picker');
+    if (!wtSel || !tplSel) return;
+
+    // Build a map: workType → first matching template option
+    function matchingTemplate(workType) {
+      for (const opt of tplSel.options) {
+        if (opt.value && opt.dataset.workType === workType) return opt;
+      }
+      return null;
+    }
+
+    // Show or hide the auto-suggest banner
+    let suggestBanner = null;
+    function updateSuggest() {
+      const wt = wtSel.value;
+      const match = matchingTemplate(wt);
+
+      // Remove old banner
+      if (suggestBanner) { suggestBanner.remove(); suggestBanner = null; }
+
+      // Don't suggest if tpl-picker is already set to this template
+      if (match && tplSel.value !== match.value) {
+        suggestBanner = document.createElement('div');
+        suggestBanner.className = 'tpl-autosuggest';
+        suggestBanner.innerHTML =
+          '✦ Template available: <strong>' + match.textContent.trim() + '</strong> ' +
+          '<button type="button" class="tpl-autosuggest-btn" onclick="applyTemplateSuggest(this)">Use template</button> ' +
+          '<button type="button" class="tpl-autosuggest-dismiss" onclick="this.closest('.tpl-autosuggest').remove()">✕</button>';
+        suggestBanner.dataset.tplId = match.value;
+        // Insert after the work_type field row
+        const fieldRow = wtSel.closest('.field-row') || wtSel.closest('.field');
+        if (fieldRow) fieldRow.insertAdjacentElement('afterend', suggestBanner);
+      }
+    }
+
+    wtSel.addEventListener('change', updateSuggest);
+    // Don't auto-trigger on page load — only on explicit change
+  })();
+
+  function applyTemplateSuggest(btn) {
+    const banner = btn.closest('.tpl-autosuggest');
+    const tplId = banner && banner.dataset.tplId;
+    if (!tplId) return;
+    // Set the template picker to this option and fire applyTemplate
+    const tplSel = document.getElementById('tpl-picker');
+    if (tplSel) {
+      tplSel.value = tplId;
+      applyTemplate(tplSel);
+    }
+    banner.remove();
+  }
+
   // ── PR Review brief auto-check ───────────────────────────────────────────────
   const workTypeSelect = document.getElementById('work_type');
   const briefCheckbox = document.getElementById('request_brief');

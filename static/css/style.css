@@ -2926,6 +2926,41 @@ input[type="date"] {
 .tpl-prefill-notice {
   margin-bottom: 20px;
 }
+.tpl-autosuggest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.tpl-autosuggest strong { color: var(--accent); }
+.tpl-autosuggest-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.tpl-autosuggest-btn:hover { opacity: 0.85; }
+.tpl-autosuggest-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  margin-left: auto;
+  line-height: 1;
+}
 
 /* Required field star */
 .required-star {
