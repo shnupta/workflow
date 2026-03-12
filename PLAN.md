@@ -695,13 +695,13 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Medium priority
 
-- [ ] **Task time log / work journal**
-  - On a task page, a chronological log of "worked N minutes at HH:MM" entries
-  - Entries auto-created when a Pomodoro timer completes (already tracked in time_tracked)
-  - Manual "Log time" button: enter minutes + optional note
-  - `time_logs` table: task_id, started_at, duration_mins, note
-  - Shown below activity feed on task; rollup in digest stays as-is
-  - Useful for understanding where time goes across a task's lifecycle
+- [x] **Task time log / work journal** ✅ 2026-03-12
+  - time_logs table: id, task_id, logged_at, duration_mins, note
+  - LogTime/ListTimeLogs/DeleteTimeLog DB methods
+  - POST /api/tasks/{id}/time-logs, GET same, DELETE /api/time-logs/{id}
+  - Time Log panel on task page: form (mins + note), chronological list, delete, empty state
+  - autoLogFocusTime() JS hook ready for Pomodoro auto-log
+  - 5 new tests; 249 total
 
 - [ ] **Bulk status update from digest page**
   - On the /digest page, inline "Mark done" checkboxes next to In Progress tasks
