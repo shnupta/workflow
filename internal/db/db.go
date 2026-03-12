@@ -2794,3 +2794,31 @@ func (d *DB) ArchiveTask(id string, archived bool) error {
 		v, time.Now().UTC().Format(time.RFC3339), id)
 	return err
 }
+
+// ListArchivedTasks returns all tasks with archived=1, sorted by updated_at DESC.
+func (d *DB) ListArchivedTasks() ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status, link, done, position, created_at, updated_at, done_at, due_date, timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort, COALESCE(starred,0)
+		FROM tasks
+		WHERE COALESCE(archived,0)=1
+		ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	if rerr := rows.Err(); rerr != nil {
+		return nil, rerr
+	}
+	if err := d.populateTagsForTasks(tasks); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}

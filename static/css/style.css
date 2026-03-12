@@ -4196,3 +4196,44 @@ input[type="date"] {
 }
 .notes-tags-field::placeholder { color: var(--fg-muted); opacity: 0.6; }
 .notes-tags-field:focus { border-bottom-color: var(--accent); color: var(--fg); }
+
+/* ── Archive page ────────────────────────────────────────────────────────── */
+.archive-page {
+  max-width: 900px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+.archive-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.archive-title { font-size: 20px; font-weight: 600; margin: 0; }
+.archive-count { font-size: 13px; }
+.archive-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.archive-table th {
+  text-align: left;
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.archive-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.archive-row:hover { background: var(--bg-hover); }
+.archive-row td { padding: 10px 12px 10px 0; vertical-align: middle; }
+.archive-task-title a { color: var(--fg); text-decoration: none; }
+.archive-task-title a:hover { color: var(--accent); }
+.archive-tags { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.task-tag-chip--sm { font-size: 10px; padding: 1px 5px; }
+.archive-date { font-size: 12px; white-space: nowrap; }
+.archive-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.archive-empty { padding: 48px 0; text-align: center; }

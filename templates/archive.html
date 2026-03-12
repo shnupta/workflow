@@ -1,0 +1,113 @@
+{{define "archive.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Archive</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="archive-page">
+      <div class="archive-header">
+        <h2 class="archive-title">Archived Tasks</h2>
+        <span class="archive-count muted">{{len .Tasks}} task{{if ne (len .Tasks) 1}}s{{end}}</span>
+      </div>
+
+      {{if .Tasks}}
+      <table class="archive-table">
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>Type</th>
+            <th>Priority</th>
+            <th>Last updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Tasks}}
+          <tr class="archive-row">
+            <td class="archive-task-title">
+              <a href="/tasks/{{.ID}}">{{.Title}}</a>
+              {{if .Tags}}
+              <span class="archive-tags">
+                {{range .Tags}}<span class="task-tag-chip task-tag-chip--sm">{{.}}</span>{{end}}
+              </span>
+              {{end}}
+            </td>
+            <td>{{if .WorkType}}<span class="work-type-chip">{{.WorkType}}</span>{{end}}</td>
+            <td>{{if .Priority}}<span class="priority-badge priority-{{lower .Priority}}">{{.Priority}}</span>{{end}}</td>
+            <td class="muted archive-date">{{relTimeVal .UpdatedAt}}</td>
+            <td class="archive-actions">
+              <button class="btn btn-ghost btn-sm" onclick="unarchiveTask('{{.ID}}', this)" title="Restore to board">Restore</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteTask('{{.ID}}', this)" title="Delete permanently">Delete</button>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{else}}
+      <div class="archive-empty">
+        <p class="muted">No archived tasks. Use the Archive button on a task page to hide it from the board without deleting it.</p>
+      </div>
+      {{end}}
+    </div>
+  </main>
+
+  <script>
+    async function unarchiveTask(id, btn) {
+      btn.disabled = true;
+      btn.textContent = '…';
+      const r = await fetch(`/api/tasks/${id}/archive`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({archived: false}),
+      });
+      if (r.ok) {
+        const row = btn.closest('tr');
+        row.style.opacity = '0';
+        row.style.transition = 'opacity 0.2s';
+        setTimeout(() => {
+          row.remove();
+          updateCount(-1);
+        }, 200);
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Restore';
+        alert('Failed to restore task: ' + await r.text());
+      }
+    }
+
+    async function deleteTask(id, btn) {
+      if (!confirm('Permanently delete this task? This cannot be undone.')) return;
+      btn.disabled = true;
+      const r = await fetch(`/tasks/${id}`, {method: 'DELETE'});
+      if (r.ok || r.status === 204 || r.redirected) {
+        const row = btn.closest('tr');
+        row.style.opacity = '0';
+        row.style.transition = 'opacity 0.2s';
+        setTimeout(() => {
+          row.remove();
+          updateCount(-1);
+        }, 200);
+      } else {
+        btn.disabled = false;
+        alert('Failed to delete task: ' + await r.text());
+      }
+    }
+
+    function updateCount(delta) {
+      const el = document.querySelector('.archive-count');
+      if (!el) return;
+      const n = (parseInt(el.dataset.count || el.textContent) || 0) + delta;
+      el.textContent = `${Math.max(0, n)} task${n !== 1 ? 's' : ''}`;
+    }
+  </script>
+</body>
+</html>
+{{end}}

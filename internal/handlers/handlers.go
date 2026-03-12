@@ -368,6 +368,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /search/notes", h.searchNotes)
 	mux.HandleFunc("GET /notes", h.notesPage)
 	mux.HandleFunc("GET /digest", h.weeklyDigest)
+	mux.HandleFunc("GET /archive", h.archivePage)
 	mux.HandleFunc("GET /activity", h.activityFeed)
 	mux.HandleFunc("GET /activity.json", h.activityFeedJSON)
 	mux.HandleFunc("GET /dep-graph", h.depGraph)
@@ -458,6 +459,18 @@ func (h *Handler) weeklyDigest(w http.ResponseWriter, r *http.Request) {
 		"PrevWeek":      prevWeek,
 		"NextWeek":      nextWeek,
 		"IsCurrentWeek": isCurrentWeek,
+	})
+}
+
+func (h *Handler) archivePage(w http.ResponseWriter, r *http.Request) {
+	tasks, err := h.db.ListArchivedTasks()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "archive.html", map[string]any{
+		"Nav":   "archive",
+		"Tasks": tasks,
 	})
 }
 
