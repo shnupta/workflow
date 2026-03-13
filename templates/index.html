@@ -86,6 +86,10 @@
       ⚡ Focus mode — showing Today only
       <button class="focus-mode-exit" onclick="toggleFocusMode()">Exit (f)</button>
     </div>
+    <div id="compact-mode-badge" class="focus-mode-badge compact-mode-badge" style="display:none">
+      ▤ Compact mode
+      <button class="focus-mode-exit" onclick="toggleCompactMode()">Exit (c)</button>
+    </div>
     <div id="wip-warning" class="wip-warning" style="display:none">
       ⚠ WIP limit reached — <span id="wip-count"></span> tasks in Today (limit: <span id="wip-limit"></span>). Consider finishing something before starting more.
       <button class="wip-dismiss" onclick="document.getElementById('wip-warning').style.display='none'">✕</button>
@@ -590,6 +594,12 @@
             toggleFocusMode();
           }
           return;
+        case 'c':
+          if (!overlayOpen()) {
+            e.preventDefault();
+            toggleCompactMode();
+          }
+          return;
         case 'Escape':
           if (overlayOpen()) return; // let the overlay handler deal with it
           if (focusedCard) { e.preventDefault(); clearFocus(); return; }
@@ -658,6 +668,7 @@
           <kbd>*</kbd><span>Star / unstar focused task</span>
           <kbd>e</kbd><span>Edit scratchpad for focused task</span>
           <kbd>f</kbd><span>Toggle focus mode (Today column only)</span>
+          <kbd>c</kbd><span>Toggle compact mode (smaller cards)</span>
           <kbd>Esc</kbd><span>Clear focus / close overlay</span>
           <kbd>n</kbd><span>New task (full form)</span>
           <kbd>q</kbd><span>Quick-add to first column</span>
@@ -1283,6 +1294,30 @@
 
   // Apply on load
   applyFocusMode();
+
+  // ── Compact mode (c key) ─────────────────────────────────────────────────────
+  let _compactMode = localStorage.getItem('board-compact-mode') === '1';
+
+  function applyCompactMode() {
+    const board = document.querySelector('.board');
+    if (!board) return;
+    const badge = document.getElementById('compact-mode-badge');
+    if (_compactMode) {
+      board.classList.add('compact');
+      if (badge) badge.style.display = '';
+    } else {
+      board.classList.remove('compact');
+      if (badge) badge.style.display = 'none';
+    }
+  }
+
+  function toggleCompactMode() {
+    _compactMode = !_compactMode;
+    localStorage.setItem('board-compact-mode', _compactMode ? '1' : '0');
+    applyCompactMode();
+  }
+
+  applyCompactMode();
 
   // ── Scratchpad overlay (e key) ───────────────────────────────────────────────
   let _scratchpadDebounce = null;

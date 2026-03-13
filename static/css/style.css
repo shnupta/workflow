@@ -240,6 +240,37 @@ main { padding: 24px; }
   font-size: 11px;
 }
 
+
+/* ── Compact board mode ── */
+.board.compact .task-card {
+  padding: 8px 12px;
+  gap: 3px;
+}
+.board.compact .task-desc,
+.board.compact .card-tags,
+.board.compact .task-age,
+.board.compact .time-ago,
+.board.compact .due-label,
+.board.compact .timer-elapsed,
+.board.compact .task-actions .btn-quick-comment,
+.board.compact .btn-done {
+  display: none;
+}
+.board.compact .task-footer {
+  margin-top: 0;
+}
+.board.compact .task-title {
+  font-size: 13px;
+}
+.board.compact .task-card-header .tag {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+.board.compact .active-session-dot {
+  width: 6px;
+  height: 6px;
+}
+
 .task-list { display: flex; flex-direction: column; gap: 10px; }
 
 .empty { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
@@ -4388,4 +4419,16 @@ input[type="date"] {
 }
 .focus-mode-exit:hover {
   background: rgba(99,102,241,0.15);
+}
+.compact-mode-badge {
+  background: rgba(20,184,166,0.08);
+  border-color: rgba(20,184,166,0.3);
+  color: #2dd4bf;
+}
+.compact-mode-badge .focus-mode-exit {
+  border-color: rgba(20,184,166,0.3);
+  color: #2dd4bf;
+}
+.compact-mode-badge .focus-mode-exit:hover {
+  background: rgba(20,184,166,0.12);
 }
