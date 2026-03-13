@@ -182,6 +182,49 @@
     if (titleInput) titleInput.focus();
   }
 
+  // ── GitHub URL paste detection ──────────────────────────────────────────────
+  (function() {
+    const titleInput = document.getElementById('title');
+    const linkInput  = document.getElementById('link');
+    const prUrlInput = document.getElementById('pr_url');
+    const wtSel      = document.getElementById('work_type');
+    if (!titleInput) return;
+
+    const GH_PR_RE    = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(pull|issues)\/(\d+)/;
+
+    titleInput.addEventListener('paste', function(e) {
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+      const m = GH_PR_RE.exec(pasted);
+      if (!m) return;
+
+      e.preventDefault();
+      const [, owner, repo, kind, num] = m;
+      const isPR    = kind === 'pull';
+      const label   = isPR ? `PR #${num}: ${repo}` : `Issue #${num}: ${repo}`;
+
+      // Fill title if currently empty or is the pasted URL
+      if (!titleInput.value || titleInput.value === pasted) {
+        titleInput.value = label;
+      }
+
+      // Set link fields
+      if (linkInput)  linkInput.value  = pasted;
+      if (prUrlInput && isPR) prUrlInput.value = pasted;
+
+      // Auto-select work type
+      if (wtSel && isPR) {
+        for (const opt of wtSel.options) {
+          if (opt.value === 'pr_review') { wtSel.value = 'pr_review'; wtSel.dispatchEvent(new Event('change')); break; }
+        }
+      }
+
+      // Flash feedback
+      titleInput.style.transition = 'background .3s';
+      titleInput.style.background = 'rgba(99,102,241,0.12)';
+      setTimeout(() => { titleInput.style.background = ''; }, 700);
+    });
+  })();
+
   // ── Template auto-suggest on work_type change ───────────────────────────────
   (function() {
     const wtSel = document.getElementById('work_type');

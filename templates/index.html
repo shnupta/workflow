@@ -287,6 +287,46 @@
     }
   }
 
+  // ── GitHub URL paste detection in quick-add ────────────────────────────────
+  (function() {
+    const GH_PR_RE = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(pull|issues)\/(\d+)/;
+
+    document.addEventListener('paste', function(e) {
+      // Only fire when focus is in a quick-add title input
+      const active = document.activeElement;
+      if (!active || !active.classList.contains('quick-add-input')) return;
+
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+      const m = GH_PR_RE.exec(pasted);
+      if (!m) return;
+
+      e.preventDefault();
+      const [, owner, repo, kind, num] = m;
+      const isPR  = kind === 'pull';
+      const label = isPR ? `PR #${num}: ${repo}` : `Issue #${num}: ${repo}`;
+
+      active.value = label;
+
+      // Auto-select work type in the sibling select
+      if (isPR) {
+        const form = active.closest('.quick-add-form');
+        if (form) {
+          const sel = form.querySelector('.quick-add-type');
+          if (sel) {
+            for (const opt of sel.options) {
+              if (opt.value === 'pr_review') { sel.value = 'pr_review'; break; }
+            }
+          }
+        }
+      }
+
+      // Flash title input
+      active.style.transition = 'background .3s';
+      active.style.background = 'rgba(99,102,241,0.12)';
+      setTimeout(() => { active.style.background = ''; }, 700);
+    });
+  })();
+
   // ── Keyboard navigation ────────────────────────────────────────────────────
   //
   // State: focusedCard tracks the currently focused .task-card element (or
