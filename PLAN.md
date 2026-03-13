@@ -823,3 +823,16 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Pulsing green dot (●) in card header when active session exists
   - CSS @keyframes session-pulse: glow + opacity animation, 2s loop
   - 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 8)
+
+### Medium priority
+
+- [x] **Focus mode (f key)** ✅ 2026-03-13
+  - Press 'f' to collapse board to Today column only, full width
+  - Indigo badge: "⚡ Focus mode — showing Today only" + Exit button
+  - localStorage persistence ('board-focus-mode')
+  - toggleFocusMode() restores all columns on exit; grid-template-columns restored
+  - Keyboard cheatsheet updated; 226 tests green
