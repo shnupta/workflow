@@ -849,3 +849,17 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Card footer shows "session Xh ago" / "session Jan 2" when no timer/due date override
   - Uses existing relTime() (nil-safe); helps spot neglected tasks
   - 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 10)
+
+### Medium priority
+
+- [x] **Compact board mode (c key)** ✅ 2026-03-13
+  - Press 'c' to collapse cards to essentials (title + badges only)
+  - Hides .task-desc, .card-tags, age labels, timestamps, done button
+  - Teal compact-mode-badge at top with Exit button
+  - toggleCompactMode() + applyCompactMode(); localStorage persistence
+  - CSS .board.compact selectors; distinguishable teal vs indigo focus badge
+  - Keyboard cheatsheet updated; 226 tests green
