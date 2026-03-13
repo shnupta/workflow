@@ -1443,6 +1443,103 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+  // ── Task page keyboard shortcuts ───────────────────────────────────────────
+  const _priorities = ['', 'p1', 'p2', 'p3'];
+  const _efforts    = ['', 'xs', 's', 'm', 'l', 'xl'];
+  const _priorityLabels = {'': '—', 'p1': 'P1', 'p2': 'P2', 'p3': 'P3'};
+  const _effortLabels   = {'': '—', 'xs': 'XS', 's': 'S', 'm': 'M', 'l': 'L', 'xl': 'XL'};
+
+  let _currentPriority = {{if .Task.Priority}}"{{.Task.Priority}}"{{else}}""{{end}};
+  let _currentEffort   = {{if .Task.Effort}}"{{.Task.Effort}}"{{else}}""{{end}};
+
+  function isInputFocused() {
+    const el = document.activeElement;
+    if (!el) return false;
+    return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  }
+
+  async function patchTask(field, value) {
+    const body = {};
+    body[field] = value;
+    const r = await fetch(`/api/tasks/{{.Task.ID}}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    return r.ok;
+  }
+
+  function updatePriorityBadge(p) {
+    const container = document.querySelector('.task-meta');
+    if (!container) return;
+    let badge = container.querySelector('.tag-priority');
+    if (p === '') {
+      if (badge) badge.remove();
+    } else {
+      if (!badge) {
+        badge = document.createElement('span');
+        container.appendChild(badge);
+      }
+      badge.className = `tag tag-priority tag-priority-${p}`;
+      badge.textContent = _priorityLabels[p] || p.toUpperCase();
+    }
+  }
+
+  function updateEffortBadge(e) {
+    const container = document.querySelector('.task-meta');
+    if (!container) return;
+    let badge = container.querySelector('.tag-effort');
+    if (e === '') {
+      if (badge) badge.remove();
+    } else {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.title = 'Effort estimate';
+        container.appendChild(badge);
+      }
+      badge.className = `tag tag-effort tag-effort-${e}`;
+      badge.textContent = _effortLabels[e] || e.toUpperCase();
+    }
+  }
+
+  function flashToast(msg) {
+    let t = document.getElementById('kb-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'kb-toast';
+      t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:12px;color:var(--text-muted);z-index:9999;pointer-events:none;transition:opacity .3s';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timeout);
+    t._timeout = setTimeout(() => { t.style.opacity = '0'; }, 1800);
+  }
+
+  document.addEventListener('keydown', async (e) => {
+    if (isInputFocused()) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    if (e.key === 'p') {
+      e.preventDefault();
+      const idx = _priorities.indexOf(_currentPriority);
+      _currentPriority = _priorities[(idx + 1) % _priorities.length];
+      updatePriorityBadge(_currentPriority);
+      await patchTask('priority', _currentPriority);
+      flashToast(_currentPriority ? `Priority → ${_priorityLabels[_currentPriority]}` : 'Priority cleared');
+    }
+
+    if (e.key === 'E') {
+      e.preventDefault();
+      const idx = _efforts.indexOf(_currentEffort);
+      _currentEffort = _efforts[(idx + 1) % _efforts.length];
+      updateEffortBadge(_currentEffort);
+      await patchTask('effort', _currentEffort);
+      flashToast(_currentEffort ? `Effort → ${_effortLabels[_currentEffort]}` : 'Effort cleared');
+    }
+  });
+
 </script>
 </body>
 </html>
