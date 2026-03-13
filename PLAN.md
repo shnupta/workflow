@@ -891,3 +891,33 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Indigo flash on title input as visual confirmation
   - Regex: /github.com/{owner}/{repo}/(pull|issues)/{number}
   - 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 15)
+
+### High priority
+
+- [ ] **Task due-date reminder badge on board cards**
+  - Tasks with a due_date set show a 🗓 badge on the board card
+  - Green if due in >2 days, amber if due today/tomorrow, red if overdue (same as existing overdue styling)
+  - Re-uses `IsOverdue()` + `IsDueToday()` logic already on the model
+  - Zero backend change (due_date already in DB + model)
+
+### Medium priority
+
+- [ ] **Comments endpoint test coverage**
+  - `POST /api/tasks/{id}/comments` — creates comment, returns JSON
+  - `GET /api/tasks/{id}/comments` — returns list
+  - Currently zero handler tests for comments; DB tests exist but no HTTP layer
+
+- [x] **Task labels: add/remove via API tests** ✅ 2026-03-13
+  - POST /api/tasks/{id}/tags body `{"tag":"foo"}` → adds tag
+  - DELETE /api/tasks/{id}/tags/{tag} → removes
+  - Verifies tag appears in ListTaskTags response
+
+### Lower priority
+
+- [ ] **Digest page: clicking a task title navigates to task**
+  - All task titles in the digest are hyperlinks to /tasks/{id}
+  - Zero backend — pure template change
