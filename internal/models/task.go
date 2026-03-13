@@ -34,6 +34,7 @@ type Task struct {
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 	CommentCount     int        `db:"-"              json:"comment_count"`      // populated by ListTasks (not a column)
 	HasActiveSession bool       `db:"-"              json:"has_active_session"` // populated by ListTasks — true when a session is running/idle
+	LastSessionAt    *time.Time  `db:"-"              json:"last_session_at"`    // populated by ListTasks — most recent session started_at across all sessions for this task
 }
 
 // IsBlocked returns true when the task has an active blocker set.

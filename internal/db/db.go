@@ -494,6 +494,9 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	if err := d.populateActiveSessions(tasks); err != nil {
 		return nil, err
 	}
+	if err := d.populateLastSessions(tasks); err != nil {
+		return nil, err
+	}
 	return tasks, nil
 }
 
@@ -2218,6 +2221,35 @@ func (d *DB) populateCommentCounts(tasks []*models.Task) error {
 	}
 	for _, t := range tasks {
 		t.CommentCount = counts[t.ID]
+	}
+	return rows.Err()
+}
+
+func (d *DB) populateLastSessions(tasks []*models.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	rows, err := d.conn.Query(
+		`SELECT task_id, MAX(created_at) FROM sessions GROUP BY task_id`,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	lastSeen := map[string]string{}
+	for rows.Next() {
+		var tid, ts string
+		if err := rows.Scan(&tid, &ts); err != nil {
+			return err
+		}
+		lastSeen[tid] = ts
+	}
+	for _, t := range tasks {
+		if ts, ok := lastSeen[t.ID]; ok {
+			if parsed, err := time.Parse(time.RFC3339, ts); err == nil {
+				t.LastSessionAt = &parsed
+			}
+		}
 	}
 	return rows.Err()
 }

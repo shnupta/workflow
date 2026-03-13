@@ -1516,6 +1516,8 @@
     <span class="due-label {{if .IsOverdue}}due-overdue{{else if .IsDueToday}}due-today{{end}}">{{dueDateLabel .DueDate}}</span>
     {{else if .ElapsedLabel}}
     <span class="timer-elapsed">⏱ {{.ElapsedLabel}}</span>
+    {{else if .LastSessionAt}}
+    <span class="time-ago last-session-label">session {{relTime .LastSessionAt}}</span>
     {{else}}
     <span class="time-ago">{{timeAgo .CreatedAt}}</span>
     {{end}}
