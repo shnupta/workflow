@@ -1450,6 +1450,7 @@
     <input type="checkbox" class="card-checkbox" data-id="{{.ID}}" tabindex="-1">
   </label>
   <div class="task-card-header">
+    {{if .HasActiveSession}}<span class="active-session-dot" title="Session in progress"></span>{{end}}
     <span class="tag tag-type">{{workTypeLabel .WorkType}}</span>
     {{if .Priority}}<span class="tag tag-priority tag-priority-{{.Priority}}" title="Priority {{priorityLabel .Priority}}">{{priorityLabel .Priority}}</span>{{end}}
     {{if .Effort}}<span class="tag tag-effort tag-effort-{{.Effort}}" title="Effort: {{effortLabel .Effort}}">{{effortLabel .Effort}}</span>{{end}}

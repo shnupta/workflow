@@ -491,6 +491,9 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	if err := d.populateCommentCounts(tasks); err != nil {
 		return nil, err
 	}
+	if err := d.populateActiveSessions(tasks); err != nil {
+		return nil, err
+	}
 	return tasks, nil
 }
 
@@ -2215,6 +2218,31 @@ func (d *DB) populateCommentCounts(tasks []*models.Task) error {
 	}
 	for _, t := range tasks {
 		t.CommentCount = counts[t.ID]
+	}
+	return rows.Err()
+}
+
+func (d *DB) populateActiveSessions(tasks []*models.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+	rows, err := d.conn.Query(
+		`SELECT task_id FROM sessions WHERE status IN ('running','idle') GROUP BY task_id`,
+	)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	active := map[string]bool{}
+	for rows.Next() {
+		var tid string
+		if err := rows.Scan(&tid); err != nil {
+			return err
+		}
+		active[tid] = true
+	}
+	for _, t := range tasks {
+		t.HasActiveSession = active[t.ID]
 	}
 	return rows.Err()
 }

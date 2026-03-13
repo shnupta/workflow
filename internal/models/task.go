@@ -32,7 +32,8 @@ type Task struct {
 	Effort       string     `db:"effort"         json:"effort"`        // "" | "xs" | "s" | "m" | "l" | "xl"
 	Starred      bool       `db:"starred"        json:"starred"`       // pinned to top of board
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
-	CommentCount int        `db:"-"              json:"comment_count"` // populated by ListTasks (not a column)
+	CommentCount     int        `db:"-"              json:"comment_count"`      // populated by ListTasks (not a column)
+	HasActiveSession bool       `db:"-"              json:"has_active_session"` // populated by ListTasks — true when a session is running/idle
 }
 
 // IsBlocked returns true when the task has an active blocker set.
