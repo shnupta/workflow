@@ -810,3 +810,16 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Loads GET /api/tasks/{id}/scratchpad; auto-saves on 600ms debounce
   - Ctrl/Cmd+S force-save; Esc/click-outside to close; saving.../saved status
   - Keyboard cheatsheet updated; monospace textarea; 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 7)
+
+### Medium priority
+
+- [x] **Active session indicator on board cards** ✅ 2026-03-13
+  - populateActiveSessions() DB method: queries sessions WHERE status IN ('running','idle')
+  - Task.HasActiveSession bool populated by ListTasks alongside tags + comment counts
+  - Pulsing green dot (●) in card header when active session exists
+  - CSS @keyframes session-pulse: glow + opacity animation, 2s loop
+  - 226 tests green
