@@ -277,3 +277,186 @@ func TestQuickCreateTask_EmptyTitleRejects(t *testing.T) {
 		t.Errorf("expected 400 for empty title, got %d", rr.Code)
 	}
 }
+
+// ── sanitize helpers ───────────────────────────────────────────────────────
+
+func TestSanitizePriority_ValidValues(t *testing.T) {
+	for _, v := range []string{"p1", "p2", "p3"} {
+		if got := sanitizePriority(v); got != v {
+			t.Errorf("sanitizePriority(%q): want %q, got %q", v, v, got)
+		}
+	}
+}
+
+func TestSanitizePriority_InvalidReturnsEmpty(t *testing.T) {
+	for _, v := range []string{"", "P1", "high", "1"} {
+		if got := sanitizePriority(v); got != "" {
+			t.Errorf("sanitizePriority(%q): want empty, got %q", v, got)
+		}
+	}
+}
+
+func TestSanitizeEffort_ValidValues(t *testing.T) {
+	for _, v := range []string{"xs", "s", "m", "l", "xl"} {
+		if got := sanitizeEffort(v); got != v {
+			t.Errorf("sanitizeEffort(%q): want %q, got %q", v, v, got)
+		}
+	}
+}
+
+func TestSanitizeEffort_InvalidReturnsEmpty(t *testing.T) {
+	for _, v := range []string{"", "XL", "large", "medium"} {
+		if got := sanitizeEffort(v); got != "" {
+			t.Errorf("sanitizeEffort(%q): want empty, got %q", v, got)
+		}
+	}
+}
+
+func TestSanitizeRecurrence_ValidValues(t *testing.T) {
+	for _, v := range []string{"daily", "weekly", "biweekly", "monthly"} {
+		if got := sanitizeRecurrence(v); got != v {
+			t.Errorf("sanitizeRecurrence(%q): want %q, got %q", v, v, got)
+		}
+	}
+}
+
+func TestSanitizeRecurrence_InvalidReturnsEmpty(t *testing.T) {
+	for _, v := range []string{"", "Daily", "yearly", "once"} {
+		if got := sanitizeRecurrence(v); got != "" {
+			t.Errorf("sanitizeRecurrence(%q): want empty, got %q", v, got)
+		}
+	}
+}
+
+// ── parseDateForm ─────────────────────────────────────────────────────────
+
+func TestParseDateForm_ValidDate(t *testing.T) {
+	got := parseDateForm("2026-08-29")
+	if got == nil {
+		t.Fatal("expected non-nil for valid date")
+	}
+	if got.Year() != 2026 || got.Month() != 8 || got.Day() != 29 {
+		t.Errorf("wrong date: %v", got)
+	}
+}
+
+func TestParseDateForm_Empty(t *testing.T) {
+	if parseDateForm("") != nil {
+		t.Error("expected nil for empty string")
+	}
+}
+
+func TestParseDateForm_Whitespace(t *testing.T) {
+	if parseDateForm("   ") != nil {
+		t.Error("expected nil for whitespace")
+	}
+}
+
+func TestParseDateForm_Invalid(t *testing.T) {
+	for _, v := range []string{"not-a-date", "29/08/2026", "2026-13-01"} {
+		if parseDateForm(v) != nil {
+			t.Errorf("expected nil for invalid %q", v)
+		}
+	}
+}
+
+// ── normaliseTags ──────────────────────────────────────────────────────────
+
+func TestNormaliseTags_LowercasesAndTrims(t *testing.T) {
+	got := normaliseTags("  Frontend , BACKEND , Api  ")
+	// Should be lowercased, trimmed, joined
+	for _, want := range []string{"frontend", "backend", "api"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("normaliseTags: expected %q in %q", want, got)
+		}
+	}
+}
+
+func TestNormaliseTags_Deduplicates(t *testing.T) {
+	got := normaliseTags("foo,foo,FOO,bar")
+	// foo should appear only once
+	count := strings.Count(got, "foo")
+	if count != 1 {
+		t.Errorf("expected foo to appear once, got %d in %q", count, got)
+	}
+}
+
+func TestNormaliseTags_Empty(t *testing.T) {
+	if got := normaliseTags(""); got != "" {
+		t.Errorf("expected empty for empty input, got %q", got)
+	}
+}
+
+func TestNormaliseTags_SkipsBlanks(t *testing.T) {
+	got := normaliseTags(",,,alpha,,,")
+	if got != "alpha" {
+		t.Errorf("expected 'alpha', got %q", got)
+	}
+}
+
+// ── deriveTitleFromContent ─────────────────────────────────────────────────
+
+func TestDeriveTitleFromContent_FirstLine(t *testing.T) {
+	got := deriveTitleFromContent("Hello world\n\nSecond paragraph")
+	if got != "Hello world" {
+		t.Errorf("expected 'Hello world', got %q", got)
+	}
+}
+
+func TestDeriveTitleFromContent_StripsHashHeaders(t *testing.T) {
+	got := deriveTitleFromContent("# My Heading\nsome content")
+	if got != "My Heading" {
+		t.Errorf("expected 'My Heading', got %q", got)
+	}
+}
+
+func TestDeriveTitleFromContent_MultiHash(t *testing.T) {
+	got := deriveTitleFromContent("## Section Title")
+	if got != "Section Title" {
+		t.Errorf("expected 'Section Title', got %q", got)
+	}
+}
+
+func TestDeriveTitleFromContent_Empty(t *testing.T) {
+	got := deriveTitleFromContent("")
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestDeriveTitleFromContent_SkipsBlankFirstLine(t *testing.T) {
+	got := deriveTitleFromContent("\n\nActual content\n")
+	if got != "Actual content" {
+		t.Errorf("expected 'Actual content', got %q", got)
+	}
+}
+
+// ── jsonStr ────────────────────────────────────────────────────────────────
+
+func TestJsonStr_PlainString(t *testing.T) {
+	got := jsonStr("hello")
+	if got != `"hello"` {
+		t.Errorf("expected %q, got %q", `"hello"`, got)
+	}
+}
+
+func TestJsonStr_EscapesQuotes(t *testing.T) {
+	got := jsonStr(`say "hi"`)
+	if !strings.Contains(got, `\"`) {
+		t.Errorf("expected escaped quote in %q", got)
+	}
+}
+
+func TestJsonStr_EscapesBackslash(t *testing.T) {
+	got := jsonStr(`back\slash`)
+	if !strings.Contains(got, `\\`) {
+		t.Errorf("expected escaped backslash in %q", got)
+	}
+}
+
+func TestJsonStr_Empty(t *testing.T) {
+	got := jsonStr("")
+	if got != `""` {
+		t.Errorf("expected empty string literal, got %q", got)
+	}
+}
