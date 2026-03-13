@@ -863,3 +863,17 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - toggleCompactMode() + applyCompactMode(); localStorage persistence
   - CSS .board.compact selectors; distinguishable teal vs indigo focus badge
   - Keyboard cheatsheet updated; 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 11)
+
+### Medium priority
+
+- [x] **Task page keyboard shortcuts: priority (p) + effort (E)** ✅ 2026-03-13
+  - 'p' cycles priority none→P1→P2→P3→none on task detail page
+  - 'E' (Shift+E) cycles effort none→XS→S→M→L→XL→none
+  - PATCH /api/tasks/{id} on each cycle; badge updates in-place without reload
+  - Toast notification at bottom confirms the change (fades 1.8s)
+  - Input-focus guard so typing in fields is unaffected
+  - 226 tests green
