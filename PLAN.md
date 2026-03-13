@@ -877,3 +877,17 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Toast notification at bottom confirms the change (fades 1.8s)
   - Input-focus guard so typing in fields is unaffected
   - 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 13)
+
+### Medium priority
+
+- [x] **GitHub URL paste detection** ✅ 2026-03-13
+  - Paste a github.com PR/issue URL into title → auto-fills title ("PR #N: repo"),
+    link field, pr_url field (PRs), selects "PR Review" work type
+  - Works in both full task form and board quick-add popover
+  - Indigo flash on title input as visual confirmation
+  - Regex: /github.com/{owner}/{repo}/(pull|issues)/{number}
+  - 226 tests green
