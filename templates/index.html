@@ -82,6 +82,10 @@
     </div>
     {{end}}
 
+    <div id="focus-mode-badge" class="focus-mode-badge" style="display:none">
+      ⚡ Focus mode — showing Today only
+      <button class="focus-mode-exit" onclick="toggleFocusMode()">Exit (f)</button>
+    </div>
     <div id="wip-warning" class="wip-warning" style="display:none">
       ⚠ WIP limit reached — <span id="wip-count"></span> tasks in Today (limit: <span id="wip-limit"></span>). Consider finishing something before starting more.
       <button class="wip-dismiss" onclick="document.getElementById('wip-warning').style.display='none'">✕</button>
@@ -580,6 +584,12 @@
             openScratchpadOverlay(focusedCard.dataset.id, focusedCard.querySelector('.task-title')?.textContent?.trim() || 'Task');
           }
           return;
+        case 'f':
+          if (!overlayOpen()) {
+            e.preventDefault();
+            toggleFocusMode();
+          }
+          return;
         case 'Escape':
           if (overlayOpen()) return; // let the overlay handler deal with it
           if (focusedCard) { e.preventDefault(); clearFocus(); return; }
@@ -647,6 +657,7 @@
           <kbd>m</kbd><span>Move focused task to next column</span>
           <kbd>*</kbd><span>Star / unstar focused task</span>
           <kbd>e</kbd><span>Edit scratchpad for focused task</span>
+          <kbd>f</kbd><span>Toggle focus mode (Today column only)</span>
           <kbd>Esc</kbd><span>Clear focus / close overlay</span>
           <kbd>n</kbd><span>New task (full form)</span>
           <kbd>q</kbd><span>Quick-add to first column</span>
@@ -1239,6 +1250,39 @@
       empty.style.display = 'none';
     }
   }
+
+  // ── Focus mode (f key) ────────────────────────────────────────────────────────
+  let _focusMode = localStorage.getItem('board-focus-mode') === '1';
+
+  function applyFocusMode() {
+    const board = document.querySelector('.board');
+    if (!board) return;
+    const cols = board.querySelectorAll('.tier-col');
+    const badge = document.getElementById('focus-mode-badge');
+    if (_focusMode && cols.length > 0) {
+      // Show only the first column (Today), hide the rest
+      const firstKey = cols[0].dataset.tier;
+      cols.forEach((col, i) => {
+        col.style.display = i === 0 ? '' : 'none';
+      });
+      board.style.gridTemplateColumns = '1fr';
+      if (badge) badge.style.display = '';
+    } else {
+      cols.forEach(col => { col.style.display = ''; });
+      // Restore original grid columns (N tiers)
+      board.style.gridTemplateColumns = `repeat(${cols.length}, 1fr)`;
+      if (badge) badge.style.display = 'none';
+    }
+  }
+
+  function toggleFocusMode() {
+    _focusMode = !_focusMode;
+    localStorage.setItem('board-focus-mode', _focusMode ? '1' : '0');
+    applyFocusMode();
+  }
+
+  // Apply on load
+  applyFocusMode();
 
   // ── Scratchpad overlay (e key) ───────────────────────────────────────────────
   let _scratchpadDebounce = null;
