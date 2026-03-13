@@ -337,3 +337,53 @@ func TestAgeLabel(t *testing.T) {
 		})
 	}
 }
+
+// ── IsDueSoon ─────────────────────────────────────────────────────────────────
+
+func TestIsDueSoon_NoDueDate(t *testing.T) {
+	task := &Task{}
+	if task.IsDueSoon() {
+		t.Error("expected false when no due date")
+	}
+}
+
+func TestIsDueSoon_Done(t *testing.T) {
+	d := time.Now()
+	task := &Task{DueDate: &d, Done: true}
+	if task.IsDueSoon() {
+		t.Error("expected false when task is done")
+	}
+}
+
+func TestIsDueSoon_Today(t *testing.T) {
+	now := time.Now()
+	d := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	task := &Task{DueDate: &d}
+	if !task.IsDueSoon() {
+		t.Error("expected true when due today")
+	}
+}
+
+func TestIsDueSoon_Tomorrow(t *testing.T) {
+	d := time.Now().AddDate(0, 0, 1)
+	task := &Task{DueDate: &d}
+	if !task.IsDueSoon() {
+		t.Error("expected true when due tomorrow")
+	}
+}
+
+func TestIsDueSoon_TwoDaysAway(t *testing.T) {
+	d := time.Now().AddDate(0, 0, 2)
+	task := &Task{DueDate: &d}
+	if task.IsDueSoon() {
+		t.Error("expected false when due 2+ days away")
+	}
+}
+
+func TestIsDueSoon_Overdue(t *testing.T) {
+	d := time.Now().AddDate(0, 0, -1)
+	task := &Task{DueDate: &d}
+	if task.IsDueSoon() {
+		t.Error("expected false when overdue (use IsOverdue for that)")
+	}
+}

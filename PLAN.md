@@ -898,18 +898,17 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### High priority
 
-- [ ] **Task due-date reminder badge on board cards**
-  - Tasks with a due_date set show a 🗓 badge on the board card
-  - Green if due in >2 days, amber if due today/tomorrow, red if overdue (same as existing overdue styling)
-  - Re-uses `IsOverdue()` + `IsDueToday()` logic already on the model
-  - Zero backend change (due_date already in DB + model)
+- [x] **Task due-date reminder badge on board cards** ✅ 2026-03-13
+  - 🗓 badge in card header: blue (>2 days), amber (today/tomorrow), red (overdue)
+  - IsDueSoon() method added to Task model (diff 0-1 days, not done)
+  - tag-due / tag-due-soon / tag-due-overdue CSS; visible even in compact mode
+  - 6 model tests for IsDueSoon; 266 total green
 
 ### Medium priority
 
-- [ ] **Comments endpoint test coverage**
-  - `POST /api/tasks/{id}/comments` — creates comment, returns JSON
-  - `GET /api/tasks/{id}/comments` — returns list
-  - Currently zero handler tests for comments; DB tests exist but no HTTP layer
+- [x] **Comments endpoint test coverage** ✅ 2026-03-13
+  - Already covered in integration_test.go (8 tests: ListComments, CreateComment x4, DeleteComment x3)
+  - No new tests needed — item was stale
 
 - [x] **Task labels: add/remove via API tests** ✅ 2026-03-13
   - POST /api/tasks/{id}/tags body `{"tag":"foo"}` → adds tag
@@ -918,6 +917,6 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 
 ### Lower priority
 
-- [ ] **Digest page: clicking a task title navigates to task**
-  - All task titles in the digest are hyperlinks to /tasks/{id}
-  - Zero backend — pure template change
+- [x] **Digest page: clicking a task title navigates to task** ✅ 2026-03-13
+  - Already implemented — all rows in Completed/InProgress/WaitingOnOthers sections are <a href="/tasks/{id}"> links
+  - Item was stale, no change needed

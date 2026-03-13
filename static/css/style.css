@@ -2140,6 +2140,23 @@ input[type="date"] {
   font-weight: 600;
 }
 
+/* Due-date header badges on cards */
+.tag-due {
+  background: rgba(99, 179, 237, 0.12);
+  border: 1px solid rgba(99, 179, 237, 0.3);
+  color: #63b3ed;
+}
+.tag-due-soon {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+.tag-due-overdue {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
 /* Overdue card: red left border */
 .task-card.overdue {
   border-left: 3px solid #ef4444 !important;

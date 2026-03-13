@@ -109,6 +109,19 @@ func (t *Task) IsDueToday() bool {
 	return t.DueDate.Year() == now.Year() && t.DueDate.Month() == now.Month() && t.DueDate.Day() == now.Day()
 }
 
+// IsDueSoon returns true if the task is due within 2 days (today or tomorrow).
+// This drives the amber badge in the card header.
+func (t *Task) IsDueSoon() bool {
+	if t.DueDate == nil || t.Done {
+		return false
+	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	due := time.Date(t.DueDate.Year(), t.DueDate.Month(), t.DueDate.Day(), 0, 0, 0, 0, now.Location())
+	diff := int(due.Sub(today).Hours() / 24)
+	return diff >= 0 && diff <= 1
+}
+
 // ElapsedSeconds returns total elapsed seconds including any current run.
 func (t *Task) ElapsedSeconds() int {
 	total := t.TimerTotal
