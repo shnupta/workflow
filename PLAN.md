@@ -836,3 +836,16 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - localStorage persistence ('board-focus-mode')
   - toggleFocusMode() restores all columns on exit; grid-template-columns restored
   - Keyboard cheatsheet updated; 226 tests green
+
+---
+
+## New features (proposed 2026-03-13 nudge 9)
+
+### Medium priority
+
+- [x] **Last session timestamp on board cards** ✅ 2026-03-13
+  - populateLastSessions() DB method: MAX(created_at) per task from sessions table
+  - Task.LastSessionAt *time.Time populated by ListTasks() alongside other per-task data
+  - Card footer shows "session Xh ago" / "session Jan 2" when no timer/due date override
+  - Uses existing relTime() (nil-safe); helps spot neglected tasks
+  - 226 tests green
