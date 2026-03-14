@@ -920,3 +920,17 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Digest page: clicking a task title navigates to task** ✅ 2026-03-13
   - Already implemented — all rows in Completed/InProgress/WaitingOnOthers sections are <a href="/tasks/{id}"> links
   - Item was stale, no change needed
+
+## New features (proposed 2026-03-14 nudge 29)
+
+### High priority
+
+- [x] **Blocked tasks dashboard** ✅ 2026-03-14
+  - `/blocked` page: table of all non-done tasks with `blocked_by` set; shows blocker title + link
+  - One-click "Unblock" button: `POST /api/tasks/{id}/unblock` clears `blocked_by`, row fades out
+  - `ListBlockedTasks()` DB method: LEFT JOIN on blocker title, excludes done+archived
+  - `CountBlockedTasks()` DB method: counts for DigestWeek
+  - `DigestWeek.BlockedCount`: shown in digest alert bar as `⛔ N blocked` → `/blocked`
+  - `⛔ Blocked` filter chip on board: filters cards with `.blocked` CSS class (red accent)
+  - "Blocked" nav link added
+  - 6 new tests; 295 total green
