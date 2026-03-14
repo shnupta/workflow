@@ -4159,6 +4159,12 @@ input[type="date"] {
   border: 1px solid rgba(255, 80, 80, 0.3);
 }
 
+.digest-alert-blocked {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
 .card-comment-count {
   font-size: 11px;
   color: var(--fg-muted);
@@ -4449,3 +4455,6 @@ input[type="date"] {
 .compact-mode-badge .focus-mode-exit:hover {
   background: rgba(20,184,166,0.12);
 }
+
+.filter-chip-blocked { color: #f87171; border-color: #f87171; }
+.filter-chip-blocked.active { background: #f87171; color: #fff; }

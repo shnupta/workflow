@@ -1,0 +1,158 @@
+{{template "nav.html" .}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blocked tasks — workflow</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .blocked-page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .blocked-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1.5rem; }
+    .blocked-header h1 { margin: 0; font-size: 1.4rem; }
+    .blocked-count { font-size: 0.85rem; color: var(--text-muted); }
+
+    .blocked-empty {
+      text-align: center; padding: 4rem 2rem;
+      color: var(--text-muted); font-size: 0.95rem;
+    }
+    .blocked-empty .check-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+    .blocked-table { width: 100%; border-collapse: collapse; }
+    .blocked-table th {
+      text-align: left; font-size: 0.75rem; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-muted);
+      padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+    }
+    .blocked-table td {
+      padding: 0.7rem 0.75rem; border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .blocked-table tr:last-child td { border-bottom: none; }
+    .blocked-table tr:hover td { background: var(--surface-hover); }
+
+    .task-link { color: var(--text); text-decoration: none; font-weight: 500; }
+    .task-link:hover { color: var(--accent); }
+
+    .blocker-link {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      color: var(--text-muted); font-size: 0.85rem; text-decoration: none;
+    }
+    .blocker-link:hover { color: var(--text); }
+
+    .type-badge {
+      display: inline-block; padding: 0.15rem 0.45rem;
+      border-radius: 4px; font-size: 0.72rem; font-weight: 500;
+      background: var(--surface-2); color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .tier-badge {
+      display: inline-block; padding: 0.15rem 0.45rem;
+      border-radius: 4px; font-size: 0.72rem;
+      background: var(--surface-2); color: var(--text-muted);
+    }
+
+    .priority-badge { font-size: 0.72rem; font-weight: 600; }
+    .priority-badge.p1 { color: #f87171; }
+    .priority-badge.p2 { color: #fbbf24; }
+    .priority-badge.p3 { color: #818cf8; }
+
+    .unblock-btn {
+      font-size: 0.75rem; padding: 0.25rem 0.65rem;
+      border: 1px solid var(--border); border-radius: 4px;
+      background: transparent; color: var(--text-muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .unblock-btn:hover {
+      background: var(--green, #22c55e); color: #fff; border-color: var(--green, #22c55e);
+    }
+  </style>
+</head>
+<body>
+<nav-placeholder></nav-placeholder>
+
+<div class="blocked-page">
+  <div class="blocked-header">
+    <h1>⛔ Blocked tasks</h1>
+    {{if .BlockedRows}}
+      <span class="blocked-count">{{len .BlockedRows}} task{{if gt (len .BlockedRows) 1}}s{{end}} blocked</span>
+    {{end}}
+  </div>
+
+  {{if not .BlockedRows}}
+    <div class="blocked-empty">
+      <div class="check-icon">✅</div>
+      <div>No blocked tasks — everything is clear to go.</div>
+    </div>
+  {{else}}
+    <table class="blocked-table">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Blocked by</th>
+          <th>Type</th>
+          <th>Tier</th>
+          <th>Priority</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="blocked-tbody">
+        {{range .BlockedRows}}
+        <tr id="row-{{.Task.ID}}">
+          <td>
+            <a class="task-link" href="/tasks/{{.Task.ID}}">{{.Task.Title}}</a>
+          </td>
+          <td>
+            {{if .BlockerTitle}}
+              <a class="blocker-link" href="/tasks/{{.BlockerID}}">
+                🔒 {{.BlockerTitle}}
+              </a>
+            {{else}}
+              <span style="color:var(--text-muted);font-size:0.82rem;">unknown</span>
+            {{end}}
+          </td>
+          <td><span class="type-badge">{{.Task.WorkType}}</span></td>
+          <td><span class="tier-badge">{{.Task.Tier}}</span></td>
+          <td>
+            {{if .Task.Priority}}
+              <span class="priority-badge {{lower .Task.Priority}}">{{.Task.Priority}}</span>
+            {{else}}
+              <span style="color:var(--text-muted);font-size:0.82rem;">—</span>
+            {{end}}
+          </td>
+          <td>
+            <button class="unblock-btn" onclick="unblock('{{.Task.ID}}', this)" title="Remove blocked-by">
+              Unblock
+            </button>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  {{end}}
+</div>
+
+<script>
+  async function unblock(taskID, btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+    const r = await fetch(`/api/tasks/${taskID}/unblock`, { method: 'POST' });
+    if (r.ok) {
+      const row = document.getElementById(`row-${taskID}`);
+      row.style.opacity = '0';
+      row.style.transition = 'opacity 0.2s';
+      setTimeout(() => {
+        row.remove();
+        const tbody = document.getElementById('blocked-tbody');
+        if (tbody && tbody.rows.length === 0) location.reload();
+      }, 220);
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Unblock';
+      alert('Failed to unblock task');
+    }
+  }
+</script>
+</body>
+</html>

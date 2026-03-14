@@ -32,6 +32,7 @@
       <div class="digest-alert">
         {{if gt .Digest.OverdueCount 0}}<span class="digest-alert-item digest-alert-overdue">⚠ {{.Digest.OverdueCount}} overdue</span>{{end}}
         {{if gt .Digest.OpenP1Count 0}}<span class="digest-alert-item digest-alert-p1">🔴 {{.Digest.OpenP1Count}} P1 open</span>{{end}}
+        {{if gt .Digest.BlockedCount 0}}<span class="digest-alert-item digest-alert-blocked"><a href="/blocked" style="color:inherit;text-decoration:none;">⛔ {{.Digest.BlockedCount}} blocked</a></span>{{end}}
       </div>
       {{end}}
 

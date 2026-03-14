@@ -50,6 +50,7 @@
       <div class="filter-sep"></div>
       <button class="filter-chip" data-filter="blocked_on_me" onclick="setFilter('blocked_on_me', this)">On me</button>
       <button class="filter-chip" data-filter="blocked_on_them" onclick="setFilter('blocked_on_them', this)">Waiting</button>
+      <button class="filter-chip filter-chip-blocked" data-filter="blocked" onclick="setFilter('blocked', this)">⛔ Blocked</button>
       <button class="filter-chip filter-chip-p1" data-filter="priority:p1" onclick="setFilter('priority:p1', this)">P1</button>
       <button class="filter-chip filter-chip-star" data-filter="starred" onclick="setFilter('starred', this)">★ Starred</button>
       {{if .AllTags}}
@@ -887,6 +888,8 @@
     }
     if (currentFilter.startsWith('priority:'))
       return card.dataset.priority === currentFilter.slice(9);
+    if (currentFilter === 'blocked')
+      return card.classList.contains('blocked');
     if (currentFilter === 'starred')
       return card.dataset.starred === '1';
     return card.dataset.type === currentFilter;

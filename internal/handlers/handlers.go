@@ -360,6 +360,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.apiPatchTask)
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
+	mux.HandleFunc("GET /blocked", h.blockedPage)
+	mux.HandleFunc("POST /api/tasks/{id}/unblock", h.apiUnblockTask)
 	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
 	mux.HandleFunc("GET /api/tasks/recent", h.apiRecentTasks)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)

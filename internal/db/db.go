@@ -1620,6 +1620,7 @@ type DigestWeek struct {
 	AvgAgeDays       float64           // average age (days since created_at) of current in-progress tasks
 	OpenP1Count          int               // open tasks with priority=P1
 	OverdueCount         int               // open tasks that are overdue (due_date < today, not done)
+	BlockedCount         int               // open tasks currently blocked by another task
 	VelocitySparkline    []int             // tasks completed per week, last 8 weeks (oldest first)
 }
 
@@ -1724,6 +1725,7 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	today := time.Now().UTC().Format("2006-01-02")
 	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND priority='P1'`).Scan(&dw.OpenP1Count)
 	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND due_date != '' AND due_date < ?`, today).Scan(&dw.OverdueCount)
+	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND COALESCE(archived,0)=0 AND blocked_by IS NOT NULL AND blocked_by != ''`).Scan(&dw.BlockedCount)
 
 	// Session count for the week
 	var sc int
@@ -2881,4 +2883,74 @@ func (d *DB) ListArchivedTasks() ([]*models.Task, error) {
 		return nil, err
 	}
 	return tasks, nil
+}
+
+// BlockedTaskRow pairs a blocked task with its blocker's title.
+type BlockedTaskRow struct {
+	Task        *models.Task
+	BlockerID    string
+	BlockerTitle string
+}
+
+// ListBlockedTasks returns all non-done, non-archived tasks that have a
+// blocked_by value set, along with the title of the blocker task.
+func (d *DB) ListBlockedTasks() ([]*BlockedTaskRow, error) {
+	rows, err := d.conn.Query(`
+		SELECT
+			t.id, t.title, t.description, t.work_type, t.tier, t.direction,
+			t.pr_url, t.brief, t.brief_status, t.link, t.done, t.position,
+			t.created_at, t.updated_at, t.done_at, t.due_date, t.timer_started,
+			t.timer_total, t.scratchpad, t.blocked_by, t.recurrence,
+			t.priority, t.effort, COALESCE(t.starred,0),
+			COALESCE(b.title,'') AS blocker_title
+		FROM tasks t
+		LEFT JOIN tasks b ON b.id = t.blocked_by
+		WHERE t.done = 0
+		  AND COALESCE(t.archived,0) = 0
+		  AND t.blocked_by IS NOT NULL
+		  AND t.blocked_by != ''
+		ORDER BY t.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*BlockedTaskRow
+	for rows.Next() {
+		t := &models.Task{}
+		var createdAt, updatedAt string
+		var doneAt, dueDate, timerStarted *string
+		var blockerTitle string
+		var starred int
+		err := rows.Scan(
+			&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier, &t.Direction,
+			&t.PRURL, &t.Brief, &t.BriefStatus, &t.Link, &t.Done, &t.Position,
+			&createdAt, &updatedAt, &doneAt, &dueDate, &timerStarted,
+			&t.TimerTotal, &t.Scratchpad, &t.BlockedBy, &t.Recurrence,
+			&t.Priority, &t.Effort, &starred, &blockerTitle,
+		)
+		if err != nil {
+			return nil, err
+		}
+		parseTaskScanned(t, createdAt, updatedAt, doneAt, dueDate, timerStarted)
+		t.Starred = starred == 1
+		results = append(results, &BlockedTaskRow{
+			Task:         t,
+			BlockerID:    t.BlockedBy,
+			BlockerTitle: blockerTitle,
+		})
+	}
+	return results, rows.Err()
+}
+
+// CountBlockedTasks returns the number of non-done tasks currently blocked.
+func (d *DB) CountBlockedTasks() (int, error) {
+	var n int
+	err := d.conn.QueryRow(`
+		SELECT COUNT(*) FROM tasks
+		WHERE done=0
+		  AND COALESCE(archived,0)=0
+		  AND blocked_by IS NOT NULL
+		  AND blocked_by != ''`).Scan(&n)
+	return n, err
 }
