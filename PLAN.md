@@ -978,3 +978,15 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - tier badges (indigo/purple/slate), priority badges, collapse state in localStorage
   - `blocked_by` NULL scan bug fixed while implementing
   - 7 new DB tests (306→313)
+
+## New features (proposed 2026-03-15 nudge 34)
+
+### High priority
+
+- [x] **Batch task creation** ✅ 2026-03-15
+  - ⊞ Batch button in filter bar (keyboard shortcut `B`)
+  - Modal: multiline textarea + work-type/tier selectors + Ctrl+Enter submit
+  - `POST /tasks/batch` endpoint: strips blank lines and bullet chars (- * • 1.)
+  - Defaults work_type="other", tier=first configured
+  - Returns `{created: N, ids: [...]}`; board reloads after success
+  - 7 new handler tests (313→320)
