@@ -62,6 +62,7 @@
       {{end}}
       <div class="filter-sep"></div>
       <button class="filter-chip swimlane-toggle" id="swimlane-btn" onclick="toggleSwimlanes(this)" title="Group by tag">⋮ Lanes</button>
+      <button class="filter-chip filter-chip-batch" onclick="openBatchModal()" title="Create multiple tasks at once (B)">⊞ Batch</button>
     </div>
     {{if .SprintGoal}}
     {{$pct := sprintPct .DoneThisWeek .SprintGoal}}
@@ -624,6 +625,12 @@
             toggleStarCard(focusedCard);
           }
           return;
+        case 'B':
+          if (!overlayOpen()) {
+            e.preventDefault();
+            openBatchModal();
+          }
+          return;
         case 'e':
           if (focusedCard && !overlayOpen()) {
             e.preventDefault();
@@ -708,7 +715,8 @@
           <kbd>Enter</kbd><span>Open focused task</span>
           <kbd>m</kbd><span>Move focused task to next column</span>
           <kbd>*</kbd><span>Star / unstar focused task</span>
-          <kbd>e</kbd><span>Edit scratchpad for focused task</span>
+          <kbd>B</kbd><span>Batch-create tasks modal</span>
+            <kbd>e</kbd><span>Edit scratchpad for focused task</span>
           <kbd>f</kbd><span>Toggle focus mode (Today column only)</span>
           <kbd>c</kbd><span>Toggle compact mode (smaller cards)</span>
           <kbd>Esc</kbd><span>Clear focus / close overlay</span>
@@ -1366,6 +1374,69 @@
   applyCompactMode();
 
   // ── Scratchpad overlay (e key) ───────────────────────────────────────────────
+  // ─── Batch-create modal ─────────────────────────────────────────────────────
+
+  function openBatchModal() {
+    document.getElementById('batch-modal').classList.remove('hidden');
+    document.getElementById('batch-result').textContent = '';
+    setTimeout(() => document.getElementById('batch-lines').focus(), 50);
+  }
+
+  function closeBatchModal() {
+    document.getElementById('batch-modal').classList.add('hidden');
+    document.getElementById('batch-lines').value = '';
+    document.getElementById('batch-result').textContent = '';
+  }
+
+  async function submitBatch() {
+    const lines = document.getElementById('batch-lines').value.trim();
+    if (!lines) return;
+    const workType = document.getElementById('batch-work-type').value;
+    const tier = document.getElementById('batch-tier').value;
+    const resultEl = document.getElementById('batch-result');
+    resultEl.textContent = 'Creating…';
+    try {
+      const resp = await fetch('/tasks/batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ lines, work_type: workType, tier })
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      const data = await resp.json();
+      resultEl.textContent = `✓ Created ${data.created} task${data.created === 1 ? '' : 's'}`;
+      resultEl.style.color = 'var(--color-success, #34d399)';
+      // Reload board after a brief pause
+      setTimeout(() => { closeBatchModal(); window.location.reload(); }, 1200);
+    } catch (err) {
+      resultEl.textContent = 'Error: ' + err.message;
+      resultEl.style.color = '#f87171';
+    }
+  }
+
+  // Close batch modal on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const m = document.getElementById('batch-modal');
+      if (m && !m.classList.contains('hidden')) {
+        closeBatchModal();
+        e.stopPropagation();
+      }
+    }
+  }, true);
+
+  // Close on backdrop click
+  document.getElementById('batch-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeBatchModal();
+  });
+
+  // Ctrl+Enter submits batch
+  document.getElementById('batch-lines').addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      submitBatch();
+    }
+  });
+
   let _scratchpadDebounce = null;
 
   function openScratchpadOverlay(taskId, taskTitle) {
@@ -1554,6 +1625,30 @@
     new MutationObserver(checkWIPLimit).observe(todayCol, { childList: true, subtree: true });
   })();
 </script>
+  <!-- Batch-create tasks modal -->
+  <div id="batch-modal" class="batch-modal hidden" role="dialog" aria-modal="true" aria-labelledby="batch-modal-title">
+    <div class="batch-modal-box">
+      <div class="batch-modal-header">
+        <span class="batch-modal-title" id="batch-modal-title">Batch create tasks</span>
+        <button class="batch-modal-close" onclick="closeBatchModal()" title="Close">✕</button>
+      </div>
+      <div class="batch-modal-body">
+        <p class="batch-modal-hint">Paste a list — one task per line. Bullets (-  •  *) are stripped.</p>
+        <textarea id="batch-lines" class="batch-lines-input" placeholder="Review PR #123&#10;Update docs&#10;Deploy staging" rows="8" spellcheck="false"></textarea>
+        <div class="batch-modal-row">
+          <select id="batch-work-type" class="batch-select">
+            {{range $.WorkTypes}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
+          </select>
+          <select id="batch-tier" class="batch-select">
+            {{range $.Tiers}}<option value="{{.Key}}">{{.Label}}</option>{{end}}
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="submitBatch()">Create tasks</button>
+        </div>
+        <p id="batch-result" class="batch-result"></p>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
 {{end}}

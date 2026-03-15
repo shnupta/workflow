@@ -4766,3 +4766,113 @@ input[type="date"] {
 .related-tier-today    { background: rgba(99,102,241,0.15); color: #818cf8; }
 .related-tier-this_week { background: rgba(139,92,246,0.12); color: #a78bfa; }
 .related-tier-backlog  { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+/* ============================================================
+   Batch-create tasks modal
+   ============================================================ */
+
+.filter-chip-batch { color: #a78bfa !important; }
+.filter-chip-batch.active { background: rgba(167,139,250,0.15) !important; border-color: #a78bfa !important; }
+
+.batch-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.batch-modal.hidden { display: none; }
+
+.batch-modal-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.batch-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.batch-modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.batch-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  line-height: 1;
+}
+
+.batch-modal-body {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.batch-modal-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.batch-lines-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.batch-lines-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.batch-modal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+
+.batch-result {
+  font-size: 12px;
+  min-height: 16px;
+  margin: 0;
+}

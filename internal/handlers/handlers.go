@@ -367,6 +367,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /tasks/new", h.newTaskForm)
 	mux.HandleFunc("POST /tasks", h.createTask)
 	mux.HandleFunc("POST /tasks/quick", h.quickCreateTask)
+	mux.HandleFunc("POST /tasks/batch", h.batchCreateTasks)
 	mux.HandleFunc("GET /tasks/{id}", h.viewTask)
 	mux.HandleFunc("GET /tasks/{id}/edit", h.editTaskForm)
 	mux.HandleFunc("POST /tasks/{id}", h.updateTask)
@@ -1706,5 +1707,57 @@ func (h *Handler) activityFeedJSON(w http.ResponseWriter, r *http.Request) {
 		"days":   days,
 		"count":  len(out),
 		"events": out,
+	})
+}
+
+// batchCreateTasks creates multiple tasks from a newline-separated list of titles.
+// Accepts JSON: {"lines":"Task A\nTask B\n...","work_type":"coding","tier":"backlog"}
+// Returns JSON {"created": N, "ids": [...]}
+func (h *Handler) batchCreateTasks(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Lines    string `json:"lines"`
+		WorkType string `json:"work_type"`
+		Tier     string `json:"tier"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if body.WorkType == "" {
+		body.WorkType = "other"
+	}
+	if body.Tier == "" {
+		if len(h.cfg().Tiers) > 0 {
+			body.Tier = h.cfg().Tiers[0].Key
+		} else {
+			body.Tier = "backlog"
+		}
+	}
+
+	var ids []string
+	for _, line := range strings.Split(body.Lines, "\n") {
+		title := strings.TrimSpace(line)
+		// Strip leading bullet characters common in pasted lists
+		title = strings.TrimLeft(title, "-*•·–—123456789. \t")
+		title = strings.TrimSpace(title)
+		if title == "" {
+			continue
+		}
+		t := &models.Task{
+			Title:     title,
+			WorkType:  body.WorkType,
+			Tier:      body.Tier,
+			Direction: "blocked_on_me",
+		}
+		if err := h.db.CreateTask(t); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		ids = append(ids, t.ID)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"created": len(ids),
+		"ids":     ids,
 	})
 }
