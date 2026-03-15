@@ -1043,3 +1043,15 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Task view: ⚡ button next to ★ star; active state shows "⚡ Focus"
   - Digest: indigo banner at top of current week showing focus task title + priority
   - 5 new DB tests (320→325)
+
+## New features (shipped 2026-03-15 nudge 42)
+
+### Medium priority
+
+- [x] **Effort vs actual time comparison** ✅ 2026-03-15
+  - `Task.EffortHours()` — canonical hours per size (XS=0.5h, S=1.5h, M=3h, L=6h, XL=12h)
+  - `Task.EffortVsActual()` — ratio chip: "on track (2h 15m / 3h est)", "2.1× over ...", "under est ..."
+  - Returns "" when no effort set or no time tracked (graceful no-op)
+  - task_view: chip next to timer display when task has both effort + tracked time
+  - digest: chip on Done rows in weekly digest
+  - 7 new model tests (325→332)
