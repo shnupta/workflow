@@ -1019,3 +1019,21 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
 - [x] **Saved board filter presets** ✅ 2026-03-15 — 📌 Presets dropdown, P shortcut, save/apply/delete, localStorage; zero backend
 - [x] **Live column count badges** ✅ 2026-03-15 — header count updates dynamically on filter change; count-zero dims on no results
 - [x] **Card-level timer toggle** ✅ 2026-03-15 — ▶/⏹ button on card hover, green when running, updates footer elapsed label in-place; POST /tasks/{id}/timer (existing endpoint)
+
+## New features (shipped 2026-03-15 nudge 36)
+
+### High priority
+
+- [x] **Per-column WIP limit visual badge** ✅ 2026-03-15
+  - `Tier.WIPLimit` field in config (per-tier); falls back to global `wip_limit` for "today"
+  - Column count badge turns amber (wip-near) at limit, red + pulsing (wip-over) over limit
+  - "/ N" cap label shown next to count when WIP limit configured
+  - checkWIPLimit() updated to colour all tiers, not just show banner
+  - Zero new tests (config field + pure frontend colouring)
+
+- [x] **Inline card description editing** ✅ 2026-03-15
+  - Click description area on any board card → switches to textarea in-place
+  - Enter commits; Shift+Enter newline; Esc cancels; blur auto-saves
+  - Empty placeholder ("Add description…") shown on hover when no description set
+  - Uses existing PATCH /api/tasks/{id} endpoint
+  - Zero new tests (pure frontend)
