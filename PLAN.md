@@ -950,3 +950,20 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - **Bug fix:** `TestWeeklyDigest_CycleTime` crashed on Sundays (weekday arithmetic
     treated Sunday=0 causing weekStart to land in the future); fixed + guarded
   - 5 new tests + 1 fixed; 295→300 total
+
+## New features (proposed 2026-03-15 nudge 32)
+
+### High priority
+
+- [x] **/stats page** ✅ 2026-03-15
+  - GET /stats: KPI row (open count, all-time done, avg open age), open by tier (bars),
+    open by priority (colour-coded bars), open by effort (bars), work-type table
+    (open+done columns), sessions sparkline (bar chart last 7 days)
+  - `GetTaskStats()` DB method (6 aggregate queries)
+  - `barPct()` + `sparkBarHeight()` template helpers
+  - Nav link "Stats"; 6 new DB tests (300→306)
+
+- [x] **⚡ Quick wins board filter** ✅ 2026-03-15
+  - Green filter chip: shows only tasks with effort=xs or effort=s
+  - Zero backend — uses existing `data-effort` on cards
+  - Surfaces easy-to-complete items without leaving the board
