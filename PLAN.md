@@ -967,3 +967,14 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Green filter chip: shows only tasks with effort=xs or effort=s
   - Zero backend — uses existing `data-effort` on cards
   - Surfaces easy-to-complete items without leaving the board
+
+## New features (proposed 2026-03-15 nudge 33)
+
+### High priority
+
+- [x] **Related tasks sidebar on task view** ✅ 2026-03-15
+  - "Related (work_type)" collapsible panel below Dependencies
+  - `ListRelatedTasks(id, workType)` DB: up to 5 non-done, same work_type, excl. self, today first
+  - tier badges (indigo/purple/slate), priority badges, collapse state in localStorage
+  - `blocked_by` NULL scan bug fixed while implementing
+  - 7 new DB tests (306→313)
