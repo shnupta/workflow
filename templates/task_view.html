@@ -154,6 +154,27 @@
         </div>
       </div>
 
+      {{if .RelatedTasks}}
+      <!-- Related tasks -->
+      <div class="related-panel">
+        <div class="related-header" onclick="toggleRelated()" style="cursor:pointer">
+          <span class="related-title">Related ({{.Task.WorkType}})</span>
+          <span class="related-toggle" id="related-toggle">▾</span>
+        </div>
+        <div class="related-body" id="related-body">
+          {{range .RelatedTasks}}
+          <a href="/tasks/{{.ID}}" class="related-task-row">
+            <span class="related-task-title">{{.Title}}</span>
+            <span class="related-task-meta">
+              {{if .Priority}}<span class="priority-badge priority-badge-{{lower .Priority}}">{{.Priority}}</span>{{end}}
+              <span class="related-tier-badge related-tier-{{.Tier}}">{{.Tier}}</span>
+            </span>
+          </a>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
       <!-- Agent brief -->
       <div class="brief-panel" id="brief-panel">
         <div class="brief-header" onclick="toggleBrief()" style="cursor:pointer">
@@ -1026,6 +1047,26 @@
         alert('Failed to set blocker');
       }
     }
+
+    function toggleRelated() {
+      const body = document.getElementById('related-body');
+      const toggle = document.getElementById('related-toggle');
+      if (!body) return;
+      const collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      toggle.textContent = collapsed ? '▾' : '▸';
+      localStorage.setItem('related-collapsed', collapsed ? '0' : '1');
+    }
+    // Restore related collapse state
+    (function() {
+      const state = localStorage.getItem('related-collapsed');
+      if (state === '1') {
+        const body = document.getElementById('related-body');
+        const toggle = document.getElementById('related-toggle');
+        if (body) body.style.display = 'none';
+        if (toggle) toggle.textContent = '▸';
+      }
+    })();
 
     window.clearBlocker = async function() {
       try {

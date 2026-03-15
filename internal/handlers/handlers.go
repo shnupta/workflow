@@ -735,6 +735,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	briefVersions, _ := h.db.ListBriefVersions(t.ID)
 	blocker, _ := h.db.GetBlockerTask(t.ID)
 	blockingTasks, _ := h.db.ListTasksBlockedBy(t.ID)
+	relatedTasks, _ := h.db.ListRelatedTasks(t.ID, t.WorkType)
 	comments, _ := h.db.ListComments(t.ID)
 	reminders, _ := h.db.ListRemindersForTask(t.ID)
 	timeLogs, _ := h.db.ListTimeLogs(t.ID)
@@ -757,6 +758,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		"BriefVersions":    briefVersions,
 		"Blocker":          blocker,
 		"BlockingTasks":    blockingTasks,
+		"RelatedTasks":     relatedTasks,
 		"Comments":         comments,
 		"Reminders":        reminders,
 		"TimeLogs":         timeLogs,

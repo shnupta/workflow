@@ -3153,3 +3153,52 @@ func (d *DB) GetTaskStats() (*TaskStats, error) {
 
 	return stats, nil
 }
+
+// ListRelatedTasks returns up to 5 non-done, non-archived tasks with the
+// same work_type as the given task, excluding the task itself.
+// Sorted by tier (today first) then position.
+func (d *DB) ListRelatedTasks(taskID, workType string) ([]*models.Task, error) {
+	if workType == "" {
+		return nil, nil
+	}
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
+		       link, done, position, created_at, updated_at, done_at, due_date,
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence,
+		       COALESCE(priority,'') AS priority, COALESCE(effort,'') AS effort,
+		       COALESCE(starred,0) AS starred
+		FROM tasks
+		WHERE work_type = ? AND id != ? AND done = 0 AND COALESCE(archived,0) = 0
+		ORDER BY CASE tier WHEN 'today' THEN 0 WHEN 'this_week' THEN 1 ELSE 2 END, position
+		LIMIT 5`, workType, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t := &models.Task{}
+		var doneAt, timerStarted sql.NullString
+		var createdAt, updatedAt string
+		var dueDate sql.NullString
+		var blockedBy sql.NullString
+		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.WorkType, &t.Tier,
+			&t.Direction, &t.PRURL, &t.Brief, &t.BriefStatus, &t.Link,
+			&t.Done, &t.Position, &createdAt, &updatedAt, &doneAt, &dueDate,
+			&timerStarted, &t.TimerTotal, &t.Scratchpad, &blockedBy,
+			&t.Recurrence, &t.Priority, &t.Effort, &t.Starred); err != nil {
+			return nil, err
+		}
+		if blockedBy.Valid {
+			t.BlockedBy = blockedBy.String
+		}
+		if ca, err2 := time.Parse(time.RFC3339, createdAt); err2 == nil {
+			t.CreatedAt = ca
+		}
+		if ua, err2 := time.Parse(time.RFC3339, updatedAt); err2 == nil {
+			t.UpdatedAt = ua
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
