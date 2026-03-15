@@ -1574,6 +1574,64 @@
     }
   }
 
+  // ─── Inline card description edit ────────────────────────────────────────
+
+  function inlineEditCardDesc(e, p) {
+    // Don't open if we clicked on a tag chip or action button
+    if (e.target.closest('.card-tags, .task-actions, .card-select-wrap, .btn-card-timer')) return;
+    if (p.querySelector('textarea')) return; // already editing
+
+    const taskId = p.dataset.id;
+    const current = p.dataset.text || p.textContent.trim();
+    const isEmpty = p.classList.contains('task-desc-empty');
+
+    const ta = document.createElement('textarea');
+    ta.className = 'task-desc-editor';
+    ta.value = isEmpty ? '' : current;
+    ta.placeholder = 'Add description…';
+    ta.rows = 2;
+    p.innerHTML = '';
+    p.appendChild(ta);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = ta.value.length;
+
+    async function save() {
+      const newVal = ta.value.trim();
+      const changed = newVal !== (isEmpty ? '' : current);
+      // Restore display immediately
+      if (newVal) {
+        p.classList.remove('task-desc-empty');
+        p.innerHTML = escapeHtml(newVal);
+        p.dataset.text = newVal;
+      } else {
+        p.classList.add('task-desc-empty');
+        p.innerHTML = '<span class="task-desc-placeholder">Add description…</span>';
+        p.dataset.text = '';
+      }
+      if (!changed) return;
+      try {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ description: newVal })
+        });
+      } catch (_) {}
+    }
+
+    ta.addEventListener('blur', save);
+    ta.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ta.blur(); }
+      if (ev.key === 'Escape') { ta.value = isEmpty ? '' : current; ta.blur(); }
+      ev.stopPropagation();
+    });
+
+    e.stopPropagation();
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   // ─── Card-level timer toggle ─────────────────────────────────────────────
 
   async function cardTimerToggle(e, taskId, btn) {
@@ -1918,7 +1976,11 @@
     {{if .Starred}}<span class="card-star-badge" title="Starred">★</span>{{end}}
   </div>
   <a href="/tasks/{{.ID}}" class="task-title" data-id="{{.ID}}" ondblclick="inlineEditCardTitle(event, this)" title="Double-click to edit title">{{.Title}}</a>
-  {{if .Description}}<p class="task-desc">{{.Description}}</p>{{end}}
+  <p class="task-desc {{if not .Description}}task-desc-empty{{end}}"
+     data-id="{{.ID}}"
+     title="Click to edit description"
+     onclick="inlineEditCardDesc(event, this)"
+  >{{if .Description}}{{.Description}}{{else}}<span class="task-desc-placeholder">Add description…</span>{{end}}</p>
   {{if .Tags}}
   <div class="card-tags">
     {{range $i, $tag := .Tags}}{{if lt $i 3}}<span class="card-tag" onclick="boardFilterTag(event, '{{$tag}}')">{{$tag}}</span>{{end}}{{end}}

@@ -5044,3 +5044,50 @@ input[type="date"] {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
 }
+
+/* ============================================================
+   Inline card description editing
+   ============================================================ */
+
+.task-desc {
+  cursor: text;
+  transition: background 0.1s;
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: 0 -4px;
+}
+
+.task-desc:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.task-desc-empty {
+  min-height: 18px;
+}
+
+.task-desc-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.task-card:hover .task-desc-placeholder {
+  opacity: 0.6;
+}
+
+.task-desc-editor {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 5px 8px;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.4;
+}
