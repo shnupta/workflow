@@ -31,6 +31,7 @@ type Task struct {
 	Priority     string     `db:"priority"       json:"priority"`      // "" | "p1" | "p2" | "p3"
 	Effort       string     `db:"effort"         json:"effort"`        // "" | "xs" | "s" | "m" | "l" | "xl"
 	Starred      bool       `db:"starred"        json:"starred"`       // pinned to top of board
+	IsFocus      bool       `db:"is_focus"       json:"is_focus"`      // today's main focus task
 	Tags         []string   `db:"-"              json:"tags"`          // populated by GetTask / ListTasks (not a column)
 	CommentCount     int        `db:"-"              json:"comment_count"`      // populated by ListTasks (not a column)
 	HasActiveSession bool       `db:"-"              json:"has_active_session"` // populated by ListTasks — true when a session is running/idle

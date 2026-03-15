@@ -2466,3 +2466,109 @@ func TestListDepGraph_BasicChain(t *testing.T) {
 		t.Errorf("expected 2 edges, got %d", len(edges))
 	}
 }
+
+// ─────────────────────────────────────────────────────────
+// SetFocusTask / GetFocusTask
+// ─────────────────────────────────────────────────────────
+
+func TestSetFocusTask_ToggleOn(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	task := newTask("focus-on-test", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	focused, err := db.SetFocusTask(task.ID)
+	if err != nil {
+		t.Fatalf("SetFocusTask: %v", err)
+	}
+	if !focused {
+		t.Error("expected focused=true when setting focus")
+	}
+}
+
+func TestSetFocusTask_ToggleOff(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	task := newTask("focus-toggle-off", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if _, err := db.SetFocusTask(task.ID); err != nil {
+		t.Fatalf("first SetFocusTask: %v", err)
+	}
+	focused, err := db.SetFocusTask(task.ID)
+	if err != nil {
+		t.Fatalf("second SetFocusTask: %v", err)
+	}
+	if focused {
+		t.Error("second toggle should clear focus (expected false)")
+	}
+}
+
+func TestSetFocusTask_ClearsPreviousFocus(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	t1 := newTask("focus-task-1", "today")
+	t2 := newTask("focus-task-2", "today")
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("create t1: %v", err)
+	}
+	if err := db.CreateTask(t2); err != nil {
+		t.Fatalf("create t2: %v", err)
+	}
+	if _, err := db.SetFocusTask(t1.ID); err != nil {
+		t.Fatalf("set focus t1: %v", err)
+	}
+	focused, err := db.SetFocusTask(t2.ID)
+	if err != nil {
+		t.Fatalf("set focus t2: %v", err)
+	}
+	if !focused {
+		t.Error("expected focused=true for t2")
+	}
+	ft, err := db.GetFocusTask()
+	if err != nil {
+		t.Fatalf("GetFocusTask: %v", err)
+	}
+	if ft == nil {
+		t.Fatal("expected focus task, got nil")
+	}
+	if ft.ID != t2.ID {
+		t.Errorf("focus task should be t2 (%s), got %s", t2.ID, ft.ID)
+	}
+}
+
+func TestGetFocusTask_NilWhenNoneSet(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	ft, err := db.GetFocusTask()
+	if err != nil {
+		t.Fatalf("GetFocusTask: %v", err)
+	}
+	if ft != nil {
+		t.Errorf("expected nil, got task %s", ft.ID)
+	}
+}
+
+func TestGetFocusTask_NilWhenTaskDone(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	task := newTask("focus-done-task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if _, err := db.SetFocusTask(task.ID); err != nil {
+		t.Fatalf("SetFocusTask: %v", err)
+	}
+	if _, err := db.MarkDone(task.ID); err != nil {
+		t.Fatalf("MarkDone: %v", err)
+	}
+	ft, err := db.GetFocusTask()
+	if err != nil {
+		t.Fatalf("GetFocusTask: %v", err)
+	}
+	if ft != nil {
+		t.Error("done tasks should not appear as focus task")
+	}
+}

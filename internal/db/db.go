@@ -75,6 +75,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN effort       TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE tasks ADD COLUMN starred      INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN archived     INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE tasks ADD COLUMN is_focus     INTEGER NOT NULL DEFAULT 0`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -1622,6 +1623,7 @@ type DigestWeek struct {
 	OverdueCount         int               // open tasks that are overdue (due_date < today, not done)
 	BlockedCount         int               // open tasks currently blocked by another task
 	VelocitySparkline    []int             // tasks completed per week, last 8 weeks (oldest first)
+	FocusTask            *models.Task      // today's focus task (nil if none set)
 }
 
 // CycleTimeEntry holds cycle-time data for one work type.
@@ -1850,6 +1852,11 @@ func (d *DB) WeeklyDigest(weekStart time.Time) (*DigestWeek, error) {
 	// Velocity sparkline for last 8 weeks
 	if sparkline, err := d.RecentWeeklyVelocity(8); err == nil {
 		dw.VelocitySparkline = sparkline
+	}
+
+	// Focus task (only meaningful for current week, but always safe to populate)
+	if ft, err := d.GetFocusTask(); err == nil {
+		dw.FocusTask = ft
 	}
 
 	return dw, nil
@@ -2520,6 +2527,42 @@ func (d *DB) StarTask(id string) (bool, error) {
 	_, err = d.conn.Exec(`UPDATE tasks SET starred=?, updated_at=? WHERE id=?`,
 		newVal, time.Now().UTC().Format(time.RFC3339), id)
 	return newVal == 1, err
+}
+
+// SetFocusTask sets one task as the day's focus, clearing any existing focus task first.
+// Calling SetFocusTask on the current focus task clears it (toggle behaviour).
+func (d *DB) SetFocusTask(id string) (bool, error) {
+	var current int
+	err := d.conn.QueryRow(`SELECT COALESCE(is_focus,0) FROM tasks WHERE id=?`, id).Scan(&current)
+	if err != nil {
+		return false, err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	// Always clear all focus flags first
+	if _, err = d.conn.Exec(`UPDATE tasks SET is_focus=0, updated_at=? WHERE is_focus=1`, now); err != nil {
+		return false, err
+	}
+	if current == 1 {
+		// Was already focused — toggled off
+		return false, nil
+	}
+	_, err = d.conn.Exec(`UPDATE tasks SET is_focus=1, updated_at=? WHERE id=?`, now, id)
+	return err == nil, err
+}
+
+// GetFocusTask returns the current focus task, or nil if none is set.
+func (d *DB) GetFocusTask() (*models.Task, error) {
+	row := d.conn.QueryRow(`
+		SELECT id, title, description, work_type, tier, direction, pr_url, brief, brief_status,
+		       link, done, position, created_at, updated_at, done_at, due_date,
+		       timer_started, timer_total, scratchpad, blocked_by, recurrence, priority, effort,
+		       COALESCE(starred,0)
+		FROM tasks WHERE is_focus=1 AND done=0 LIMIT 1`)
+	t, err := scanTask(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return t, err
 }
 
 // ListStarredTasks returns all non-done starred tasks ordered by updated_at desc.

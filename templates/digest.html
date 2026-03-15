@@ -36,6 +36,15 @@
       </div>
       {{end}}
 
+      {{if and .IsCurrentWeek .Digest.FocusTask}}
+      <div class="digest-focus-banner">
+        <span class="digest-focus-icon">⚡</span>
+        <span class="digest-focus-label">Today's focus:</span>
+        <a href="/tasks/{{.Digest.FocusTask.ID}}" class="digest-focus-link">{{.Digest.FocusTask.Title}}</a>
+        {{if .Digest.FocusTask.Priority}}<span class="card-tag priority-{{.Digest.FocusTask.Priority}}">{{.Digest.FocusTask.Priority | upper}}</span>{{end}}
+      </div>
+      {{end}}
+
       <!-- Stats bar -->
       <div class="digest-stats">
         <div class="digest-stat">

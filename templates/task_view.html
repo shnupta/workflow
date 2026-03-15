@@ -29,6 +29,10 @@
             onclick="toggleStar()" title="{{if .Task.Starred}}Unstar task{{else}}Star task{{end}}">
             {{if .Task.Starred}}★{{else}}☆{{end}}
           </button>
+          <button class="btn btn-ghost {{if .Task.IsFocus}}btn-focus--active{{end}}" id="focus-btn"
+            onclick="toggleFocus()" title="{{if .Task.IsFocus}}Clear focus{{else}}Set as today's focus{{end}}">
+            {{if .Task.IsFocus}}⚡ Focus{{else}}⚡{{end}}
+          </button>
           <div class="task-move-wrap" id="task-move-wrap">
             <button class="btn btn-ghost" id="task-move-btn" onclick="toggleMoveDropdown()" title="Move to column">
               Move to ▾
@@ -1178,6 +1182,16 @@
     btn.textContent = starred ? '★' : '☆';
     btn.title = starred ? 'Unstar task' : 'Star task';
     btn.classList.toggle('btn-star--active', starred);
+  }
+
+  async function toggleFocus() {
+    const btn = document.getElementById('focus-btn');
+    const r = await fetch(`/api/tasks/${taskID}/focus`, { method: 'PATCH' });
+    if (!r.ok) return;
+    const { is_focus } = await r.json();
+    btn.textContent = is_focus ? '⚡ Focus' : '⚡';
+    btn.title = is_focus ? 'Clear focus' : "Set as today's focus";
+    btn.classList.toggle('btn-focus--active', is_focus);
   }
 
   // ── Duplicate ─────────────────────────────────────────────────────────────

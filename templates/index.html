@@ -582,6 +582,34 @@
       } catch (err) { console.error('star error', err); }
     }
 
+    async function toggleFocusCard(card) {
+      const taskID = card.dataset.id;
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/focus`, { method: 'PATCH' });
+        if (!res.ok) { console.error('focus failed', res.status); return; }
+        const data = await res.json();
+        // Clear focus from all other cards first
+        document.querySelectorAll('.task-card.focus-task').forEach(c => {
+          c.classList.remove('focus-task');
+          c.dataset.focus = '0';
+          const b = c.querySelector('.card-focus-badge');
+          if (b) b.remove();
+        });
+        if (data.is_focus) {
+          card.dataset.focus = '1';
+          card.classList.add('focus-task');
+          let badge = card.querySelector('.card-focus-badge');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'card-focus-badge';
+            badge.title = "Today's focus";
+            badge.textContent = '⚡';
+            card.querySelector('.task-card-header').appendChild(badge);
+          }
+        }
+      } catch (err) { console.error('focus error', err); }
+    }
+
     // ── Keyboard event handler ────────────────────────────────────────────────
 
     document.addEventListener('keydown', e => {
@@ -659,6 +687,13 @@
           if (!overlayOpen()) {
             e.preventDefault();
             toggleFocusMode();
+          }
+          return;
+        case 'x':
+          // Set/clear today's focus task
+          if (!overlayOpen() && focusedCard) {
+            e.preventDefault();
+            toggleFocusCard(focusedCard);
           }
           return;
         case 'c':
@@ -1949,7 +1984,7 @@
 {{end}}
 
 {{define "task_card"}}
-<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}{{if .IsBlocked}} blocked{{end}}{{if .Starred}} starred{{end}}"
+<div class="task-card depth-{{workTypeDepth .WorkType}} {{if eq .Direction "blocked_on_them"}}on-them{{end}}{{if .IsOverdue}} overdue{{end}}{{if .IsDueToday}} due-soon{{end}}{{if .IsBlocked}} blocked{{end}}{{if .Starred}} starred{{end}}{{if .IsFocus}} focus-task{{end}}"
      draggable="true"
      data-id="{{.ID}}"
      data-type="{{.WorkType}}"
@@ -1958,6 +1993,7 @@
      data-priority="{{.Priority}}"
      data-effort="{{.Effort}}"
      data-starred="{{if .Starred}}1{{else}}0{{end}}"
+     data-focus="{{if .IsFocus}}1{{else}}0{{end}}"
      data-link="{{.Link}}"
      ondragstart="onDragStart(event)"
      ondragend="onDragEnd(event)">
@@ -1974,6 +2010,7 @@
     {{if .IsRecurring}}<span class="tag tag-recurring" title="Recurring task">↻</span>{{end}}
     {{if .DueDate}}{{if .IsOverdue}}<span class="tag tag-due tag-due-overdue" title="{{dueDateLabel .DueDate}}">🗓 overdue</span>{{else if .IsDueSoon}}<span class="tag tag-due tag-due-soon" title="Due {{dueDateLabel .DueDate}}">🗓 {{dueDateLabel .DueDate}}</span>{{else}}<span class="tag tag-due" title="Due {{dueDateLabel .DueDate}}">🗓 {{dueDateLabel .DueDate}}</span>{{end}}{{end}}
     {{if .Starred}}<span class="card-star-badge" title="Starred">★</span>{{end}}
+    {{if .IsFocus}}<span class="card-focus-badge" title="Today's focus">⚡</span>{{end}}
   </div>
   <a href="/tasks/{{.ID}}" class="task-title" data-id="{{.ID}}" ondblclick="inlineEditCardTitle(event, this)" title="Double-click to edit title">{{.Title}}</a>
   <p class="task-desc {{if not .Description}}task-desc-empty{{end}}"

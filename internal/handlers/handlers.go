@@ -387,6 +387,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/star", h.apiStarTask)
+	mux.HandleFunc("PATCH /api/tasks/{id}/focus", h.apiFocusTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.apiPatchTask)
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
@@ -1040,6 +1041,20 @@ func (h *Handler) apiStarTask(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"starred": starred})
+}
+
+// apiFocusTask handles PATCH /api/tasks/{id}/focus — toggles today's focus task.
+// Only one task can be focused at a time; focusing a new task clears the old one.
+// Returns JSON {"is_focus": true/false}.
+func (h *Handler) apiFocusTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	focused, err := h.db.SetFocusTask(taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"is_focus": focused})
 }
 
 // Body: {"blocked_by": "<task-id>"}
