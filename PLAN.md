@@ -1037,3 +1037,16 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Empty placeholder ("Add description…") shown on hover when no description set
   - Uses existing PATCH /api/tasks/{id} endpoint
   - Zero new tests (pure frontend)
+
+## New features (shipped 2026-03-15 nudge 40)
+
+### Medium priority
+
+- [x] **Today's focus task** ✅ 2026-03-15
+  - One task can be set as the day's main focus; only one active at a time
+  - `is_focus` DB column + `SetFocusTask(id)` (toggle, clears previous) + `GetFocusTask()`
+  - `PATCH /api/tasks/{id}/focus` API; returns `{"is_focus": bool}`
+  - Board: indigo left-border + ⚡ badge on focus card; `x` keyboard shortcut
+  - Task view: ⚡ button next to ★ star; active state shows "⚡ Focus"
+  - Digest: indigo banner at top of current week showing focus task title + priority
+  - 5 new DB tests (320→325)
