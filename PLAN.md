@@ -1013,3 +1013,9 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Click a card's description area to expand it and edit inline
   - PATCH /api/tasks/{id} on blur
   - Lower friction than navigating to task page for small description edits
+
+## New features (shipped 2026-03-15 nudge 35 continued)
+
+- [x] **Saved board filter presets** ✅ 2026-03-15 — 📌 Presets dropdown, P shortcut, save/apply/delete, localStorage; zero backend
+- [x] **Live column count badges** ✅ 2026-03-15 — header count updates dynamically on filter change; count-zero dims on no results
+- [x] **Card-level timer toggle** ✅ 2026-03-15 — ▶/⏹ button on card hover, green when running, updates footer elapsed label in-place; POST /tasks/{id}/timer (existing endpoint)
