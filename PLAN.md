@@ -934,3 +934,19 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - `⛔ Blocked` filter chip on board: filters cards with `.blocked` CSS class (red accent)
   - "Blocked" nav link added
   - 6 new tests; 295 total green
+
+## New features (proposed 2026-03-15 nudge 31)
+
+### High priority
+
+- [x] **"Blocking" section on task view** ✅ 2026-03-15
+  - When a task is a blocker for other tasks, the Dependencies panel shows
+    a 🔒 "Blocking:" section listing those downstream tasks with links
+  - `ListTasksBlockedBy(id)` DB method: returns non-done/non-archived tasks
+    whose `blocked_by == id`, ordered by position
+  - `viewTask()` passes `BlockingTasks` to template; amber border + tier/priority badges
+  - Bidirectional dependency visibility: you can now see both what you're blocked on
+    and what you're blocking, without leaving the task page
+  - **Bug fix:** `TestWeeklyDigest_CycleTime` crashed on Sundays (weekday arithmetic
+    treated Sunday=0 causing weekStart to land in the future); fixed + guarded
+  - 5 new tests + 1 fixed; 295→300 total
