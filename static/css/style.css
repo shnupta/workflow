@@ -4876,3 +4876,110 @@ input[type="date"] {
   min-height: 16px;
   margin: 0;
 }
+
+/* ============================================================
+   Saved filter presets
+   ============================================================ */
+
+.filter-chip-presets { color: #c084fc !important; position: relative; }
+.filter-chip-presets.active { background: rgba(192,132,252,0.15) !important; border-color: #c084fc !important; }
+
+.filter-presets-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.presets-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  max-width: 260px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  z-index: 900;
+  overflow: hidden;
+}
+
+.presets-dropdown.hidden { display: none; }
+
+.presets-list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.presets-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 16px;
+  margin: 0;
+}
+
+.presets-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+}
+
+.presets-apply-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presets-apply-btn:hover {
+  background: var(--surface-2);
+}
+
+.presets-delete-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.presets-delete-btn:hover {
+  opacity: 1;
+  color: #f87171;
+}
+
+.presets-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2px 0;
+}
+
+.presets-save-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  color: #a78bfa;
+  font-size: 12px;
+  padding: 9px 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presets-save-btn:hover {
+  background: rgba(167,139,250,0.08);
+}

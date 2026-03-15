@@ -63,6 +63,14 @@
       <div class="filter-sep"></div>
       <button class="filter-chip swimlane-toggle" id="swimlane-btn" onclick="toggleSwimlanes(this)" title="Group by tag">⋮ Lanes</button>
       <button class="filter-chip filter-chip-batch" onclick="openBatchModal()" title="Create multiple tasks at once (B)">⊞ Batch</button>
+      <div class="filter-presets-wrap" id="presets-wrap">
+        <button class="filter-chip filter-chip-presets" id="presets-btn" onclick="togglePresetsDropdown()" title="Saved filter presets">📌 Presets</button>
+        <div class="presets-dropdown hidden" id="presets-dropdown">
+          <div class="presets-list" id="presets-list"></div>
+          <div class="presets-divider"></div>
+          <button class="presets-save-btn" onclick="saveCurrentPreset()">+ Save current filter…</button>
+        </div>
+      </div>
     </div>
     {{if .SprintGoal}}
     {{$pct := sprintPct .DoneThisWeek .SprintGoal}}
@@ -625,6 +633,12 @@
             toggleStarCard(focusedCard);
           }
           return;
+        case 'P':
+          if (!overlayOpen()) {
+            e.preventDefault();
+            togglePresetsDropdown();
+          }
+          return;
         case 'B':
           if (!overlayOpen()) {
             e.preventDefault();
@@ -715,7 +729,8 @@
           <kbd>Enter</kbd><span>Open focused task</span>
           <kbd>m</kbd><span>Move focused task to next column</span>
           <kbd>*</kbd><span>Star / unstar focused task</span>
-          <kbd>B</kbd><span>Batch-create tasks modal</span>
+          <kbd>P</kbd><span>Saved filter presets dropdown</span>
+            <kbd>B</kbd><span>Batch-create tasks modal</span>
             <kbd>e</kbd><span>Edit scratchpad for focused task</span>
           <kbd>f</kbd><span>Toggle focus mode (Today column only)</span>
           <kbd>c</kbd><span>Toggle compact mode (smaller cards)</span>
@@ -1374,6 +1389,131 @@
   applyCompactMode();
 
   // ── Scratchpad overlay (e key) ───────────────────────────────────────────────
+  // ─── Filter presets ──────────────────────────────────────────────────────────
+
+  const PRESETS_KEY = 'board-filter-presets';
+
+  function loadPresets() {
+    try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]'); }
+    catch (_) { return []; }
+  }
+
+  function savePresets(presets) {
+    localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+  }
+
+  function renderPresetsDropdown() {
+    const list = document.getElementById('presets-list');
+    const presets = loadPresets();
+    list.innerHTML = '';
+    if (presets.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'presets-empty';
+      empty.textContent = 'No presets yet';
+      list.appendChild(empty);
+    } else {
+      presets.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'presets-row';
+        const btn = document.createElement('button');
+        btn.className = 'presets-apply-btn';
+        btn.title = 'Filter: ' + p.filter + (p.focus ? ' | focus mode' : '');
+        btn.textContent = p.name;
+        btn.onclick = () => { applyPreset(p); closePresetsDropdown(); };
+        const del = document.createElement('button');
+        del.className = 'presets-delete-btn';
+        del.title = 'Delete preset';
+        del.textContent = '✕';
+        del.onclick = (e) => { e.stopPropagation(); deletePreset(idx); };
+        row.appendChild(btn);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+    }
+  }
+
+  function togglePresetsDropdown() {
+    const dd = document.getElementById('presets-dropdown');
+    if (dd.classList.contains('hidden')) {
+      renderPresetsDropdown();
+      dd.classList.remove('hidden');
+    } else {
+      dd.classList.add('hidden');
+    }
+  }
+
+  function closePresetsDropdown() {
+    document.getElementById('presets-dropdown').classList.add('hidden');
+  }
+
+  function applyPreset(p) {
+    const chip = document.querySelector(`[data-filter="${p.filter}"]`);
+    setFilter(p.filter, chip || document.querySelector('[data-filter="all"]'));
+    if (p.focus) {
+      if (!_focusMode) toggleFocusMode();
+    } else {
+      if (_focusMode) toggleFocusMode();
+    }
+  }
+
+  function deletePreset(idx) {
+    const presets = loadPresets();
+    presets.splice(idx, 1);
+    savePresets(presets);
+    renderPresetsDropdown();
+  }
+
+  // Called from "Save current filter…" in dropdown
+  function saveCurrentPreset() {
+    closePresetsDropdown();
+    const desc = 'Current filter: ' + currentFilter + (_focusMode ? ' + focus mode' : '');
+    document.getElementById('preset-save-desc').textContent = desc;
+    document.getElementById('preset-name-input').value = '';
+    document.getElementById('preset-save-result').textContent = '';
+    document.getElementById('preset-save-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('preset-name-input').focus(), 50);
+  }
+
+  function closePresetSaveModal() {
+    document.getElementById('preset-save-modal').classList.add('hidden');
+  }
+
+  function confirmSavePreset() {
+    const name = document.getElementById('preset-name-input').value.trim();
+    if (!name) return;
+    const presets = loadPresets();
+    presets.push({ name, filter: currentFilter, focus: _focusMode });
+    savePresets(presets);
+    document.getElementById('preset-save-result').textContent = '✓ Saved';
+    document.getElementById('preset-save-result').style.color = 'var(--color-success, #34d399)';
+    setTimeout(closePresetSaveModal, 900);
+  }
+
+  // Keyboard: Enter submits preset name
+  document.getElementById('preset-name-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); confirmSavePreset(); }
+    if (e.key === 'Escape') { closePresetSaveModal(); }
+  });
+
+  // Close presets dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('presets-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      closePresetsDropdown();
+    }
+  });
+
+  // Close presets dropdown on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closePresetsDropdown();
+      if (!document.getElementById('preset-save-modal').classList.contains('hidden')) {
+        closePresetSaveModal();
+        e.stopPropagation();
+      }
+    }
+  });
+
   // ─── Batch-create modal ─────────────────────────────────────────────────────
 
   function openBatchModal() {
@@ -1625,6 +1765,25 @@
     new MutationObserver(checkWIPLimit).observe(todayCol, { childList: true, subtree: true });
   })();
 </script>
+  <!-- Save filter preset modal -->
+  <div id="preset-save-modal" class="batch-modal hidden" role="dialog" aria-modal="true" aria-labelledby="preset-save-title">
+    <div class="batch-modal-box" style="max-width:380px">
+      <div class="batch-modal-header">
+        <span class="batch-modal-title" id="preset-save-title">Save filter preset</span>
+        <button class="batch-modal-close" onclick="closePresetSaveModal()" title="Close">✕</button>
+      </div>
+      <div class="batch-modal-body">
+        <p class="batch-modal-hint" id="preset-save-desc"></p>
+        <input type="text" id="preset-name-input" class="batch-lines-input" placeholder="e.g. My P1s, Sprint focus, Waiting" style="height:38px;resize:none" autocomplete="off" maxlength="40">
+        <div class="batch-modal-row">
+          <button class="btn btn-primary btn-sm" onclick="confirmSavePreset()">Save</button>
+          <button class="btn btn-sm" onclick="closePresetSaveModal()" style="margin-left:6px">Cancel</button>
+        </div>
+        <p id="preset-save-result" class="batch-result"></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Batch-create tasks modal -->
   <div id="batch-modal" class="batch-modal hidden" role="dialog" aria-modal="true" aria-labelledby="batch-modal-title">
     <div class="batch-modal-box">
