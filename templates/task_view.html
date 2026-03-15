@@ -137,6 +137,20 @@
               <ul id="blocker-dropdown" class="blocker-dropdown" style="display:none"></ul>
             </div>
           </div>
+          {{if .BlockingTasks}}
+          <div class="blocking-section">
+            <span class="blocking-label">🔒 Blocking:</span>
+            <ul class="blocking-list">
+              {{range .BlockingTasks}}
+              <li class="blocking-item">
+                <a href="/tasks/{{.ID}}" class="blocking-task-link">{{.Title}}</a>
+                {{if .Priority}}<span class="priority-badge priority-badge-{{lower .Priority}}">{{.Priority}}</span>{{end}}
+                <span class="blocking-tier">{{.Tier}}</span>
+              </li>
+              {{end}}
+            </ul>
+          </div>
+          {{end}}
         </div>
       </div>
 

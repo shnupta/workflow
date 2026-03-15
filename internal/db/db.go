@@ -2954,3 +2954,32 @@ func (d *DB) CountBlockedTasks() (int, error) {
 		  AND blocked_by != ''`).Scan(&n)
 	return n, err
 }
+
+// ListTasksBlockedBy returns all non-done tasks whose blocked_by field points
+// to blockingTaskID — i.e. tasks that blockingTaskID is currently blocking.
+func (d *DB) ListTasksBlockedBy(blockingTaskID string) ([]*models.Task, error) {
+	rows, err := d.conn.Query(`
+		SELECT id, title, description, work_type, tier, direction,
+		       pr_url, brief, brief_status, link, done, position,
+		       created_at, updated_at, done_at, due_date, timer_started,
+		       timer_total, scratchpad, blocked_by, recurrence,
+		       priority, effort, COALESCE(starred,0)
+		FROM tasks
+		WHERE done = 0
+		  AND COALESCE(archived,0) = 0
+		  AND blocked_by = ?
+		ORDER BY position ASC`, blockingTaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tasks []*models.Task
+	for rows.Next() {
+		t, err := scanTaskRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}

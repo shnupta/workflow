@@ -2273,7 +2273,7 @@ func TestWeeklyDigest_CycleTime(t *testing.T) {
 	d, cleanup := openTestDB(t)
 	defer cleanup()
 
-	// Create a task and mark it done within the current week
+	// Create a task and mark it done within the current week.
 	task := &models.Task{
 		Title:    "Fix bug",
 		WorkType: "pr_review",
@@ -2283,12 +2283,18 @@ func TestWeeklyDigest_CycleTime(t *testing.T) {
 		t.Fatalf("create task: %v", err)
 	}
 	now := time.Now().UTC()
-	weekStart := now.AddDate(0, 0, -int(now.Weekday()-time.Monday))
-	weekStart = time.Date(weekStart.Year(), weekStart.Month(), weekStart.Day(), 0, 0, 0, 0, time.UTC)
 
-	// Manually set created_at to 2 days ago and done_at to today
-	createdAt := now.AddDate(0, 0, -2).Format(time.RFC3339)
-	doneAt := now.Format(time.RFC3339)
+	// Robust Monday-based week start: handles Sunday (Weekday=0) correctly.
+	weekday := int(now.Weekday())
+	if weekday == 0 {
+		weekday = 7 // treat Sunday as day 7 so Monday is always day 1
+	}
+	weekStart := time.Date(now.Year(), now.Month(), now.Day()-weekday+1, 0, 0, 0, 0, time.UTC)
+
+	// Set created_at to 2 days before weekStart so cycle time is ~2 days within the week window.
+	// Set done_at to midweek (weekStart+2 days) so it falls inside the digest window.
+	createdAt := weekStart.AddDate(0, 0, -2).Format(time.RFC3339)
+	doneAt := weekStart.AddDate(0, 0, 2).Format(time.RFC3339)
 	if _, execErr := d.conn.Exec(`UPDATE tasks SET done=1, done_at=?, created_at=? WHERE id=?`,
 		doneAt, createdAt, task.ID); execErr != nil {
 		t.Fatalf("update task: %v", execErr)
@@ -2299,14 +2305,14 @@ func TestWeeklyDigest_CycleTime(t *testing.T) {
 		t.Fatalf("weekly digest: %v", digestErr)
 	}
 
-	// Should have ~2 day cycle time
-	if dw.AvgCycleDays < 1.9 || dw.AvgCycleDays > 2.1 {
-		t.Errorf("expected AvgCycleDays ~2.0, got %.2f", dw.AvgCycleDays)
+	// Should have ~4 day cycle time (done_at - created_at = 4 days)
+	if dw.AvgCycleDays < 3.9 || dw.AvgCycleDays > 4.1 {
+		t.Errorf("expected AvgCycleDays ~4.0, got %.2f", dw.AvgCycleDays)
 	}
 	if len(dw.CycleByType) == 0 {
 		t.Error("expected CycleByType to be populated")
 	}
-	if dw.CycleByType[0].WorkType != "pr_review" {
+	if len(dw.CycleByType) > 0 && dw.CycleByType[0].WorkType != "pr_review" {
 		t.Errorf("expected work_type pr_review, got %s", dw.CycleByType[0].WorkType)
 	}
 }

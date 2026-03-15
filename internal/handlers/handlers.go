@@ -704,6 +704,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 	sessions, _ := h.db.ListSessions(t.ID)
 	briefVersions, _ := h.db.ListBriefVersions(t.ID)
 	blocker, _ := h.db.GetBlockerTask(t.ID)
+	blockingTasks, _ := h.db.ListTasksBlockedBy(t.ID)
 	comments, _ := h.db.ListComments(t.ID)
 	reminders, _ := h.db.ListRemindersForTask(t.ID)
 	timeLogs, _ := h.db.ListTimeLogs(t.ID)
@@ -725,6 +726,7 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		"UnpinnedSessions": unpinnedSessions,
 		"BriefVersions":    briefVersions,
 		"Blocker":          blocker,
+		"BlockingTasks":    blockingTasks,
 		"Comments":         comments,
 		"Reminders":        reminders,
 		"TimeLogs":         timeLogs,
