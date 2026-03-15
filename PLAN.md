@@ -990,3 +990,26 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Defaults work_type="other", tier=first configured
   - Returns `{created: N, ids: [...]}`; board reloads after success
   - 7 new handler tests (313→320)
+
+## New features (proposed 2026-03-15 nudge 35)
+
+### High priority
+
+- [x] **Saved board filter presets** ✅ 2026-03-15
+  - 📌 Presets dropdown button in filter bar (keyboard shortcut `P`)
+  - Save named combinations of current filter + focus-mode state
+  - Click preset to apply; ✕ to delete; "Save current filter…" opens naming modal
+  - Stored in `localStorage`; zero backend; zero new tests needed
+
+### Medium priority
+
+- [ ] **Per-column WIP limit visual badge**
+  - Show live task count per column (Today N/WIP, This Week N, Backlog N)
+  - Colour the count amber when WIP limit is hit
+  - Configurable per-column limits in `workflow.json`
+  - Zero backend changes needed
+
+- [ ] **Inline task description editing on board card (hover expand)**
+  - Click a card's description area to expand it and edit inline
+  - PATCH /api/tasks/{id} on blur
+  - Lower friction than navigating to task page for small description edits
