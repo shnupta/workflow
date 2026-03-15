@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -385,5 +386,83 @@ func TestIsDueSoon_Overdue(t *testing.T) {
 	task := &Task{DueDate: &d}
 	if task.IsDueSoon() {
 		t.Error("expected false when overdue (use IsOverdue for that)")
+	}
+}
+
+// ─── EffortHours ───────────────────────────────────────────────────────────────
+
+func TestEffortHours_AllSizes(t *testing.T) {
+	cases := []struct {
+		effort string
+		want   float64
+	}{
+		{"xs", 0.5},
+		{"s", 1.5},
+		{"m", 3.0},
+		{"l", 6.0},
+		{"xl", 12.0},
+		{"", 0},
+		{"unknown", 0},
+	}
+	for _, tc := range cases {
+		task := Task{Effort: tc.effort}
+		if got := task.EffortHours(); got != tc.want {
+			t.Errorf("EffortHours(%q) = %v, want %v", tc.effort, got, tc.want)
+		}
+	}
+}
+
+// ─── EffortVsActual ────────────────────────────────────────────────────────────
+
+func TestEffortVsActual_NoEffort_ReturnsEmpty(t *testing.T) {
+	task := Task{TimerTotal: 3600}
+	if got := task.EffortVsActual(); got != "" {
+		t.Errorf("expected empty string for no effort, got %q", got)
+	}
+}
+
+func TestEffortVsActual_NoTime_ReturnsEmpty(t *testing.T) {
+	task := Task{Effort: "m"} // 3h estimate, 0 actual
+	if got := task.EffortVsActual(); got != "" {
+		t.Errorf("expected empty string when no time tracked, got %q", got)
+	}
+}
+
+func TestEffortVsActual_OnTrack(t *testing.T) {
+	// M estimate = 3h = 10800s; actual = 3h = on track (ratio 1.0)
+	task := Task{Effort: "m", TimerTotal: 10800}
+	got := task.EffortVsActual()
+	if !strings.Contains(got, "on track") {
+		t.Errorf("expected 'on track' for ratio 1.0, got %q", got)
+	}
+}
+
+func TestEffortVsActual_Under(t *testing.T) {
+	// S estimate = 1.5h = 5400s; actual = 30m = 1800s → ratio 0.33, under
+	task := Task{Effort: "s", TimerTotal: 1800}
+	got := task.EffortVsActual()
+	if !strings.Contains(got, "under") {
+		t.Errorf("expected 'under' for ratio 0.33, got %q", got)
+	}
+}
+
+func TestEffortVsActual_Over(t *testing.T) {
+	// XS estimate = 0.5h = 1800s; actual = 2h = 7200s → ratio 4.0, over
+	task := Task{Effort: "xs", TimerTotal: 7200}
+	got := task.EffortVsActual()
+	if !strings.Contains(got, "over") {
+		t.Errorf("expected 'over' for ratio 4.0, got %q", got)
+	}
+	if !strings.Contains(got, "4.0×") {
+		t.Errorf("expected '4.0×' in output, got %q", got)
+	}
+}
+
+func TestEffortVsActual_ContainsActualAndEstLabel(t *testing.T) {
+	// L = 6h = 21600s; actual = 6h = on track
+	task := Task{Effort: "l", TimerTotal: 21600}
+	got := task.EffortVsActual()
+	if !strings.Contains(got, "6h") {
+		t.Errorf("expected '6h' in output, got %q", got)
 	}
 }

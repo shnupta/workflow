@@ -2293,6 +2293,26 @@ input[type="date"] {
   transition: color 0.15s;
 }
 .timer-reset-btn:hover { color: var(--text-primary); }
+
+.digest-effort-delta {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.effort-vs-actual {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
 .timer-elapsed {
   font-size: 11px;
   color: var(--accent);

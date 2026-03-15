@@ -114,6 +114,7 @@
         {{if or .Task.TimerStarted (gt .Task.TimerTotal 0)}}
         <button class="timer-reset-btn" id="timer-reset-btn" onclick="timerReset()" title="Reset timer">↺</button>
         {{end}}
+        {{if .Task.EffortVsActual}}<span class="effort-vs-actual" title="Effort estimate vs actual time tracked">{{.Task.EffortVsActual}}</span>{{end}}
         <!-- Focus / Pomodoro -->
         <div class="focus-dropdown" id="focus-dropdown">
           <button class="focus-btn" id="focus-btn" onclick="focusToggleMenu(event)" title="Focus timer">⏱ Focus</button>

@@ -214,3 +214,59 @@ func (t *Task) EffortPoints() int {
 		return 0
 	}
 }
+
+// EffortHours returns the expected hours for the effort estimate.
+// XS=0.5h, S=1.5h, M=3h, L=6h, XL=12h.
+func (t *Task) EffortHours() float64 {
+	switch t.Effort {
+	case "xs":
+		return 0.5
+	case "s":
+		return 1.5
+	case "m":
+		return 3.0
+	case "l":
+		return 6.0
+	case "xl":
+		return 12.0
+	default:
+		return 0
+	}
+}
+
+// EffortVsActual returns a human-readable comparison of estimated vs actual time.
+// Returns "" if effort is unset or no time has been tracked.
+// Examples: "on track (1h 12m / 1h 30m est)", "2.1× over (3h 8m / 1h 30m est)"
+func (t *Task) EffortVsActual() string {
+	if t.Effort == "" {
+		return ""
+	}
+	actual := t.ElapsedSeconds()
+	if actual == 0 {
+		return ""
+	}
+	estHours := t.EffortHours()
+	estSecs := int(estHours * 3600)
+	if estSecs == 0 {
+		return ""
+	}
+
+	actualLabel := t.ElapsedLabel()
+	estMins := int(estHours * 60)
+	var estLabel string
+	if estMins >= 60 {
+		estLabel = fmt.Sprintf("%dh %dm", estMins/60, estMins%60)
+	} else {
+		estLabel = fmt.Sprintf("%dm", estMins)
+	}
+
+	ratio := float64(actual) / float64(estSecs)
+	switch {
+	case ratio <= 0.75:
+		return fmt.Sprintf("under est (%s / %s est)", actualLabel, estLabel)
+	case ratio <= 1.25:
+		return fmt.Sprintf("on track (%s / %s est)", actualLabel, estLabel)
+	default:
+		return fmt.Sprintf("%.1f× over (%s / %s est)", ratio, actualLabel, estLabel)
+	}
+}
