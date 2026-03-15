@@ -17,9 +17,10 @@ type WorkType struct {
 }
 
 type Tier struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Order int    `json:"order"`
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Order    int    `json:"order"`
+	WIPLimit int    `json:"wip_limit,omitempty"` // per-tier WIP limit; 0 = use global default for "today", uncapped for others
 }
 
 type Config struct {

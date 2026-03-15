@@ -5017,3 +5017,30 @@ input[type="date"] {
   color: #34d399;
   border-color: rgba(52, 211, 153, 0.3);
 }
+
+/* ============================================================
+   Per-column WIP limit badge colouring
+   ============================================================ */
+
+.wip-cap {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.tier-heading .count.wip-near {
+  color: #f59e0b; /* amber — at limit */
+  font-weight: 700;
+}
+
+.tier-heading .count.wip-over {
+  color: #f87171; /* red — over limit */
+  font-weight: 700;
+  animation: wip-pulse 2s ease-in-out infinite;
+}
+
+@keyframes wip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}

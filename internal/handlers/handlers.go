@@ -589,12 +589,23 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 		grouped[t.Tier] = append(grouped[t.Tier], t)
 	}
 
+	globalWIPLimit := h.cfg().WIPLimit
+	if globalWIPLimit == 0 {
+		globalWIPLimit = 5
+	}
+
 	tiers := make([]map[string]interface{}, len(h.cfg().Tiers))
 	for i, tier := range h.cfg().Tiers {
+		// Effective per-tier WIP limit: use tier.WIPLimit if set, else use global only for "today"
+		effWIP := tier.WIPLimit
+		if effWIP == 0 && tier.Key == "today" {
+			effWIP = globalWIPLimit
+		}
 		tiers[i] = map[string]interface{}{
-			"Key":   tier.Key,
-			"Label": tier.Label,
-			"Tasks": grouped[tier.Key],
+			"Key":      tier.Key,
+			"Label":    tier.Label,
+			"Tasks":    grouped[tier.Key],
+			"WIPLimit": effWIP,
 		}
 	}
 
@@ -602,10 +613,7 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	recentDone, _ := h.db.RecentlyDone(8) // last 8 tasks done in past 24h
 	doneThisWeek, _ := h.db.CountDoneThisWeek()
 	sprintGoal := h.cfg().SprintGoal
-	wipLimit := h.cfg().WIPLimit
-	if wipLimit == 0 {
-		wipLimit = 5
-	}
+	wipLimit := globalWIPLimit
 
 	h.render(w, "index.html", map[string]interface{}{
 		"Tiers":           tiers,

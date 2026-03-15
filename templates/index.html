@@ -109,8 +109,12 @@
     <div class="board" style="grid-template-columns: repeat({{len .Tiers}}, 1fr)"
          data-wip-limit="{{.WIPLimit}}">
       {{range .Tiers}}
-      <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}">
-        <h2 class="tier-heading">{{.Label}} <span class="count">{{len .Tasks}}</span></h2>
+      <div class="tier-col tier-{{.Key}}" data-tier="{{.Key}}" data-wip="{{.WIPLimit}}">
+        <h2 class="tier-heading">
+          {{.Label}}
+          <span class="count tier-count" data-tier="{{.Key}}">{{len .Tasks}}</span>
+          {{if .WIPLimit}}<span class="wip-cap" title="WIP limit: {{.WIPLimit}}">/ {{.WIPLimit}}</span>{{end}}
+        </h2>
         <div class="task-list"
              data-tier="{{.Key}}"
              ondragover="onDragOver(event)"
@@ -932,9 +936,16 @@
       const badge = col.querySelector('.tier-heading .count');
       if (!badge) return;
       const visible = [...col.querySelectorAll('.task-card')].filter(c => c.style.display !== 'none');
-      badge.textContent = visible.length;
+      const n = visible.length;
+      badge.textContent = n;
       // Dim badge when filter is active and count is 0
-      badge.classList.toggle('count-zero', visible.length === 0 && currentFilter !== 'all');
+      badge.classList.toggle('count-zero', n === 0 && currentFilter !== 'all');
+      // Colour count amber/red when WIP limit is hit
+      const wipLimit = parseInt(col.dataset.wip || '0', 10);
+      if (wipLimit > 0) {
+        badge.classList.toggle('wip-over', n > wipLimit);
+        badge.classList.toggle('wip-near', n === wipLimit);
+      }
     });
 
     // 2. If swimlanes are active, rebuild the lane groupings so that hidden
@@ -1789,9 +1800,23 @@
   function checkWIPLimit() {
     const board = document.querySelector('.board');
     if (!board) return;
-    const wipLimit = parseInt(board.dataset.wipLimit || '5', 10);
-    if (wipLimit <= 0) return;
+    const globalWIPLimit = parseInt(board.dataset.wipLimit || '5', 10);
 
+    // Per-column badge colouring
+    document.querySelectorAll('.tier-col[data-wip]').forEach(col => {
+      const wip = parseInt(col.dataset.wip || '0', 10);
+      if (wip <= 0) return;
+      const visible = [...col.querySelectorAll('.task-card')].filter(c =>
+        c.style.display !== 'none' && !c.style.display.includes('none'));
+      const badge = col.querySelector('.tier-heading .count');
+      if (badge) {
+        badge.classList.toggle('wip-over', visible.length > wip);
+        badge.classList.toggle('wip-near', visible.length === wip);
+      }
+    });
+
+    // Global today-column banner warning
+    if (globalWIPLimit <= 0) return;
     const todayCol = board.querySelector('.tier-col[data-tier="today"]');
     if (!todayCol) return;
     const visibleCards = todayCol.querySelectorAll('.task-card:not([style*="display: none"]):not([style*="display:none"])');
@@ -1799,9 +1824,9 @@
 
     const warning = document.getElementById('wip-warning');
     if (!warning) return;
-    if (count > wipLimit) {
+    if (count > globalWIPLimit) {
       document.getElementById('wip-count').textContent = count;
-      document.getElementById('wip-limit').textContent = wipLimit;
+      document.getElementById('wip-limit').textContent = globalWIPLimit;
       warning.style.display = '';
     } else {
       warning.style.display = 'none';
