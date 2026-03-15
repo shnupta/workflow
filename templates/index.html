@@ -927,6 +927,16 @@
       card.style.display = cardMatchesFilter(card) ? '' : 'none';
     });
 
+    // 1b. Update column count badges dynamically.
+    document.querySelectorAll('.tier-col').forEach(col => {
+      const badge = col.querySelector('.tier-heading .count');
+      if (!badge) return;
+      const visible = [...col.querySelectorAll('.task-card')].filter(c => c.style.display !== 'none');
+      badge.textContent = visible.length;
+      // Dim badge when filter is active and count is 0
+      badge.classList.toggle('count-zero', visible.length === 0 && currentFilter !== 'all');
+    });
+
     // 2. If swimlanes are active, rebuild the lane groupings so that hidden
     //    cards are excluded from lanes and counts update correctly.
     if (swimelanesActive) {
@@ -1553,6 +1563,49 @@
     }
   }
 
+  // ─── Card-level timer toggle ─────────────────────────────────────────────
+
+  async function cardTimerToggle(e, taskId, btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const r = await fetch(`/tasks/${taskId}/timer`, { method: 'POST' });
+      if (!r.ok) return;
+      const data = await r.json();
+      // Update button state
+      btn.textContent = data.running ? '⏹' : '▶';
+      btn.title = data.running ? 'Stop timer' : 'Start timer';
+      btn.classList.toggle('timer-running', data.running);
+      // Update the elapsed label in the card footer
+      const card = btn.closest('.task-card');
+      const footer = card ? card.querySelector('.task-footer') : null;
+      if (footer) {
+        let elapsed = footer.querySelector('.timer-elapsed');
+        if (!elapsed) {
+          // Replace whatever time element is first in the footer
+          const timeEl = footer.querySelector('.due-label, .time-ago, .last-session-label');
+          if (timeEl) {
+            elapsed = document.createElement('span');
+            elapsed.className = 'timer-elapsed';
+            footer.insertBefore(elapsed, timeEl);
+            timeEl.style.display = 'none';
+          }
+        }
+        if (elapsed) {
+          elapsed.style.display = data.running ? '' : (data.elapsed_secs > 0 ? '' : 'none');
+          elapsed.textContent = data.running ? '⏱ running…' : '⏱ ' + fmtElapsed(data.elapsed_secs);
+        }
+      }
+    } catch (_) {}
+  }
+
+  function fmtElapsed(secs) {
+    if (secs < 60) return '< 1m';
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
   // Close batch modal on Escape
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
@@ -1861,6 +1914,8 @@
     <div class="task-actions">
       {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer" class="card-link-btn" title="Open link" onclick="event.stopPropagation()">↗</a>{{end}}
       {{if gt .CommentCount 0}}<span class="card-comment-count" title="{{.CommentCount}} comment{{if gt .CommentCount 1}}s{{end}}">💬 {{.CommentCount}}</span>{{end}}
+      <button class="btn-card-timer {{if .TimerStarted}}timer-running{{end}}" title="{{if .TimerStarted}}Stop timer{{else}}Start timer{{end}}"
+              onclick="cardTimerToggle(event, '{{.ID}}', this)">{{if .TimerStarted}}⏹{{else}}▶{{end}}</button>
       <button class="btn-quick-comment" title="Quick comment"
               onclick="openQuickComment(event, '{{.ID}}', {{jsonEscape .Title}})">💬</button>
       <form method="POST" action="/tasks/{{.ID}}/done" style="display:inline">

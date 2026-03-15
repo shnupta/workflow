@@ -4983,3 +4983,37 @@ input[type="date"] {
 .presets-save-btn:hover {
   background: rgba(167,139,250,0.08);
 }
+
+/* Live column count badge updates */
+.count-zero {
+  opacity: 0.35;
+}
+
+/* Card-level timer toggle button */
+.btn-card-timer {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.task-card:hover .btn-card-timer,
+.btn-card-timer.timer-running {
+  opacity: 1;
+}
+
+.btn-card-timer:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.btn-card-timer.timer-running {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.3);
+}
