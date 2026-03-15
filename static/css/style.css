@@ -5091,3 +5091,44 @@ input[type="date"] {
   box-sizing: border-box;
   line-height: 1.4;
 }
+
+/* ============================================================
+   Task view — "Move to" dropdown
+   ============================================================ */
+
+.task-move-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.task-move-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 130px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 800;
+  overflow: hidden;
+  padding: 4px 0;
+}
+
+.task-move-dropdown.hidden { display: none; }
+
+.task-move-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.task-move-item:hover {
+  background: var(--surface-2);
+}

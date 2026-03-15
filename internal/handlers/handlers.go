@@ -771,7 +771,8 @@ func (h *Handler) viewTask(w http.ResponseWriter, r *http.Request) {
 		"Comments":         comments,
 		"Reminders":        reminders,
 		"TimeLogs":         timeLogs,
-		"Nav":           "tasks",
+		"Tiers":            h.cfg().Tiers,
+		"Nav":              "tasks",
 	})
 }
 

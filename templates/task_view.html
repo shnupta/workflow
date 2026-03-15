@@ -29,6 +29,18 @@
             onclick="toggleStar()" title="{{if .Task.Starred}}Unstar task{{else}}Star task{{end}}">
             {{if .Task.Starred}}★{{else}}☆{{end}}
           </button>
+          <div class="task-move-wrap" id="task-move-wrap">
+            <button class="btn btn-ghost" id="task-move-btn" onclick="toggleMoveDropdown()" title="Move to column">
+              Move to ▾
+            </button>
+            <div class="task-move-dropdown hidden" id="task-move-dropdown">
+              {{range .Tiers}}
+              {{if ne .Key $.Task.Tier}}
+              <button class="task-move-item" onclick="moveTaskTo('{{.Key}}', '{{.Label}}')">{{.Label}}</button>
+              {{end}}
+              {{end}}
+            </div>
+          </div>
           <a href="/tasks/{{.Task.ID}}/edit" class="btn btn-ghost">Edit</a>
           <button class="btn btn-ghost" onclick="saveAsTemplate()" title="Save this task as a reusable template">Save as template</button>
           <button class="btn btn-ghost" onclick="duplicateTask()" title="Duplicate this task">Duplicate</button>
@@ -1121,6 +1133,42 @@
   })();
 
   // ── Star ──────────────────────────────────────────────────────────────────
+
+  // ── Move-to dropdown ──────────────────────────────────────────────────────
+
+  function toggleMoveDropdown() {
+    const dd = document.getElementById('task-move-dropdown');
+    dd.classList.toggle('hidden');
+  }
+
+  async function moveTaskTo(tier, label) {
+    document.getElementById('task-move-dropdown').classList.add('hidden');
+    try {
+      const resp = await fetch(`/tasks/{{.Task.ID}}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier })
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      // Update the tier badge in the meta strip
+      const badge = document.querySelector('.tag.tag-tier');
+      if (badge) badge.textContent = label;
+      // Update button: remove the tier we just moved to, add current tier back
+      // Easiest — reload the page
+      window.location.reload();
+    } catch (err) {
+      alert('Move failed: ' + err.message);
+    }
+  }
+
+  // Close move dropdown on outside click
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('task-move-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+      const dd = document.getElementById('task-move-dropdown');
+      if (dd) dd.classList.add('hidden');
+    }
+  });
 
   async function toggleStar() {
     const btn = document.getElementById('star-btn');
