@@ -221,6 +221,35 @@ func New(d *db.DB, watcher *config.Watcher, tmplGlob string) (*Handler, error) {
 			}
 			return pct
 		},
+		"barPct": func(count, total int) int {
+			if total <= 0 {
+				return 0
+			}
+			pct := count * 100 / total
+			if pct > 100 {
+				return 100
+			}
+			if pct < 3 && count > 0 {
+				return 3 // minimum visible bar
+			}
+			return pct
+		},
+		"sparkBarHeight": func(count int, days []db.DaySessionCount) int {
+			maxCount := 1
+			for _, d := range days {
+				if d.Count > maxCount {
+					maxCount = d.Count
+				}
+			}
+			if maxCount == 0 {
+				return 0
+			}
+			h := count * 80 / maxCount
+			if h < 4 && count > 0 {
+				return 4
+			}
+			return h
+		},
 		"activityDayOptions": func() []int { return []int{1, 3, 7, 14, 30} },
 		"activityDateLabel": func(t time.Time) string {
 			now := time.Now()
@@ -374,6 +403,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /activity", h.activityFeed)
 	mux.HandleFunc("GET /activity.json", h.activityFeedJSON)
 	mux.HandleFunc("GET /dep-graph", h.depGraph)
+	mux.HandleFunc("GET /stats", h.statsPage)
 	mux.HandleFunc("GET /api/sprint-goal", h.apiSprintGoal)
 	mux.HandleFunc("PATCH /api/sprint-goal", h.apiSprintGoal)
 	h.registerSessionRoutes(mux)

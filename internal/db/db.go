@@ -2983,3 +2983,173 @@ func (d *DB) ListTasksBlockedBy(blockingTaskID string) ([]*models.Task, error) {
 	}
 	return tasks, rows.Err()
 }
+
+// TaskStats holds aggregate task data for the /stats page.
+type TaskStats struct {
+	ByWorkType  []TaskTypeCount
+	ByTier      []TierCount
+	ByPriority  []PriorityCount
+	ByEffort    []EffortCount
+	TotalOpen   int
+	TotalDone   int
+	AvgAgeDays  float64 // average age of open tasks
+	Sessions7d  []DaySessionCount
+}
+
+type TaskTypeCount struct {
+	WorkType string
+	Open     int
+	Done     int
+}
+
+type TierCount struct {
+	Tier  string
+	Count int
+}
+
+type PriorityCount struct {
+	Priority string
+	Count    int
+}
+
+type EffortCount struct {
+	Effort string
+	Count  int
+}
+
+type DaySessionCount struct {
+	Day   string // "Mon", "Tue", etc.
+	Count int
+}
+
+// GetTaskStats returns aggregate statistics across all tasks.
+func (d *DB) GetTaskStats() (*TaskStats, error) {
+	stats := &TaskStats{}
+
+	// By work_type
+	rows, err := d.conn.Query(`
+		SELECT COALESCE(NULLIF(work_type,''), 'other') AS wt,
+		       SUM(CASE WHEN done=0 AND archived=0 THEN 1 ELSE 0 END) AS open,
+		       SUM(CASE WHEN done=1 THEN 1 ELSE 0 END) AS done
+		FROM tasks
+		GROUP BY wt ORDER BY open DESC, done DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r TaskTypeCount
+		if err := rows.Scan(&r.WorkType, &r.Open, &r.Done); err != nil {
+			return nil, err
+		}
+		stats.ByWorkType = append(stats.ByWorkType, r)
+	}
+	rows.Close()
+
+	// By tier (open only)
+	rows2, err := d.conn.Query(`
+		SELECT tier, COUNT(*) FROM tasks
+		WHERE done=0 AND archived=0
+		GROUP BY tier ORDER BY CASE tier WHEN 'today' THEN 0 WHEN 'this_week' THEN 1 WHEN 'backlog' THEN 2 ELSE 3 END`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows2.Close()
+	for rows2.Next() {
+		var r TierCount
+		if err := rows2.Scan(&r.Tier, &r.Count); err != nil {
+			return nil, err
+		}
+		stats.ByTier = append(stats.ByTier, r)
+	}
+	rows2.Close()
+
+	// By priority (open only)
+	rows3, err := d.conn.Query(`
+		SELECT COALESCE(NULLIF(priority,''), 'none') AS p, COUNT(*)
+		FROM tasks WHERE done=0 AND archived=0
+		GROUP BY p ORDER BY CASE p WHEN 'p1' THEN 0 WHEN 'p2' THEN 1 WHEN 'p3' THEN 2 ELSE 3 END`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows3.Close()
+	for rows3.Next() {
+		var r PriorityCount
+		if err := rows3.Scan(&r.Priority, &r.Count); err != nil {
+			return nil, err
+		}
+		stats.ByPriority = append(stats.ByPriority, r)
+	}
+	rows3.Close()
+
+	// By effort (open only)
+	rows4, err := d.conn.Query(`
+		SELECT COALESCE(NULLIF(effort,''), 'none') AS e, COUNT(*)
+		FROM tasks WHERE done=0 AND archived=0
+		GROUP BY e ORDER BY CASE e WHEN 'xs' THEN 0 WHEN 's' THEN 1 WHEN 'm' THEN 2 WHEN 'l' THEN 3 WHEN 'xl' THEN 4 ELSE 5 END`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows4.Close()
+	for rows4.Next() {
+		var r EffortCount
+		if err := rows4.Scan(&r.Effort, &r.Count); err != nil {
+			return nil, err
+		}
+		stats.ByEffort = append(stats.ByEffort, r)
+	}
+	rows4.Close()
+
+	// Totals
+	err = d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND archived=0`).Scan(&stats.TotalOpen)
+	if err != nil {
+		return nil, err
+	}
+	err = d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=1`).Scan(&stats.TotalDone)
+	if err != nil {
+		return nil, err
+	}
+
+	// Average age of open tasks (days since created_at)
+	var avgAge sql.NullFloat64
+	err = d.conn.QueryRow(`
+		SELECT AVG((julianday('now') - julianday(created_at)))
+		FROM tasks WHERE done=0 AND archived=0`).Scan(&avgAge)
+	if err != nil {
+		return nil, err
+	}
+	if avgAge.Valid {
+		stats.AvgAgeDays = avgAge.Float64
+	}
+
+	// Sessions per day for the past 7 days
+	rows5, err := d.conn.Query(`
+		SELECT strftime('%w', created_at) AS dow,
+		       strftime('%Y-%m-%d', created_at) AS day_str,
+		       COUNT(*) AS cnt
+		FROM sessions
+		WHERE created_at >= datetime('now', '-7 days')
+		GROUP BY day_str
+		ORDER BY day_str ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows5.Close()
+	dayNames := []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}
+	for rows5.Next() {
+		var dow, dayStr string
+		var cnt int
+		if err := rows5.Scan(&dow, &dayStr, &cnt); err != nil {
+			return nil, err
+		}
+		dowInt := 0
+		fmt.Sscanf(dow, "%d", &dowInt)
+		name := dayStr // fallback
+		if dowInt >= 0 && dowInt < len(dayNames) {
+			name = dayNames[dowInt]
+		}
+		stats.Sessions7d = append(stats.Sessions7d, DaySessionCount{Day: name, Count: cnt})
+	}
+
+	return stats, nil
+}

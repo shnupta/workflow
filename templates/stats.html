@@ -1,0 +1,119 @@
+{{define "stats.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Stats</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="stats-page">
+      <h1 class="page-title">Stats</h1>
+
+      <!-- Top-line numbers -->
+      <div class="stats-summary-row">
+        <div class="stats-kpi">
+          <span class="stats-kpi-value">{{.Stats.TotalOpen}}</span>
+          <span class="stats-kpi-label">open tasks</span>
+        </div>
+        <div class="stats-kpi">
+          <span class="stats-kpi-value">{{.Stats.TotalDone}}</span>
+          <span class="stats-kpi-label">done all-time</span>
+        </div>
+        <div class="stats-kpi">
+          <span class="stats-kpi-value">{{printf "%.1f" .Stats.AvgAgeDays}}d</span>
+          <span class="stats-kpi-label">avg open age</span>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+
+        <!-- By tier -->
+        <div class="stats-card">
+          <h2 class="stats-card-title">Open by tier</h2>
+          {{range .Stats.ByTier}}
+          <div class="stats-bar-row">
+            <span class="stats-bar-label">{{.Tier}}</span>
+            <div class="stats-bar-track">
+              <div class="stats-bar-fill stats-bar-tier-{{.Tier}}" style="width: {{if gt .Count 0}}{{barPct .Count $.Stats.TotalOpen}}%{{else}}0%{{end}}"></div>
+            </div>
+            <span class="stats-bar-count">{{.Count}}</span>
+          </div>
+          {{end}}
+        </div>
+
+        <!-- By priority -->
+        <div class="stats-card">
+          <h2 class="stats-card-title">Open by priority</h2>
+          {{range .Stats.ByPriority}}
+          <div class="stats-bar-row">
+            <span class="stats-bar-label">{{if eq .Priority "none"}}—{{else}}{{.Priority}}{{end}}</span>
+            <div class="stats-bar-track">
+              <div class="stats-bar-fill stats-bar-priority-{{.Priority}}" style="width: {{if gt .Count 0}}{{barPct .Count $.Stats.TotalOpen}}%{{else}}0%{{end}}"></div>
+            </div>
+            <span class="stats-bar-count">{{.Count}}</span>
+          </div>
+          {{end}}
+        </div>
+
+        <!-- By effort -->
+        <div class="stats-card">
+          <h2 class="stats-card-title">Open by effort</h2>
+          {{range .Stats.ByEffort}}
+          <div class="stats-bar-row">
+            <span class="stats-bar-label">{{if eq .Effort "none"}}—{{else}}{{.Effort}}{{end}}</span>
+            <div class="stats-bar-track">
+              <div class="stats-bar-fill stats-bar-effort" style="width: {{if gt .Count 0}}{{barPct .Count $.Stats.TotalOpen}}%{{else}}0%{{end}}"></div>
+            </div>
+            <span class="stats-bar-count">{{.Count}}</span>
+          </div>
+          {{end}}
+        </div>
+
+        <!-- By work type -->
+        <div class="stats-card stats-card-wide">
+          <h2 class="stats-card-title">By work type</h2>
+          <table class="stats-table">
+            <thead>
+              <tr><th>Type</th><th>Open</th><th>Done</th></tr>
+            </thead>
+            <tbody>
+              {{range .Stats.ByWorkType}}
+              <tr>
+                <td><span class="work-type-chip">{{.WorkType}}</span></td>
+                <td>{{.Open}}</td>
+                <td class="stats-done-col">{{.Done}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Sessions last 7 days -->
+        {{if .Stats.Sessions7d}}
+        <div class="stats-card">
+          <h2 class="stats-card-title">Sessions (last 7 days)</h2>
+          <div class="stats-sparkline">
+            {{range .Stats.Sessions7d}}
+            <div class="stats-spark-col">
+              <div class="stats-spark-bar-wrap">
+                <div class="stats-spark-bar" style="height: {{sparkBarHeight .Count $.Stats.Sessions7d}}px" title="{{.Count}} session{{if ne .Count 1}}s{{end}}"></div>
+              </div>
+              <span class="stats-spark-label">{{.Day}}</span>
+            </div>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+
+      </div>
+    </div>
+  </main>
+</body>
+</html>
+{{end}}

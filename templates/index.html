@@ -53,6 +53,7 @@
       <button class="filter-chip filter-chip-blocked" data-filter="blocked" onclick="setFilter('blocked', this)">⛔ Blocked</button>
       <button class="filter-chip filter-chip-p1" data-filter="priority:p1" onclick="setFilter('priority:p1', this)">P1</button>
       <button class="filter-chip filter-chip-star" data-filter="starred" onclick="setFilter('starred', this)">★ Starred</button>
+      <button class="filter-chip filter-chip-quick" data-filter="quick-wins" onclick="setFilter('quick-wins', this)" title="XS or S effort tasks">⚡ Quick wins</button>
       {{if .AllTags}}
       <div class="filter-sep"></div>
       {{range .AllTags}}
@@ -892,6 +893,8 @@
       return card.classList.contains('blocked');
     if (currentFilter === 'starred')
       return card.dataset.starred === '1';
+    if (currentFilter === 'quick-wins')
+      return card.dataset.effort === 'xs' || card.dataset.effort === 's';
     return card.dataset.type === currentFilter;
   }
 
