@@ -1381,6 +1381,59 @@ type NoteSearchResult struct {
 	Snippet string `json:"snippet"`
 }
 
+
+// ─────────────────────────────────────────────────────────
+// Unified search
+// ─────────────────────────────────────────────────────────
+
+// UnifiedResult wraps a result from any of the three search indexes.
+// Kind is "task", "session", or "note". Only one of Task/Session/Note is set.
+type UnifiedResult struct {
+	Kind    string // "task" | "session" | "note"
+	Snippet string
+	Task    *models.Task       // set when Kind=="task"
+	Session *SearchResult      // set when Kind=="session"
+	Note    *NoteSearchResult  // set when Kind=="note"
+}
+
+// SearchAll runs all three FTS5 searches in parallel and merges results,
+// interleaving by type (task, session, note). Each type contributes up to
+// 10 results. Falls back gracefully if FTS5 is unavailable.
+func (d *DB) SearchAll(query string) ([]*UnifiedResult, error) {
+	if query == "" {
+		return nil, nil
+	}
+
+	tasks, _ := d.SearchTasks(query)
+	sessions, _ := d.SearchSessions(query)
+	notes, _ := d.SearchNotes(query)
+
+	const perType = 10
+	var out []*UnifiedResult
+
+	// Interleave: pick up to perType from each, round-robin by type.
+	ti, si, ni := 0, 0, 0
+	for ti < len(tasks) || si < len(sessions) || ni < len(notes) {
+		if ti < len(tasks) && ti < perType {
+			out = append(out, &UnifiedResult{Kind: "task", Snippet: tasks[ti].Snippet, Task: tasks[ti].Task})
+			ti++
+		}
+		if si < len(sessions) && si < perType {
+			out = append(out, &UnifiedResult{Kind: "session", Snippet: sessions[si].Snippet, Session: sessions[si]})
+			si++
+		}
+		if ni < len(notes) && ni < perType {
+			out = append(out, &UnifiedResult{Kind: "note", Snippet: notes[ni].Snippet, Note: notes[ni]})
+			ni++
+		}
+		// Once all are exhausted we're done.
+		if ti >= len(tasks) && si >= len(sessions) && ni >= len(notes) {
+			break
+		}
+	}
+	return out, nil
+}
+
 // SearchNotes searches notes by full-text query. Falls back to LIKE on title/content.
 func (d *DB) SearchNotes(query string) ([]*NoteSearchResult, error) {
 	if query == "" {

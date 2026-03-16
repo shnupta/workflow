@@ -396,7 +396,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", h.apiSearchTasks)
 	mux.HandleFunc("GET /api/tasks/recent", h.apiRecentTasks)
 	mux.HandleFunc("GET /sessions", h.sessionsIndex)
-	mux.HandleFunc("GET /search", h.searchSessions)
+	mux.HandleFunc("GET /search", h.searchAll)
+	mux.HandleFunc("GET /search/sessions", h.searchSessions)
 	mux.HandleFunc("GET /search/tasks", h.searchTasks)
 	mux.HandleFunc("GET /search/notes", h.searchNotes)
 	mux.HandleFunc("GET /notes", h.notesPage)
@@ -577,6 +578,27 @@ func (h *Handler) searchNotes(w http.ResponseWriter, r *http.Request) {
 		"Results": results,
 	})
 }
+
+func (h *Handler) searchAll(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	var results []*db.UnifiedResult
+	var searchErr string
+	if q != "" {
+		var err error
+		results, err = h.db.SearchAll(q)
+		if err != nil {
+			searchErr = err.Error()
+		}
+	}
+	h.render(w, "search_all.html", map[string]interface{}{
+		"Nav":       "search",
+		"Query":     q,
+		"Results":   results,
+		"SearchErr": searchErr,
+	})
+}
+
+
 
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	tasks, err := h.db.ListTasks(false, h.cfg())

@@ -2303,6 +2303,25 @@ input[type="date"] {
   padding: 1px 5px;
 }
 
+.search-kind-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-right: 4px;
+}
+.search-kind-task    { background: rgba(99,102,241,0.15); color: #818cf8; }
+.search-kind-session { background: rgba(16,185,129,0.15); color: #34d399; }
+.search-kind-note    { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+
+.search-result-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
 .effort-vs-actual {
   font-size: 11px;
   color: var(--text-muted);

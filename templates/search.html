@@ -19,12 +19,13 @@
 
       <!-- Tab bar -->
       <div class="search-tabs">
+        <a class="search-tab" href="/search{{if .Query}}?q={{.Query}}{{end}}">All</a>
         <a class="search-tab" href="/search/tasks{{if .Query}}?q={{.Query}}{{end}}">Tasks</a>
-        <a class="search-tab search-tab-active" href="/search{{if .Query}}?q={{.Query}}{{end}}">Sessions</a>
+        <a class="search-tab search-tab-active" href="/search/sessions{{if .Query}}?q={{.Query}}{{end}}">Sessions</a>
         <a class="search-tab" href="/search/notes{{if .Query}}?q={{.Query}}{{end}}">Notes</a>
       </div>
 
-      <form class="search-form" action="/search" method="get">
+      <form class="search-form" action="/search/sessions" method="get">
         <div class="search-input-wrap">
           <input
             type="search"

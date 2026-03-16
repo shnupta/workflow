@@ -2572,3 +2572,75 @@ func TestGetFocusTask_NilWhenTaskDone(t *testing.T) {
 		t.Error("done tasks should not appear as focus task")
 	}
 }
+
+// ─── SearchAll ────────────────────────────────────────────────────────────────
+
+func TestSearchAll_EmptyQuery_ReturnsNil(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+	results, err := db.SearchAll("")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil for empty query, got %v", results)
+	}
+}
+
+func TestSearchAll_MatchesTask(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("searchall-unique-xenon-task", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	results, err := db.SearchAll("xenon")
+	if err != nil {
+		t.Fatalf("SearchAll: %v", err)
+	}
+
+	taskFound := false
+	for _, r := range results {
+		if r.Kind == "task" && r.Task != nil && r.Task.ID == task.ID {
+			taskFound = true
+		}
+	}
+	if !taskFound {
+		t.Error("expected task to appear in SearchAll results")
+	}
+}
+
+func TestSearchAll_ResultsHaveKind(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := newTask("searchall-kind-check-zircon", "today")
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	results, _ := db.SearchAll("zircon")
+	for _, r := range results {
+		if r.Kind == "" {
+			t.Error("result missing Kind field")
+		}
+		if r.Kind != "task" && r.Kind != "session" && r.Kind != "note" {
+			t.Errorf("unexpected Kind value: %q", r.Kind)
+		}
+	}
+}
+
+func TestSearchAll_NoMatch_ReturnsEmpty(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	results, err := db.SearchAll("zzz-no-match-abcxyz9999")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected no results, got %d", len(results))
+	}
+}

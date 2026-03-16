@@ -1,0 +1,103 @@
+{{define "search_all.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>workflow — Search{{if .Query}} · {{.Query}}{{end}}</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  {{template "nav" .}}
+  <main>
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">Search</h1>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="search-tabs">
+        <a class="search-tab search-tab-active" href="/search{{if .Query}}?q={{.Query}}{{end}}">All</a>
+        <a class="search-tab" href="/search/tasks{{if .Query}}?q={{.Query}}{{end}}">Tasks</a>
+        <a class="search-tab" href="/search/sessions{{if .Query}}?q={{.Query}}{{end}}">Sessions</a>
+        <a class="search-tab" href="/search/notes{{if .Query}}?q={{.Query}}{{end}}">Notes</a>
+      </div>
+
+      <form class="search-form" action="/search" method="get">
+        <div class="search-input-wrap">
+          <input
+            type="search"
+            name="q"
+            value="{{.Query}}"
+            placeholder="Search tasks, sessions, notes…"
+            class="search-input"
+            autofocus
+            autocomplete="off"
+          >
+          <button type="submit" class="btn btn-primary search-btn">Search</button>
+        </div>
+      </form>
+
+      {{if .SearchErr}}
+        <div class="search-unavailable">
+          <p>Search is unavailable — FTS5 not compiled in.</p>
+          <p>Rebuild with: <code>go build -tags fts5 ./cmd/workflow/</code></p>
+        </div>
+      {{else if .Query}}
+        {{if .Results}}
+          <div class="search-results">
+            <p class="search-count">{{len .Results}} result{{if gt (len .Results) 1}}s{{end}}</p>
+            {{range .Results}}
+            {{if eq .Kind "task"}}
+              <a href="/tasks/{{.Task.ID}}" class="search-result-row search-result-task">
+                <div class="search-result-meta">
+                  <span class="search-kind-badge search-kind-task">task</span>
+                  <span class="tag tag-type">{{workTypeLabel .Task.WorkType}}</span>
+                  <span class="tag tag-tier">{{tierLabel .Task.Tier}}</span>
+                  <span class="search-result-title">{{.Task.Title}}</span>
+                </div>
+                {{if .Snippet}}<div class="search-result-snippet">{{.Snippet}}</div>{{end}}
+                <div class="search-result-time">Added {{timeAgo .Task.CreatedAt}}</div>
+              </a>
+            {{else if eq .Kind "session"}}
+              <a href="/tasks/{{.Session.TaskID}}/sessions/{{.Session.ID}}" class="search-result-row search-result-session">
+                <div class="search-result-meta">
+                  <span class="search-kind-badge search-kind-session">session</span>
+                  <span class="search-result-title">{{.Session.Name}}</span>
+                  <span class="search-result-subtitle">on {{.Session.TaskTitle}}</span>
+                </div>
+                {{if .Snippet}}<div class="search-result-snippet">{{.Snippet}}</div>{{end}}
+                <div class="search-result-time">{{timeAgo .Session.CreatedAt}}</div>
+              </a>
+            {{else if eq .Kind "note"}}
+              <a href="/notes/{{.Note.ID}}" class="search-result-row search-result-note">
+                <div class="search-result-meta">
+                  <span class="search-kind-badge search-kind-note">note</span>
+                  <span class="search-result-title">{{.Note.Title}}</span>
+                </div>
+                {{if .Snippet}}<div class="search-result-snippet">{{.Snippet}}</div>{{end}}
+                <div class="search-result-time">{{timeAgo .Note.UpdatedAt}}</div>
+              </a>
+            {{end}}
+            {{end}}
+          </div>
+        {{else}}
+          <p class="empty-state">No results for "{{.Query}}"</p>
+        {{end}}
+      {{end}}
+    </div>
+  </main>
+
+  <script>
+    document.querySelector('.search-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        this.value = '';
+        this.form.submit();
+      }
+    });
+  </script>
+</body>
+</html>
+{{end}}

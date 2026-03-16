@@ -15,7 +15,7 @@
     <a href="/stats"    class="nav-link {{if eq .Nav "stats"}}active{{end}}">Stats</a>
   </nav>
   <div class="header-actions">
-    <a href="/search/tasks" class="nav-search-btn" title="Search tasks">
+    <a href="/search" class="nav-search-btn" title="Search everything">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     </a>
     <a href="/tasks/new" class="btn btn-primary {{if ne .Nav "tasks"}}nav-action-hidden{{end}}">+ New task</a>
@@ -47,8 +47,9 @@
     { label: '+ New task',       href: '/tasks/new',    icon: '✚' },
     { label: 'Board',            href: '/',             icon: '⬛' },
     { label: 'Sessions',         href: '/sessions',     icon: '💬' },
-    { label: 'Search sessions',  href: '/search',       icon: '🔍' },
-    { label: 'Search notes',     href: '/search/notes', icon: '🔍' },
+    { label: 'Search everything', href: '/search',          icon: '🔍' },
+    { label: 'Search sessions',  href: '/search/sessions', icon: '🔍' },
+    { label: 'Search notes',     href: '/search/notes',    icon: '🔍' },
     { label: 'Notes',            href: '/notes',        icon: '📝' },
     { label: 'Calendar',         href: '/calendar',     icon: '📅' },
     { label: 'Templates',        href: '/templates',    icon: '📋' },
