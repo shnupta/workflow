@@ -702,6 +702,28 @@
             toggleCompactMode();
           }
           return;
+        case 'd':
+          // Mark focused card as done
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            const doneId = focusedCard.dataset.id;
+            if (doneId) {
+              fetch(`/tasks/${doneId}/done`, { method: 'POST', redirect: 'manual' }).then(() => {
+                const col = focusedCard.closest('.tier-col');
+                focusedCard.remove();
+                if (col) updateColCount(col);
+                clearFocus();
+              });
+            }
+          }
+          return;
+        case 'z':
+          // Snooze focused card
+          if (focusedCard && !overlayOpen()) {
+            e.preventDefault();
+            openSnoozeModal(focusedCard.dataset.id);
+          }
+          return;
         case 'Escape':
           if (overlayOpen()) return; // let the overlay handler deal with it
           if (focusedCard) { e.preventDefault(); clearFocus(); return; }
@@ -767,6 +789,8 @@
           <kbd>← →</kbd><span>Move focus between columns</span>
           <kbd>Enter</kbd><span>Open focused task</span>
           <kbd>m</kbd><span>Move focused task to next column</span>
+          <kbd>d</kbd><span>Mark focused task as done</span>
+          <kbd>z</kbd><span>Snooze focused task (hide from board)</span>
           <kbd>*</kbd><span>Star / unstar focused task</span>
           <kbd>P</kbd><span>Saved filter presets dropdown</span>
             <kbd>B</kbd><span>Batch-create tasks modal</span>
@@ -786,8 +810,60 @@
     document.body.appendChild(overlay);
   }
 
+  // ── Snooze modal ─────────────────────────────────────────────────────────
+
+  function openSnoozeModal(taskId) {
+    let modal = document.getElementById('snooze-modal');
+    if (modal) modal.remove();
+    modal = document.createElement('div');
+    modal.id = 'snooze-modal';
+    modal.className = 'snooze-modal-overlay';
+    modal.innerHTML = `
+      <div class="snooze-modal-box">
+        <div class="snooze-modal-title">Snooze task</div>
+        <div class="snooze-options">
+          <button data-minutes="30">30 min</button>
+          <button data-hours="1">1 hour</button>
+          <button data-hours="2">2 hours</button>
+          <button data-hours="4">4 hours</button>
+          <button data-hours="24">Tomorrow</button>
+          <button data-hours="72">3 days</button>
+        </div>
+        <div class="snooze-cancel"><a href="#" id="snooze-cancel-btn">Cancel</a></div>
+      </div>
+    `;
+    modal.querySelectorAll('[data-minutes],[data-hours]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const body = {};
+        if (btn.dataset.minutes) body.minutes = parseInt(btn.dataset.minutes);
+        if (btn.dataset.hours) body.hours = parseInt(btn.dataset.hours);
+        fetch(`/api/tasks/${taskId}/snooze`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(body),
+        }).then(r => {
+          if (r.ok) {
+            const card = document.querySelector(`.task-card[data-id="${taskId}"]`);
+            if (card) {
+              const col = card.closest('.tier-col');
+              card.remove();
+              if (col) updateColCount(col);
+              clearFocus();
+            }
+          }
+          modal.remove();
+        });
+      });
+    });
+    document.getElementById('snooze-cancel-btn')?.addEventListener('click', e => { e.preventDefault(); modal.remove(); });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+  }
+
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      const snoozeMod = document.getElementById('snooze-modal');
+      if (snoozeMod) { snoozeMod.remove(); e.preventDefault(); return; }
       const spOverlay = document.getElementById('scratchpad-overlay');
       if (spOverlay) { spOverlay.remove(); e.preventDefault(); return; }
       const overlay = document.getElementById('shortcuts-overlay');

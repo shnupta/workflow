@@ -2644,3 +2644,141 @@ func TestSearchAll_NoMatch_ReturnsEmpty(t *testing.T) {
 		t.Errorf("expected no results, got %d", len(results))
 	}
 }
+
+// ── Snooze ────────────────────────────────────────────────────────────────────
+
+func TestSnoozeTask_HidesFromListTasks(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	// Create a task
+	task := &models.Task{Title: "snooze me", WorkType: "other", Tier: testCfg.Tiers[0].Key}
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Snooze it for 1 hour in the future
+	until := time.Now().UTC().Add(1 * time.Hour)
+	if err := db.SnoozeTask(task.ID, until); err != nil {
+		t.Fatalf("SnoozeTask: %v", err)
+	}
+
+	// ListTasks should not include the snoozed task
+	tasks, err := db.ListTasks(false, testCfg)
+	if err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+	for _, tt := range tasks {
+		if tt.ID == task.ID {
+			t.Errorf("snoozed task should not appear in ListTasks")
+		}
+	}
+}
+
+func TestSnoozeTask_ReappearsAfterExpiry(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "past snooze", WorkType: "other", Tier: testCfg.Tiers[0].Key}
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Snooze until the past (already expired)
+	until := time.Now().UTC().Add(-1 * time.Minute)
+	if err := db.SnoozeTask(task.ID, until); err != nil {
+		t.Fatalf("SnoozeTask: %v", err)
+	}
+
+	// Should reappear in ListTasks
+	tasks, err := db.ListTasks(false, testCfg)
+	if err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+	found := false
+	for _, tt := range tasks {
+		if tt.ID == task.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("task with expired snooze should appear in ListTasks")
+	}
+}
+
+func TestUnsnoozeTask_ReappearsImmediately(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	task := &models.Task{Title: "unsnooze me", WorkType: "other", Tier: testCfg.Tiers[0].Key}
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Snooze for 1 hour
+	if err := db.SnoozeTask(task.ID, time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("SnoozeTask: %v", err)
+	}
+
+	// Unsnooze
+	if err := db.UnsnoozeTask(task.ID); err != nil {
+		t.Fatalf("UnsnoozeTask: %v", err)
+	}
+
+	// Should appear again
+	tasks, err := db.ListTasks(false, testCfg)
+	if err != nil {
+		t.Fatalf("ListTasks: %v", err)
+	}
+	found := false
+	for _, tt := range tasks {
+		if tt.ID == task.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("unsnoozed task should appear in ListTasks")
+	}
+}
+
+func TestCountSnoozedTasks(t *testing.T) {
+	db, cleanup := openTestDB(t)
+	defer cleanup()
+
+	t1 := &models.Task{Title: "t1", WorkType: "other", Tier: testCfg.Tiers[0].Key}
+	t2 := &models.Task{Title: "t2", WorkType: "other", Tier: testCfg.Tiers[0].Key}
+	if err := db.CreateTask(t1); err != nil {
+		t.Fatalf("CreateTask t1: %v", err)
+	}
+	if err := db.CreateTask(t2); err != nil {
+		t.Fatalf("CreateTask t2: %v", err)
+	}
+
+	// Snooze t1
+	if err := db.SnoozeTask(t1.ID, time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("SnoozeTask t1: %v", err)
+	}
+	n := db.CountSnoozedTasks()
+	if n != 1 {
+		t.Errorf("expected 1 snoozed task, got %d", n)
+	}
+
+	// Snooze t2 too
+	if err := db.SnoozeTask(t2.ID, time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatalf("SnoozeTask t2: %v", err)
+	}
+	n = db.CountSnoozedTasks()
+	if n != 2 {
+		t.Errorf("expected 2 snoozed tasks, got %d", n)
+	}
+
+	// Clear t1
+	if err := db.UnsnoozeTask(t1.ID); err != nil {
+		t.Fatalf("UnsnoozeTask t1: %v", err)
+	}
+	n = db.CountSnoozedTasks()
+	if n != 1 {
+		t.Errorf("expected 1 after unsnooze, got %d", n)
+	}
+}

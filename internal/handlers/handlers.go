@@ -388,6 +388,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/tasks/{id}/scratchpad", h.apiScratchpad)
 	mux.HandleFunc("PATCH /api/tasks/{id}/star", h.apiStarTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}/focus", h.apiFocusTask)
+	mux.HandleFunc("PATCH /api/tasks/{id}/snooze", h.apiSnoozeTask)
+	mux.HandleFunc("DELETE /api/tasks/{id}/snooze", h.apiUnsnoozeTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.apiPatchTask)
 	mux.HandleFunc("POST /api/tasks/{id}/blocked-by", h.apiSetBlockedBy)
 	mux.HandleFunc("DELETE /api/tasks/{id}/blocked-by", h.apiClearBlockedBy)
@@ -1052,6 +1054,63 @@ func (h *Handler) apiScratchpad(w http.ResponseWriter, r *http.Request) {
 }
 
 // apiSetBlockedBy sets the blocker for a task.
+// apiSnoozeTask handles PATCH /api/tasks/{id}/snooze — snoozes a task until the given time.
+// Body: {"minutes": 30} | {"hours": 2} | {"until": "2026-03-17T09:00:00Z"}
+func (h *Handler) apiSnoozeTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+	var body struct {
+		Minutes int    `json:"minutes"`
+		Hours   int    `json:"hours"`
+		Until   string `json:"until"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	var until time.Time
+	switch {
+	case body.Until != "":
+		var err error
+		until, err = time.Parse(time.RFC3339, body.Until)
+		if err != nil {
+			http.Error(w, "invalid until time", http.StatusBadRequest)
+			return
+		}
+	case body.Hours > 0:
+		until = time.Now().UTC().Add(time.Duration(body.Hours) * time.Hour)
+	case body.Minutes > 0:
+		until = time.Now().UTC().Add(time.Duration(body.Minutes) * time.Minute)
+	default:
+		http.Error(w, "provide minutes, hours, or until", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.SnoozeTask(id, until); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"snoozed_until": until.UTC().Format(time.RFC3339)})
+}
+
+// apiUnsnoozeTask handles DELETE /api/tasks/{id}/snooze — clears the snooze.
+func (h *Handler) apiUnsnoozeTask(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+	if err := h.db.UnsnoozeTask(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
 // apiStarTask handles PATCH /api/tasks/{id}/star — toggles the starred state.
 // Returns JSON {"starred": true/false}.
 func (h *Handler) apiStarTask(w http.ResponseWriter, r *http.Request) {

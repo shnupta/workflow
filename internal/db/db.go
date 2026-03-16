@@ -76,6 +76,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE tasks ADD COLUMN starred      INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN archived     INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE tasks ADD COLUMN is_focus     INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE tasks ADD COLUMN snoozed_until TEXT`,
 	} {
 		_, _ = d.conn.Exec(col) // ignore "duplicate column" errors
 	}
@@ -462,9 +463,10 @@ func (d *DB) ListTasks(includeDone bool, cfg *config.Config) ([]*models.Task, er
 	}
 	tierOrder += "ELSE 99"
 
-	where := "WHERE done=0 AND COALESCE(archived,0)=0"
+	now := time.Now().UTC().Format(time.RFC3339)
+	where := fmt.Sprintf("WHERE done=0 AND COALESCE(archived,0)=0 AND (snoozed_until IS NULL OR snoozed_until <= '%s')", now)
 	if includeDone {
-		where = "WHERE COALESCE(archived,0)=0"
+		where = fmt.Sprintf("WHERE COALESCE(archived,0)=0 AND (snoozed_until IS NULL OR snoozed_until <= '%s')", now)
 	}
 
 	q := fmt.Sprintf(`
@@ -2567,6 +2569,33 @@ func (d *DB) PatchTaskFields(id, title, description string) (*models.Task, error
 }
 
 // StarTask toggles the starred state of a task and returns the new value.
+// SnoozeTask hides a task from the board until the given time.
+// Passing a zero Time clears the snooze.
+func (d *DB) SnoozeTask(id string, until time.Time) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	var snoozeVal interface{}
+	if !until.IsZero() {
+		snoozeVal = until.UTC().Format(time.RFC3339)
+	}
+	_, err := d.conn.Exec(`UPDATE tasks SET snoozed_until=?, updated_at=? WHERE id=?`, snoozeVal, now, id)
+	return err
+}
+
+// UnsnoozeTask clears the snooze on a task, making it visible on the board immediately.
+func (d *DB) UnsnoozeTask(id string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := d.conn.Exec(`UPDATE tasks SET snoozed_until=NULL, updated_at=? WHERE id=?`, now, id)
+	return err
+}
+
+// CountSnoozedTasks returns the number of tasks currently snoozed (hidden from board).
+func (d *DB) CountSnoozedTasks() int {
+	now := time.Now().UTC().Format(time.RFC3339)
+	var n int
+	d.conn.QueryRow(`SELECT COUNT(*) FROM tasks WHERE done=0 AND COALESCE(archived,0)=0 AND snoozed_until IS NOT NULL AND snoozed_until > ?`, now).Scan(&n)
+	return n
+}
+
 func (d *DB) StarTask(id string) (bool, error) {
 	var current int
 	err := d.conn.QueryRow(`SELECT COALESCE(starred,0) FROM tasks WHERE id=?`, id).Scan(&current)

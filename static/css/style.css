@@ -5268,3 +5268,25 @@ input[type="date"] {
 .thread-name { flex: 1; font-size: 0.875rem; }
 .thread-meta { font-size: 0.75rem; color: var(--muted); }
 .threads-empty { padding: 0.75rem 1rem; color: var(--muted); font-size: 0.85rem; }
+
+/* ── Snooze modal ────────────────────────────────────────────────────────── */
+.snooze-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1100;
+  display: flex; align-items: center; justify-content: center;
+}
+.snooze-modal-box {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.5rem 1.75rem; min-width: 280px; text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+}
+.snooze-modal-title { font-weight: 600; margin-bottom: 1rem; color: var(--text-1); }
+.snooze-options { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+.snooze-options button {
+  padding: .45rem .9rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-1); cursor: pointer; font-size: .85rem;
+  transition: background .12s, border-color .12s;
+}
+.snooze-options button:hover { background: #6366f1; color: #fff; border-color: #6366f1; }
+.snooze-cancel { margin-top: 1rem; font-size: .8rem; }
+.snooze-cancel a { color: var(--text-2); text-decoration: none; }
+.snooze-cancel a:hover { text-decoration: underline; }
