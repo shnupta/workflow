@@ -1055,3 +1055,22 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - task_view: chip next to timer display when task has both effort + tracked time
   - digest: chip on Done rows in weekly digest
   - 7 new model tests (325→332)
+
+## New features (shipped 2026-03-16 nudge 48)
+
+### High priority
+
+- [x] **Task snooze** ✅ 2026-03-16
+  - `snoozed_until TEXT` column (nullable, RFC3339)
+  - `SnoozeTask(id, until)` / `UnsnoozeTask(id)` / `CountSnoozedTasks()` DB methods
+  - `ListTasks()` now filters out snoozed tasks (expired snoozes reappear automatically)
+  - `PATCH /api/tasks/{id}/snooze` — body: `{minutes: N}`, `{hours: N}`, or `{until: RFC3339}`
+  - `DELETE /api/tasks/{id}/snooze` — clear snooze
+  - `z` keyboard shortcut on focused board card → snooze modal (30min/1h/2h/4h/Tomorrow/3days)
+  - CSS in style.css; 4 new DB tests (345→349)
+
+- [x] **`d` keyboard shortcut — mark card done** ✅ 2026-03-16
+  - `d` pressed on focused board card posts to `/tasks/{id}/done`
+  - Card removed from DOM immediately, column count updated; no page reload needed
+  - Added to keyboard shortcuts overlay grid
+
