@@ -304,9 +304,11 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Add ClaudeAPI (direct Anthropic API, for when claude CLI not available)
   - Provider selected per-session in config or UI
 
-- [ ] **Sub-sessions / thread view**
-  - Sessions can spawn sub-sessions (parent_id is already in schema)
-  - UI for this is a future concern
+- [x] **Sub-sessions / thread view** ✅ 2026-03-15
+  - Sessions can spawn sub-sessions (parent_id already in schema)
+  - ListSubSessions() DB method; POST /.../{sid}/subsessions + GET /.../{sid}/subsessions
+  - 'Threads' panel in session view with status dots; inline new-thread form
+  - Inherits parent message context; 2 DB tests (343→345)
 
 - [x] **Per-task scratchpad** ✅ 2026-03-06
   - Lightweight textarea on task page (between timer and agent brief)
@@ -419,9 +421,7 @@ Work through these top-to-bottom. Mark done with ✅ and timestamp. Add new task
   - Reminders panel on task page (datetime-local input + note); past state styling
   - In-app toast delivery: `GET /api/reminders/due` + `POST /api/reminders/{id}/dismiss`; client polls every 60s; hover-to-pause, CSS progress bar, sessionStorage dedup; 186 tests
 
-- [ ] **Sub-sessions / thread view**
-  - Sessions can spawn sub-sessions (parent_id is already in schema)
-  - UI for this is a future concern — defer until a concrete use case emerges
+- [x] **Sub-sessions / thread view** ✅ 2026-03-15 (see above — same feature) — defer until a concrete use case emerges
 
 ---
 
