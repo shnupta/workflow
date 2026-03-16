@@ -99,7 +99,25 @@
       </div>
       {{end}}
     </div>
-  </main>
+  
+      <!-- ── Sub-sessions (threads) ───────────────────────────────── -->
+      <div class="subsessions-panel" id="subsessions-panel">
+        <div class="subsessions-header">
+          <span class="subsessions-title">Threads</span>
+          <button class="btn btn-sm btn-ghost" id="new-thread-btn" onclick="toggleNewThread()">+ New thread</button>
+        </div>
+        <div id="new-thread-form" style="display:none" class="new-thread-form">
+          <textarea id="thread-prompt" placeholder="What should the thread focus on?" rows="3" class="form-textarea"></textarea>
+          <div class="new-thread-actions">
+            <input type="text" id="thread-name" placeholder="Thread name (optional)" class="form-input thread-name-input">
+            <button class="btn btn-sm btn-primary" onclick="createThread()">Start thread</button>
+            <button class="btn btn-sm btn-ghost" onclick="toggleNewThread()">Cancel</button>
+          </div>
+        </div>
+        <div id="threads-list" class="threads-list"><!-- populated by JS --></div>
+      </div>
+
+</main>
 
 <script>
   const taskID = "{{.Task.ID}}";
@@ -491,6 +509,56 @@
       el.textContent = originalTitle;
     }
   }
+
+  // ── Sub-sessions (threads) ──────────────────────────────────────────
+  async function loadThreads() {
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/subsessions`);
+      if (!r.ok) return;
+      const threads = await r.json();
+      const list = document.getElementById('threads-list');
+      if (!list) return;
+      if (!threads || threads.length === 0) {
+        list.innerHTML = '<p class="threads-empty">No threads yet</p>';
+        return;
+      }
+      list.innerHTML = threads.map(t => `
+        <a href="/tasks/${taskID}/sessions/${t.id}" class="thread-item status-${t.status}">
+          <span class="thread-dot"></span>
+          <span class="thread-name">${t.name}</span>
+          <span class="thread-meta">${t.message_count || 0} msg · ${t.status}</span>
+        </a>
+      `).join('');
+    } catch {}
+  }
+
+  function toggleNewThread() {
+    const form = document.getElementById('new-thread-form');
+    const showing = form.style.display !== 'none';
+    form.style.display = showing ? 'none' : 'block';
+    if (!showing) document.getElementById('thread-prompt').focus();
+  }
+
+  async function createThread() {
+    const prompt = document.getElementById('thread-prompt').value.trim();
+    const name   = document.getElementById('thread-name').value.trim();
+    if (!prompt) { alert('Please enter a prompt for the thread'); return; }
+    try {
+      const r = await fetch(`/tasks/${taskID}/sessions/${sessionID}/subsessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, name })
+      });
+      if (!r.ok) { alert('Failed to create thread'); return; }
+      const data = await r.json();
+      // Navigate to the new thread
+      window.location.href = `/tasks/${taskID}/sessions/${data.id}`;
+    } catch { alert('Error creating thread'); }
+  }
+
+  // Load threads on page load; back-link for child sessions
+  loadThreads();
+
 </script>
 </body>
 </html>

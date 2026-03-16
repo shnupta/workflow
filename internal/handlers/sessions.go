@@ -24,6 +24,8 @@ func (h *Handler) registerSessionRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/messages", h.sendMessage)
 	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/interrupt", h.interruptSession)
 	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/export.md", h.exportSessionMarkdown)
+	mux.HandleFunc("POST /tasks/{id}/sessions/{sid}/subsessions", h.createSubSession)
+	mux.HandleFunc("GET /tasks/{id}/sessions/{sid}/subsessions", h.listSubSessions)
 }
 
 // createSession starts a new agent session on a task.
@@ -473,4 +475,120 @@ func (h *Handler) exportSessionMarkdown(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	w.WriteHeader(200)
 	w.Write([]byte(sb.String()))
+}
+
+// createSubSession creates a child session under an existing parent session.
+// Body: {"prompt": "...", "name": "..."}
+func (h *Handler) createSubSession(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	parentID := r.PathValue("sid")
+
+	task, err := h.db.GetTask(taskID)
+	if err != nil {
+		http.Error(w, "task not found", 404)
+		return
+	}
+	// Verify parent session exists and belongs to this task
+	parent, err := h.db.GetSession(parentID)
+	if err != nil || parent.TaskID != taskID {
+		http.Error(w, "parent session not found", 404)
+		return
+	}
+
+	var body struct {
+		Prompt string `json:"prompt"`
+		Name   string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON", 400)
+		return
+	}
+	if body.Prompt == "" {
+		http.Error(w, "prompt required", 400)
+		return
+	}
+
+	name := body.Name
+	if name == "" {
+		name = sessionAutoName(task) + " (thread)"
+	}
+
+	sess := &models.Session{
+		TaskID:        taskID,
+		ParentID:      &parentID,
+		Name:          name,
+		Mode:          models.SessionModeInteractive,
+		Status:        models.SessionStatusPending,
+		AgentProvider: "claude_local",
+	}
+	if err := h.db.CreateSession(sess); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	runner := agent.NewRunner(h.cfg())
+	if err := runner.Validate(); err != nil {
+		_ = h.db.UpdateSessionStatus(sess.ID, models.SessionStatusError, err.Error())
+		http.Error(w, "Claude CLI not found.", 503)
+		return
+	}
+
+	contextBlock := buildTaskContext(task)
+	// Include a summary of the parent session for context
+	parentMessages, _ := h.db.ListMessages(parentID)
+	if len(parentMessages) > 0 {
+		contextBlock += "\n\n**Parent thread context (last 5 messages):**\n"
+		start := len(parentMessages) - 5
+		if start < 0 {
+			start = 0
+		}
+		for _, m := range parentMessages[start:] {
+			if m.Kind != models.MessageKindContext {
+				snippet := m.Content
+				if len(snippet) > 200 {
+					snippet = snippet[:200] + "..."
+				}
+				contextBlock += string(m.Role) + ": " + snippet + "\n"
+			}
+		}
+	}
+
+	fullPrompt := contextBlock + "\n---\n\n" + body.Prompt
+	_ = h.db.CreateMessage(&models.Message{
+		SessionID: sess.ID,
+		Role:      models.MessageRoleSystem,
+		Kind:      models.MessageKindContext,
+		Content:   contextBlock,
+		CreatedAt: time.Now(),
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	h.registry.register(sess.ID, cancel)
+	go func() {
+		defer h.registry.deregister(sess.ID)
+		agent.RunSession(ctx, h.db, sess, runner, fullPrompt, body.Prompt)
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"id": sess.ID})
+}
+
+// listSubSessions returns child sessions for a given parent session.
+func (h *Handler) listSubSessions(w http.ResponseWriter, r *http.Request) {
+	parentID := r.PathValue("sid")
+	subs, err := h.db.ListSubSessions(parentID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(subs)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

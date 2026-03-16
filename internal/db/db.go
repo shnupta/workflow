@@ -3298,3 +3298,44 @@ func (d *DB) ListRelatedTasks(taskID, workType string) ([]*models.Task, error) {
 	}
 	return tasks, rows.Err()
 }
+
+// ListSubSessions returns all non-archived child sessions for a given parent session.
+func (d *DB) ListSubSessions(parentID string) ([]*models.Session, error) {
+	rows, err := d.conn.Query(`
+		SELECT s.id, s.task_id, s.parent_id, s.name, s.mode, s.status, s.agent_provider,
+		       s.agent_session_id, s.error_message, s.archived, s.pinned, s.feedback,
+		       s.created_at, s.updated_at,
+		       COUNT(m.id) AS message_count
+		FROM sessions s
+		LEFT JOIN messages m ON m.session_id = s.id
+		WHERE s.parent_id=? AND s.archived=0
+		GROUP BY s.id
+		ORDER BY s.updated_at DESC`, parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*models.Session
+	for rows.Next() {
+		var s models.Session
+		var pid, agentSessionID sql.NullString
+		var createdAt, updatedAt string
+		if err := rows.Scan(
+			&s.ID, &s.TaskID, &pid, &s.Name, &s.Mode, &s.Status,
+			&s.AgentProvider, &agentSessionID, &s.ErrorMessage, &s.Archived, &s.Pinned, &s.Feedback,
+			&createdAt, &updatedAt, &s.MessageCount,
+		); err != nil {
+			return nil, err
+		}
+		if pid.Valid {
+			s.ParentID = &pid.String
+		}
+		if agentSessionID.Valid {
+			s.AgentSessionID = &agentSessionID.String
+		}
+		s.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		s.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		out = append(out, &s)
+	}
+	return out, rows.Err()
+}

@@ -5207,3 +5207,64 @@ input[type="date"] {
 .tag-urgency-cold  { background: rgba(14,165,233,0.10); color: #7dd3fc; border: 1px solid rgba(14,165,233,0.25); }
 .tag-urgency-warm  { background: rgba(234,179,8,0.12);  color: #fde047; border: 1px solid rgba(234,179,8,0.3);   }
 .tag-urgency-hot   { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);   }
+
+/* ── Sub-sessions / threads panel ──────────────────────────────────── */
+.subsessions-panel {
+  margin: 1.5rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.subsessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.subsessions-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.new-thread-form {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.new-thread-form .form-textarea {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+.new-thread-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.thread-name-input { flex: 1; }
+.threads-list { padding: 0.25rem 0; }
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 1rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.thread-item:hover { background: var(--surface2); }
+.thread-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.thread-item.status-running .thread-dot { background: #22c55e; animation: pulse 1.5s infinite; }
+.thread-item.status-idle .thread-dot    { background: #6366f1; }
+.thread-item.status-error .thread-dot  { background: #ef4444; }
+.thread-name { flex: 1; font-size: 0.875rem; }
+.thread-meta { font-size: 0.75rem; color: var(--muted); }
+.threads-empty { padding: 0.75rem 1rem; color: var(--muted); font-size: 0.85rem; }
