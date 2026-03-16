@@ -460,3 +460,30 @@ func TestJsonStr_Empty(t *testing.T) {
 		t.Errorf("expected empty string literal, got %q", got)
 	}
 }
+
+func TestSearchAll_EmptyQuery_Returns200(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+	resp := get(t, srv, "/search")
+	if resp.StatusCode != 200 {
+		t.Errorf("GET /search → %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestSearchAll_WithQuery_Returns200(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+	resp := get(t, srv, "/search?q=test")
+	if resp.StatusCode != 200 {
+		t.Errorf("GET /search?q=test → %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestSearchSessions_Routed(t *testing.T) {
+	srv, _, cleanup := openTestServer(t)
+	defer cleanup()
+	resp := get(t, srv, "/search/sessions")
+	if resp.StatusCode != 200 {
+		t.Errorf("GET /search/sessions → %d, want 200", resp.StatusCode)
+	}
+}
