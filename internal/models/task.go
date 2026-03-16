@@ -270,3 +270,48 @@ func (t *Task) EffortVsActual() string {
 		return fmt.Sprintf("%.1f× over (%s / %s est)", ratio, actualLabel, estLabel)
 	}
 }
+
+// UrgencyScore returns a normalised urgency value in [0, 100].
+// Formula: (priority_weight * age_days) / effort_hours, capped and scaled.
+// Higher score = needs attention sooner.
+func (t *Task) UrgencyScore() int {
+	// Priority weight
+	pw := map[string]float64{"p1": 4.0, "p2": 2.5, "p3": 1.5, "": 1.0}
+	p := pw[t.Priority]
+	if p == 0 {
+		p = 1.0
+	}
+
+	// Age in days since task entered the current tier
+	age := 0.0
+	if !t.CreatedAt.IsZero() {
+		age = time.Since(t.CreatedAt).Hours() / 24.0
+	}
+
+	// Effort hours (default 3h = Medium if not set)
+	effort := t.EffortHours()
+	if effort == 0 {
+		effort = 3.0
+	}
+
+	raw := (p * (age + 1)) / effort // +1 so brand-new tasks aren't 0
+	// Scale: 0–5 → 0–100, capped
+	score := (raw / 5.0) * 100.0
+	if score > 100 {
+		score = 100
+	}
+	return int(score)
+}
+
+// UrgencyLabel returns "hot", "warm", or "cold" based on UrgencyScore.
+func (t *Task) UrgencyLabel() string {
+	s := t.UrgencyScore()
+	switch {
+	case s >= 60:
+		return "hot"
+	case s >= 25:
+		return "warm"
+	default:
+		return "cold"
+	}
+}

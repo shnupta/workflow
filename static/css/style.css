@@ -5201,3 +5201,9 @@ input[type="date"] {
 .task-move-item:hover {
   background: var(--surface-2);
 }
+
+/* ── Urgency heat badges ────────────────────────────────────────────── */
+.tag-urgency       { font-size: 0.63rem; border-radius: 3px; padding: 1px 4px; font-weight: 600; }
+.tag-urgency-cold  { background: rgba(14,165,233,0.10); color: #7dd3fc; border: 1px solid rgba(14,165,233,0.25); }
+.tag-urgency-warm  { background: rgba(234,179,8,0.12);  color: #fde047; border: 1px solid rgba(234,179,8,0.3);   }
+.tag-urgency-hot   { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.3);   }

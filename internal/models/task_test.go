@@ -466,3 +466,77 @@ func TestEffortVsActual_ContainsActualAndEstLabel(t *testing.T) {
 		t.Errorf("expected '6h' in output, got %q", got)
 	}
 }
+
+func TestUrgencyScore(t *testing.T) {
+	// P1 task that's been around a while should be hot
+	p1 := Task{
+		Priority:  "p1",
+		Effort:    "xs", // small effort → higher urgency
+		CreatedAt: time.Now().Add(-10 * 24 * time.Hour), // 10 days old
+	}
+	score := p1.UrgencyScore()
+	if score < 25 {
+		t.Errorf("P1+xs+10d old should be at least warm, got score %d", score)
+	}
+
+	// Brand new P3 large task should be cold
+	p3 := Task{
+		Priority:  "p3",
+		Effort:    "xl",
+		CreatedAt: time.Now(),
+	}
+	s3 := p3.UrgencyScore()
+	if s3 > 50 {
+		t.Errorf("P3+xl+0d old should be cold, got score %d", s3)
+	}
+
+	// Score should be non-negative
+	if score < 0 || s3 < 0 {
+		t.Error("UrgencyScore must never be negative")
+	}
+}
+
+func TestUrgencyLabel(t *testing.T) {
+	hot := Task{
+		Priority:  "p1",
+		Effort:    "xs",
+		CreatedAt: time.Now().Add(-30 * 24 * time.Hour), // 30 days old
+	}
+	if hot.UrgencyLabel() != "hot" {
+		t.Errorf("expected hot, got %s (score %d)", hot.UrgencyLabel(), hot.UrgencyScore())
+	}
+
+	cold := Task{
+		Priority:  "p3",
+		Effort:    "xl",
+		CreatedAt: time.Now(),
+	}
+	if cold.UrgencyLabel() != "cold" {
+		t.Errorf("expected cold, got %s (score %d)", cold.UrgencyLabel(), cold.UrgencyScore())
+	}
+}
+
+func TestUrgencyScoreCapped(t *testing.T) {
+	ancient := Task{
+		Priority:  "p1",
+		Effort:    "xs",
+		CreatedAt: time.Now().Add(-365 * 24 * time.Hour), // 1 year old
+	}
+	s := ancient.UrgencyScore()
+	if s > 100 {
+		t.Errorf("UrgencyScore must be capped at 100, got %d", s)
+	}
+}
+
+func TestUrgencyScoreNoEffort(t *testing.T) {
+	t1 := Task{
+		Priority:  "p2",
+		Effort:    "", // no effort set
+		CreatedAt: time.Now().Add(-5 * 24 * time.Hour),
+	}
+	s := t1.UrgencyScore()
+	// Should not panic and should be ≥ 0
+	if s < 0 {
+		t.Errorf("UrgencyScore with no effort should be ≥ 0, got %d", s)
+	}
+}
